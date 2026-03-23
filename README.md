@@ -123,20 +123,6 @@ await downloader.init();
 
 请仅处理您有权访问的流地址，并遵守来源站点条款与适用法律。
 
-### 发布到 npm
-
-子包 `packages/core`、`packages/shared`、`packages/adapters` 可各自独立发布（`@hls-downloader/*`）；仓库根目录的 `**@logosw/hls-downloader**` 为聚合包，依赖上述已发布版本。发布前请在仓库根目录执行完整构建并登录 npm：
-
-```bash
-pnpm run build
-# 仅发布三个子包（按依赖顺序由 pnpm 处理）
-pnpm run publish:packages
-# 子包已发布后，再发布聚合包（将 workspace 依赖替换为具体版本）
-pnpm run publish:root
-```
-
-或一条命令（先子包、后根包）：`pnpm run publish:all`。应用目录 `packages/app/*` 为 `private`，不会被发布脚本选中。
-
 ### 许可证
 
 [MIT](LICENSE)。
@@ -271,18 +257,6 @@ Import `ParseHlsResult`, `HlsDownloaderFetchOption`, `HlsDownloaderDownloadOptio
 ### Compliance
 
 Only use streams you are allowed to access, and follow the source site’s terms and applicable law.
-
-### Publishing to npm
-
-Workspace packages under `packages/core`, `packages/shared`, and `packages/adapters` publish as `@hls-downloader/*`. The repo root package `**@logosw/hls-downloader**` is the umbrella and lists those as dependencies. Build from the repository root and log in to npm before publishing:
-
-```bash
-pnpm run build
-pnpm run publish:packages
-pnpm run publish:root
-```
-
-Or run `pnpm run publish:all` (subpackages first, then the umbrella). `packages/app/*` are `private` and are not published.
 
 ### License
 
