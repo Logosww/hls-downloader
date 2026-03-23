@@ -1,0 +1,34 @@
+{
+  "name": "@hls-downloader/core",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [],
+  "license": "MIT",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Logosww/hls-downloader.git",
+    "directory": "packages/core"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown -c tsdown.config.ts",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@hls-downloader/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.11"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,43 @@
+name: Publish to npm
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/adapters/src/rust -> target
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run build
+
+      - name: Publish packages
+        run: |
+          pnpm --filter "@hls-downloader/shared" publish --provenance --no-git-checks
+          pnpm --filter "@hls-downloader/core" publish --provenance --no-git-checks
+          pnpm --filter "@hls-downloader/adapters" publish --provenance --no-git-checks
+          pnpm publish --provenance --no-git-checks

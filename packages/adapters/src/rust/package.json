@@ -1,0 +1,16 @@
+{
+  "name": "@hls-downloader/rust-native",
+  "version": "0.1.0",
+  "private": true,
+  "napi": {
+    "binaryName": "native",
+    "triples": {}
+  },
+  "scripts": {
+    "build": "napi build --manifest-path crates/napi/Cargo.toml --release --platform --js native.js --dts native.d.ts --output-dir .",
+    "build:debug": "napi build --manifest-path crates/napi/Cargo.toml --platform --js native.js --dts native.d.ts --output-dir ."
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3"
+  }
+}

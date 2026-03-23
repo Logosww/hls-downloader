@@ -1,0 +1,79 @@
+{
+  "name": "hls-downloader",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [],
+  "license": "MIT",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Logosww/hls-downloader.git"
+  },
+  "workspaces": [
+    "packages/*",
+    "packages/app/*",
+    "docs"
+  ],
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./node_modules/@hls-downloader/core/dist/index.d.mts",
+      "import": "./node_modules/@hls-downloader/core/dist/index.mjs"
+    },
+    "./shared": {
+      "types": "./node_modules/@hls-downloader/shared/dist/index.d.mts",
+      "import": "./node_modules/@hls-downloader/shared/dist/index.mjs"
+    },
+    "./adapters": {
+      "types": "./node_modules/@hls-downloader/adapters/dist/index.d.mts",
+      "import": "./node_modules/@hls-downloader/adapters/dist/index.mjs"
+    },
+    "./adapters/wasm": {
+      "types": "./node_modules/@hls-downloader/adapters/dist/wasm.d.mts",
+      "import": "./node_modules/@hls-downloader/adapters/dist/wasm.mjs"
+    },
+    "./adapters/rust": {
+      "types": "./node_modules/@hls-downloader/adapters/dist/rust.d.mts",
+      "import": "./node_modules/@hls-downloader/adapters/dist/rust.mjs"
+    }
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:app-web": "turbo run dev --filter=@hls-downloader/app-web",
+    "dev:app-bun": "turbo run dev --filter=@hls-downloader/app-bun",
+    "build": "turbo run build --filter=!@hls-downloader/app-web --filter=!@hls-downloader/docs && tsdown -c tsdown.config.ts",
+    "build:all": "turbo run build --filter=!@hls-downloader/docs && tsdown -c tsdown.config.ts",
+    "build:root": "tsdown -c tsdown.config.ts",
+    "prepublishOnly": "pnpm run build",
+    "start:app-web": "turbo run start --filter=@hls-downloader/app-web",
+    "lint": "turbo run lint",
+    "docs:dev": "turbo run dev --filter=@hls-downloader/docs",
+    "docs:build": "turbo run build --filter=@hls-downloader/docs",
+    "docs:preview": "turbo run preview --filter=@hls-downloader/docs"
+  },
+  "dependencies": {
+    "@hls-downloader/adapters": "workspace:*",
+    "@hls-downloader/core": "workspace:*",
+    "@hls-downloader/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
+    "tsdown": "^0.21.4",
+    "turbo": "^2.8.20"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.32.1"
+}

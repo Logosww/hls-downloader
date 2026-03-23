@@ -1,0 +1,54 @@
+{
+  "name": "@hls-downloader/adapters",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [],
+  "license": "MIT",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Logosww/hls-downloader.git",
+    "directory": "packages/adapters"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.mts"
+    },
+    "./wasm": {
+      "import": "./dist/wasm.mjs",
+      "types": "./dist/wasm.d.mts"
+    },
+    "./rust": {
+      "import": "./dist/rust.mjs",
+      "types": "./dist/rust.d.mts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build:native": "cd src/rust && pnpm exec napi build --manifest-path crates/napi/Cargo.toml --release --platform --js native.js --dts native.d.ts --output-dir .",
+    "build:ts": "tsdown -c tsdown.config.ts",
+    "build:copy-native": "cp src/rust/native.js src/rust/native.d.ts dist/ && cp src/rust/native.*.node dist/ 2>/dev/null || true",
+    "build:barrel": "printf 'export * from \"@hls-downloader/shared\";\\nexport * from \"./wasm.mjs\";\\nexport * from \"./rust.mjs\";\\n' | tee dist/index.mjs > dist/index.d.mts",
+    "build": "pnpm run build:native && pnpm run build:ts && pnpm run build:copy-native && pnpm run build:barrel",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@hls-downloader/core": "workspace:*",
+    "@hls-downloader/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@ffmpeg/util": "^0.12.2",
+    "@types/m3u8-parser": "^7.2.6",
+    "m3u8-parser": "^7.2.0",
+    "p-limit": "^7.3.0"
+  }
+}

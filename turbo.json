@@ -1,0 +1,44 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "start": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": true
+    },
+    "@hls-downloader/docs#build": {
+      "dependsOn": [
+        "@hls-downloader/core#build",
+        "@hls-downloader/shared#build",
+        "@hls-downloader/adapters#build"
+      ],
+      "outputs": [".vitepress/dist/**"]
+    },
+    "@hls-downloader/docs#dev": {
+      "dependsOn": [
+        "@hls-downloader/core#build",
+        "@hls-downloader/shared#build",
+        "@hls-downloader/adapters#build"
+      ],
+      "cache": false,
+      "persistent": true
+    },
+    "@hls-downloader/docs#preview": {
+      "dependsOn": ["@hls-downloader/docs#build"],
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

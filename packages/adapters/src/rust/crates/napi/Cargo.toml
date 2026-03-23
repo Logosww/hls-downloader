@@ -1,0 +1,16 @@
+[package]
+name = "hls-napi"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+hls-core = { path = "../core" }
+napi = { version = "3", features = ["napi9", "async", "tokio_rt"] }
+napi-derive = "3"
+base64 = "0.22"
+
+[build-dependencies]
+napi-build = "2"

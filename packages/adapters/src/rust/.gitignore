@@ -1,0 +1,4 @@
+# napi-rs build output
+native.js
+native.d.ts
+*.node
