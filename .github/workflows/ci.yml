@@ -43,6 +43,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: turbo run lint --filter=!@hls-downloader/app-web
+      - run: pnpm exec turbo run lint --filter=!@hls-downloader/app-web
 
       - run: pnpm run build
