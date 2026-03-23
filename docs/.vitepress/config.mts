@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress';
 
 export default defineConfig({
+  base: process.env.VITEPRESS_BASE || '/',
   title: 'HLS Downloader',
   description:
     'A TypeScript library for parsing HLS (.m3u8) playlists and downloading/merging streams into playable files.',
