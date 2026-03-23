@@ -2,12 +2,12 @@
 
 ## Installation
 
-**Option A — umbrella package `hls-downloader` (recommended):**
+**Option A — umbrella package `@logosww/hls-downloader` (recommended):**
 
 One install exposes the same APIs as the scoped packages, with subpaths mirroring `@hls-downloader/*`:
 
 ```bash
-pnpm add hls-downloader
+pnpm add @logosww/hls-downloader
 ```
 
 **Option B — granular packages** (smaller install surface):
@@ -17,7 +17,7 @@ pnpm add @hls-downloader/core @hls-downloader/shared
 pnpm add @hls-downloader/adapters
 ```
 
-The `hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the wasm/rust implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
+The `@logosww/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the wasm/rust implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
 
 **Runtime**: Node.js **≥ 20**. The Rust adapter loads a **native `.node` addon** on Node — use a build that matches your platform and Node ABI. For browser bundles, only include the **WASM** subpath; do not bundle the Node native addon into frontend code.
 
@@ -70,7 +70,7 @@ const poster = await downloader.getPosterUrl({ url: '...' })
 You can also use the umbrella import:
 
 ```ts
-import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from 'hls-downloader'
+import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from '@logosww/hls-downloader'
 ```
 
 On Node.js, swap `WasmAdapter` for `RustAdapter`:
@@ -91,10 +91,10 @@ await downloader.init()
 
 | Package / Entry | Role |
 |-----------------|------|
-| `hls-downloader` | Umbrella: default export `HlsDownloader`, re-exports `shared`, WASM/Rust adapters |
-| `hls-downloader/core` | Same as `@hls-downloader/core` |
-| `hls-downloader/shared` | Same as `@hls-downloader/shared` |
-| `hls-downloader/adapters`, `.../wasm`, `.../rust` | Same as `@hls-downloader/adapters` and subpaths |
+| `@logosww/hls-downloader` | Umbrella: default export `HlsDownloader`, re-exports `shared`, WASM/Rust adapters |
+| `@logosww/hls-downloader/core` | Same as `@hls-downloader/core` |
+| `@logosww/hls-downloader/shared` | Same as `@hls-downloader/shared` |
+| `@logosww/hls-downloader/adapters`, `.../wasm`, `.../rust` | Same as `@hls-downloader/adapters` and subpaths |
 | `@hls-downloader/core` | `HlsDownloader` class |
 | `@hls-downloader/shared` | Types, `HlsDownloaderEvent`, `createAdapter`, etc. |
 | `@hls-downloader/adapters/wasm` | Browser adapter `WasmAdapter` |
