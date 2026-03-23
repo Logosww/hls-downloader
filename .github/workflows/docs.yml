@@ -44,10 +44,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: pnpm run build
+
       - name: Build docs
         env:
           VITEPRESS_BASE: /hls-downloader/
-        run: pnpm run docs:build
+        working-directory: docs
+        run: pnpm exec vitepress build
 
       - uses: actions/configure-pages@v5
 

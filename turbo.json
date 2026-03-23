@@ -24,6 +24,7 @@
         "@hls-downloader/shared#build",
         "@hls-downloader/adapters#build"
       ],
+      "env": ["VITEPRESS_BASE"],
       "outputs": [".vitepress/dist/**"]
     },
     "@hls-downloader/docs#dev": {
