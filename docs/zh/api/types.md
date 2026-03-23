@@ -1,6 +1,6 @@
 # 类型定义
 
-所有类型从 `@hls-downloader/shared`（或 `@logosww/hls-downloader/shared`）导出。
+所有类型从 `@hls-downloader/shared`（或 `@logosw/hls-downloader/shared`）导出。
 
 ## Segment
 

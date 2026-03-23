@@ -1,7 +1,7 @@
 # HLS Downloader
 
-[![npm version](https://img.shields.io/npm/v/@logosww/hls-downloader?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/@logosww/hls-downloader)
-[![npm downloads](https://img.shields.io/npm/dm/@logosww/hls-downloader?style=flat-square&logo=npm&label=downloads)](https://www.npmjs.com/package/@logosww/hls-downloader)
+[![npm version](https://img.shields.io/npm/v/@logosw/hls-downloader?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/@logosw/hls-downloader)
+[![npm downloads](https://img.shields.io/npm/dm/@logosw/hls-downloader?style=flat-square&logo=npm&label=downloads)](https://www.npmjs.com/package/@logosw/hls-downloader)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![GitHub](https://img.shields.io/badge/GitHub-Logosww%2Fhls--downloader-181717?style=flat-square&logo=github)](https://github.com/Logosww/hls-downloader)
@@ -15,10 +15,10 @@
 
 ### 安装
 
-**方式一：聚合包 `@logosww/hls-downloader`（推荐）** — 一次安装即可使用与 `@hls-downloader/`* 相同的 API，子路径与独立子包一一对应：
+**方式一：聚合包 `@logosw/hls-downloader`（推荐）** — 一次安装即可使用与 `@hls-downloader/`* 相同的 API，子路径与独立子包一一对应：
 
 ```bash
-pnpm add @logosww/hls-downloader
+pnpm add @logosw/hls-downloader
 ```
 
 **方式二：按需安装子包**（减小依赖面或只引用部分能力时）：
@@ -29,14 +29,14 @@ pnpm add @hls-downloader/core @hls-downloader/shared
 pnpm add @hls-downloader/adapters   # 再通过子路径导入 wasm 或 rust，见下文
 ```
 
-`@logosww/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时（聚合包或独立安装）均需能解析到 `**@hls-downloader/adapters**` 中的 wasm/rust 实现。
+`@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时（聚合包或独立安装）均需能解析到 `**@hls-downloader/adapters**` 中的 wasm/rust 实现。
 
 **运行环境**：Node.js **≥ 20**（与 `core` 及聚合包根 `engines` 一致）。Rust 适配器在 Node 下会加载 **原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **WASM** 子路径，不要把 Node 原生模块打进前端。
 
 ### 基本用法
 
 ```ts
-// 也可：import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from '@logosww/hls-downloader';
+// 也可：import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from '@logosw/hls-downloader';
 import { HlsDownloader } from '@hls-downloader/core';
 import { HlsDownloaderEvent } from '@hls-downloader/shared';
 import { WasmAdapter } from '@hls-downloader/adapters/wasm';
@@ -125,7 +125,7 @@ await downloader.init();
 
 ### 发布到 npm
 
-子包 `packages/core`、`packages/shared`、`packages/adapters` 可各自独立发布（`@hls-downloader/*`）；仓库根目录的 `**@logosww/hls-downloader**` 为聚合包，依赖上述已发布版本。发布前请在仓库根目录执行完整构建并登录 npm：
+子包 `packages/core`、`packages/shared`、`packages/adapters` 可各自独立发布（`@hls-downloader/*`）；仓库根目录的 `**@logosw/hls-downloader**` 为聚合包，依赖上述已发布版本。发布前请在仓库根目录执行完整构建并登录 npm：
 
 ```bash
 pnpm run build
@@ -150,10 +150,10 @@ A TypeScript library for parsing HLS (`.m3u8`) playlists and downloading/merging
 
 ### Installation
 
-**Option A — umbrella package `@logosww/hls-downloader` (recommended):** one install exposes the same APIs as the scoped packages, with subpaths mirroring `@hls-downloader/`*:
+**Option A — umbrella package `@logosw/hls-downloader` (recommended):** one install exposes the same APIs as the scoped packages, with subpaths mirroring `@hls-downloader/`*:
 
 ```bash
-pnpm add @logosww/hls-downloader
+pnpm add @logosw/hls-downloader
 ```
 
 **Option B — granular packages** (smaller install surface):
@@ -163,7 +163,7 @@ pnpm add @hls-downloader/core @hls-downloader/shared
 pnpm add @hls-downloader/adapters
 ```
 
-The `@logosww/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the wasm/rust implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
+The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the wasm/rust implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
 
 **Runtime**: Node.js **≥ 20** (matches `engines` on `core` and the root package). The Rust adapter loads a **native `.node` addon** on Node—use a build that matches your platform and Node ABI. For browser bundles, only include the **WASM** subpath; do not bundle the Node native addon into frontend code.
 
@@ -172,10 +172,10 @@ The `@logosww/hls-downloader` package depends on `@hls-downloader/core`, `@hls-d
 
 | Package / entry                                   | Role                                                                                                                   |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `@logosww/hls-downloader`                       | Umbrella: default export `HlsDownloader`, re-exports `shared`, WASM/Rust adapters (same as installing scoped packages) |
-| `@logosww/hls-downloader/core`                  | Same as `@hls-downloader/core`                                                                                         |
-| `@logosww/hls-downloader/shared`                | Same as `@hls-downloader/shared`                                                                                       |
-| `@logosww/hls-downloader/adapters`, `.../wasm`, `.../rust` | Same as `@hls-downloader/adapters` and subpaths                                                                        |
+| `@logosw/hls-downloader`                       | Umbrella: default export `HlsDownloader`, re-exports `shared`, WASM/Rust adapters (same as installing scoped packages) |
+| `@logosw/hls-downloader/core`                  | Same as `@hls-downloader/core`                                                                                         |
+| `@logosw/hls-downloader/shared`                | Same as `@hls-downloader/shared`                                                                                       |
+| `@logosw/hls-downloader/adapters`, `.../wasm`, `.../rust` | Same as `@hls-downloader/adapters` and subpaths                                                                        |
 | `@hls-downloader/core`                            | `HlsDownloader` class                                                                                                  |
 | `@hls-downloader/shared`                          | Types, `HlsDownloaderEvent`, `createAdapter`, etc. (pulled in via core/adapters)                                       |
 | `@hls-downloader/adapters/wasm`                   | Browser adapter `WasmAdapter`                                                                                          |
@@ -185,7 +185,7 @@ The `@logosww/hls-downloader` package depends on `@hls-downloader/core`, `@hls-d
 ### Basic usage
 
 ```ts
-// Or: import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from '@logosww/hls-downloader';
+// Or: import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from '@logosw/hls-downloader';
 import { HlsDownloader } from '@hls-downloader/core';
 import { HlsDownloaderEvent } from '@hls-downloader/shared';
 import { WasmAdapter } from '@hls-downloader/adapters/wasm';
@@ -274,7 +274,7 @@ Only use streams you are allowed to access, and follow the source site’s terms
 
 ### Publishing to npm
 
-Workspace packages under `packages/core`, `packages/shared`, and `packages/adapters` publish as `@hls-downloader/*`. The repo root package `**@logosww/hls-downloader**` is the umbrella and lists those as dependencies. Build from the repository root and log in to npm before publishing:
+Workspace packages under `packages/core`, `packages/shared`, and `packages/adapters` publish as `@hls-downloader/*`. The repo root package `**@logosw/hls-downloader**` is the umbrella and lists those as dependencies. Build from the repository root and log in to npm before publishing:
 
 ```bash
 pnpm run build

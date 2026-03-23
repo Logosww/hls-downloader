@@ -1,6 +1,6 @@
 # Types
 
-All types are exported from `@hls-downloader/shared` (or `@logosww/hls-downloader/shared`).
+All types are exported from `@hls-downloader/shared` (or `@logosw/hls-downloader/shared`).
 
 ## Segment
 

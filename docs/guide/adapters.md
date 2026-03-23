@@ -12,7 +12,7 @@ Both adapters expose the same API through the `HlsDownloader` class. The only di
 ```ts
 import { WasmAdapter } from '@hls-downloader/adapters/wasm'
 // or
-import { WasmAdapter } from '@logosww/hls-downloader/adapters/wasm'
+import { WasmAdapter } from '@logosw/hls-downloader/adapters/wasm'
 ```
 
 The WASM adapter uses FFmpeg compiled to WebAssembly. During `init()`, it loads the FFmpeg core, WASM binary, and optionally a worker for multi-threading.
@@ -46,7 +46,7 @@ const downloader = new HlsDownloader({
 ```ts
 import { RustAdapter } from '@hls-downloader/adapters/rust'
 // or
-import { RustAdapter } from '@logosww/hls-downloader/adapters/rust'
+import { RustAdapter } from '@logosw/hls-downloader/adapters/rust'
 ```
 
 The Rust adapter loads a native `.node` addon built with N-API. It provides better performance and path handling compared to the WASM adapter, making it the preferred choice for server-side usage.
