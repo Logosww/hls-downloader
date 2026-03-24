@@ -9,6 +9,9 @@ hero:
     - theme: brand
       text: Get Started
       link: /guide/getting-started
+    - theme: brand
+      text: Live Demo
+      link: https://hls-downloader-web-app.vercel.app
     - theme: alt
       text: API Reference
       link: /api/hls-downloader

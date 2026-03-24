@@ -9,6 +9,9 @@ hero:
     - theme: brand
       text: 快速开始
       link: /zh/guide/getting-started
+    - theme: brand
+      text: 在线演示
+      link: https://hls-downloader-web-app.vercel.app
     - theme: alt
       text: API 参考
       link: /zh/api/hls-downloader
