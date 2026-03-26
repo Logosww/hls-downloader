@@ -27,24 +27,20 @@
       "import": "./dist/index.js"
     },
     "./core": {
-      "types": "./node_modules/@hls-downloader/core/dist/index.d.mts",
-      "import": "./node_modules/@hls-downloader/core/dist/index.mjs"
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
     },
     "./shared": {
-      "types": "./node_modules/@hls-downloader/shared/dist/index.d.mts",
-      "import": "./node_modules/@hls-downloader/shared/dist/index.mjs"
-    },
-    "./adapters": {
-      "types": "./node_modules/@hls-downloader/adapters/dist/index.d.mts",
-      "import": "./node_modules/@hls-downloader/adapters/dist/index.mjs"
+      "types": "./dist/shared.d.ts",
+      "import": "./dist/shared.js"
     },
     "./adapters/wasm": {
-      "types": "./node_modules/@hls-downloader/adapters/dist/wasm.d.mts",
-      "import": "./node_modules/@hls-downloader/adapters/dist/wasm.mjs"
+      "types": "./dist/adapters-wasm.d.ts",
+      "import": "./dist/adapters-wasm.js"
     },
     "./adapters/rust": {
-      "types": "./node_modules/@hls-downloader/adapters/dist/rust.d.mts",
-      "import": "./node_modules/@hls-downloader/adapters/dist/rust.mjs"
+      "types": "./dist/adapters-rust.d.ts",
+      "import": "./dist/adapters-rust.js"
     }
   },
   "scripts": {
@@ -61,12 +57,18 @@
     "docs:build": "turbo run build --filter=@hls-downloader/docs",
     "docs:preview": "turbo run preview --filter=@hls-downloader/docs"
   },
-  "dependencies": {
-    "@hls-downloader/adapters": "workspace:*",
-    "@hls-downloader/core": "workspace:*",
-    "@hls-downloader/shared": "workspace:*"
+  "peerDependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15"
+  },
+  "peerDependenciesMeta": {
+    "@ffmpeg/ffmpeg": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@hls-downloader/adapters": "workspace:*",
+    "@hls-downloader/core": "workspace:*",
+    "@hls-downloader/shared": "workspace:*",
     "oxfmt": "^0.41.0",
     "oxlint": "^1.56.0",
     "tsdown": "^0.21.4",
