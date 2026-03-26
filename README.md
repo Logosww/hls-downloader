@@ -1,5 +1,7 @@
 # HLS Downloader
 
+随时随地下载你喜爱的任何 HLS 视频流。Downloads HLS stream whatever and wherever you want. 
+
 [![npm version](https://img.shields.io/npm/v/@logosw/hls-downloader?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/@logosw/hls-downloader)
 [![npm downloads](https://img.shields.io/npm/dm/@logosw/hls-downloader?style=flat-square&logo=npm&label=downloads)](https://www.npmjs.com/package/@logosw/hls-downloader)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
