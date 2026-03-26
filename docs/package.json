@@ -15,5 +15,6 @@
     "overrides": {
       "vite": "npm:rolldown-vite@latest"
     }
-  }
+  },
+  "version": "1.0.1"
 }
