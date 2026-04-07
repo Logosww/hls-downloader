@@ -5,7 +5,7 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
-## [1.0.2] - 未发布
+## [1.0.2] - 2026-04-08
 
 ### 新增
 
@@ -18,6 +18,6 @@
 - `WasmAdapter.init()` 不再因缺少 `SharedArrayBuffer` 支持导致多线程 FFmpeg 无法启动而挂起。
 - `WasmAdapter.getPosterUrl()` 正确获取视频封面。
 
-## [1.0.1] - 2025-03-23
+## [1.0.1] - 2026-03-26
 
 首次公开发布。
