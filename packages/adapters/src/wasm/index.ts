@@ -30,6 +30,7 @@ export type HlsDownloaderWasmAdapter = HlsDownloaderAdapterInternal<{
 
 let ffmpeg: FFmpeg | null = null;
 const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);
+const posterCache: Record<string, string | undefined> = Object.create(null);
 
 const init: HlsDownloaderWasmAdapter['init'] = async function (
   this: HlsDownloaderWasmAdapter,
@@ -237,6 +238,9 @@ const getPosterUrl: HlsDownloaderWasmAdapter['getPosterUrl'] = async function (
   this: HlsDownloaderWasmAdapter,
   option,
 ) {
+  if (posterCache[option.url]) {
+    return posterCache[option.url];
+  }
   const { segments } = await resolveToSegments(this, option);
   return await captureRandomPoster.call(this, segments, option.headers);
 };

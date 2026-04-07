@@ -25,6 +25,7 @@ export type HlsDownloaderRustAdapter = HlsDownloaderAdapterInternal<{
 
 let initialized = false;
 const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);
+const posterCache: Record<string, string | undefined> = Object.create(null);
 
 function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
   switch (napi.resultType) {
@@ -96,6 +97,9 @@ const getPosterUrl: HlsDownloaderRustAdapter['getPosterUrl'] = async function (
   this: HlsDownloaderRustAdapter,
   option,
 ) {
+  if (posterCache[option.url]) {
+    return posterCache[option.url];
+  }
   const { segments } = await resolveToSegments(this, option);
   const index = Math.min(Math.floor(segments.length * 0.25), segments.length - 1);
   const poster = await extractPoster(segments[index].uri, option.headers);
