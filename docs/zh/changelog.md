@@ -14,6 +14,7 @@
 ### 修复
 
 - `WasmAdapter.init()` 不再因缺少 `SharedArrayBuffer` 支持导致多线程 FFmpeg 无法启动而挂起。
+- `WasmAdapter.getPosterUrl()` 正确获取视频封面。
 
 ## [1.0.1] - 2025-03-23
 

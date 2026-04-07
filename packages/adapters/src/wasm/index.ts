@@ -153,29 +153,60 @@ async function resolveToSegments(
   throw new Error(result.message ?? 'Failed to parse HLS');
 }
 
-const captureRandomPoster = async (
+const captureRandomPoster = async function (
+  this: HlsDownloaderWasmAdapter,
   segments: Segment[],
   headers?: Record<string, string>,
-): Promise<string | undefined> => {
-  if (!ffmpeg?.loaded) return undefined;
+): Promise<string | undefined> {
+  if (!ffmpeg?.loaded) {
+    await init.call(this);
+  }
+  if (!ffmpeg) {
+    throw new Error('FFmpeg is not initialized');
+  }
 
   const index = Math.min(Math.floor(segments.length * 0.25), segments.length - 1);
   const inputFile = '__poster_input__.ts';
   const outputFile = '__poster_output__.jpg';
+  let workerBusy = false;
 
   try {
-    const response = await fetch(segments[index].uri, { headers, mode: 'cors' });
+    const response = await fetch(segments[index].uri, {
+      headers,
+      mode: 'cors',
+      signal: AbortSignal.timeout(15_000),
+    });
     if (!response.ok) return undefined;
 
     const buffer = await response.arrayBuffer();
     await ffmpeg.writeFile(inputFile, new Uint8Array(buffer));
 
-    const exitCode = await ffmpeg.exec([
-      '-i', inputFile,
-      '-vframes', '1',
-      '-q:v', '2',
-      outputFile,
-    ]);
+    workerBusy = true;
+    // -threads 1: avoids ffmpeg.reset() deadlock in multi-threaded WASM build
+    // (Emscripten pthread cleanup hangs when swscaler spawns parallel slice threads)
+    const exitCode = await ffmpeg.exec(
+      [
+        '-threads',
+        '1',
+        '-probesize',
+        '32768',
+        '-analyzeduration',
+        '500000',
+        '-i',
+        inputFile,
+        '-an',
+        '-vframes',
+        '1',
+        '-update',
+        '1',
+        '-q:v',
+        '2',
+        outputFile,
+      ],
+      60_000,
+      { signal: AbortSignal.timeout(60_000) },
+    );
+    workerBusy = false;
 
     if (exitCode !== 0) return undefined;
 
@@ -189,10 +220,16 @@ const captureRandomPoster = async (
     }
     return `data:image/jpeg;base64,${btoa(binary)}`;
   } catch {
+    if (workerBusy && ffmpeg) {
+      ffmpeg.terminate();
+      ffmpeg = null;
+    }
     return undefined;
   } finally {
-    await ffmpeg.deleteFile(inputFile).catch(() => {});
-    await ffmpeg.deleteFile(outputFile).catch(() => {});
+    if (ffmpeg?.loaded) {
+      ffmpeg.deleteFile(inputFile).catch(() => {});
+      ffmpeg.deleteFile(outputFile).catch(() => {});
+    }
   }
 };
 
@@ -201,7 +238,7 @@ const getPosterUrl: HlsDownloaderWasmAdapter['getPosterUrl'] = async function (
   option,
 ) {
   const { segments } = await resolveToSegments(this, option);
-  return await captureRandomPoster(segments, option.headers);
+  return await captureRandomPoster.call(this, segments, option.headers);
 };
 
 const download: HlsDownloaderWasmAdapter['download'] = async function (
@@ -224,6 +261,9 @@ const download: HlsDownloaderWasmAdapter['download'] = async function (
   this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
   await fakeDelay(1500);
 
+  if (!ffmpeg?.loaded) {
+    await init.call(this);
+  }
   if (!ffmpeg) {
     throw new Error('FFmpeg is not initialized');
   }
@@ -287,7 +327,7 @@ type DownloadFileOptions = {
 };
 
 const downloadAndWriteFile = async ({ url, fileIndex, headers }: DownloadFileOptions) => {
-  if (!ffmpeg) {
+  if (!ffmpeg?.loaded) {
     throw new Error('FFmpeg is not initialized');
   }
 

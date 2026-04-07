@@ -45,7 +45,7 @@ const formSchema = z.object({
 
 export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfirmModalProps) => {
   const { filename, previewSrc, playlist } = metadata || {};
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -61,10 +61,9 @@ export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfi
 
   useEffect(() => {
     if (open && previewSrc) {
+      setIsLoading(false);
+    } else {
       setIsLoading(true);
-      const image = new Image();
-      image.onload = () => setIsLoading(false);
-      image.src = previewSrc;
     }
   }, [open, previewSrc]);
 

@@ -88,9 +88,6 @@ export default function HomePage() {
         }
       },
     });
-    downloader.current.init().then(() => {
-      console.log(downloader.current?.isInit);
-    });
   }, []);
 
   const fetchPoster = async (url: string) => {

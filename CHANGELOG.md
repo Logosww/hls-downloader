@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - `WasmAdapter.init()` no longer hangs when multi-threaded FFmpeg cannot start due to missing `SharedArrayBuffer` support.
+- `WasmAdapter.getPosterUrl()` works correctly.
 
 ## [1.0.1] - 2025-03-23
 
