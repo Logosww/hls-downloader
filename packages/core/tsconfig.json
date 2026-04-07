@@ -3,7 +3,6 @@
     "rootDir": ".",
     "declaration": true,
     "emitDeclarationOnly": true,
-    "moduleResolution": "node",
     "module": "ESNext",
     "strict": true,
     "allowSyntheticDefaultImports": true,

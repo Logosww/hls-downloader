@@ -8,6 +8,8 @@ import { WasmAdapter } from '@hls-downloader/adapters/wasm'
 
 The WASM adapter uses `@ffmpeg/ffmpeg` under the hood. It compiles and runs FFmpeg in WebAssembly, making it suitable for browser environments.
 
+During initialization, the adapter automatically detects whether multi-threading is available by checking `crossOriginIsolated` and `SharedArrayBuffer`. If not available, it falls back to the single-threaded `@ffmpeg/core` build to prevent `init()` from hanging.
+
 ### Additional Options
 
 | Option | Type | Default | Description |

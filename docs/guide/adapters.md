@@ -17,6 +17,33 @@ import { WasmAdapter } from '@logosw/hls-downloader/adapters/wasm'
 
 The WASM adapter uses FFmpeg compiled to WebAssembly. During `init()`, it loads the FFmpeg core, WASM binary, and optionally a worker for multi-threading.
 
+### Cross-Origin Isolation & Auto Fallback
+
+The multi-threaded FFmpeg build (`@ffmpeg/core-mt`) relies on `SharedArrayBuffer`, which is only available when the page is **cross-origin isolated** — i.e. the server responds with both:
+
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: credentialless` (or `require-corp`)
+
+The WASM adapter **automatically detects** whether the runtime supports multi-threading by checking `globalThis.crossOriginIsolated` and `SharedArrayBuffer` availability. If the environment does not meet the requirements, it **silently falls back** to the single-threaded build (`@ffmpeg/core`), so `init()` will always succeed without hanging.
+
+You can also force single-threaded mode via the `disableMultiThread` option.
+
+::: tip
+If you're using Next.js or a similar framework, set the headers in your server config (e.g. `next.config.ts`) to enable cross-origin isolation and unlock multi-threaded performance:
+
+```ts
+async headers() {
+  return [{
+    source: '/:path*',
+    headers: [
+      { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+      { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+    ],
+  }]
+}
+```
+:::
+
 ### WASM-Specific Options
 
 Pass these as part of the `option` object in the `HlsDownloader` constructor:

@@ -17,6 +17,33 @@ import { WasmAdapter } from '@logosw/hls-downloader/adapters/wasm'
 
 WASM 适配器使用编译为 WebAssembly 的 FFmpeg。在 `init()` 时，它会加载 FFmpeg 核心、WASM 二进制文件，以及可选的 Worker（用于多线程）。
 
+### 跨域隔离与自动降级
+
+多线程 FFmpeg 构建（`@ffmpeg/core-mt`）依赖 `SharedArrayBuffer`，而 `SharedArrayBuffer` 仅在页面处于**跨域隔离**状态时可用——即服务器需同时返回以下两个响应头：
+
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: credentialless`（或 `require-corp`）
+
+WASM 适配器会在 `init()` 时**自动检测**运行时是否支持多线程（通过检查 `globalThis.crossOriginIsolated` 和 `SharedArrayBuffer` 的可用性）。如果环境不满足条件，将**静默降级**到单线程构建（`@ffmpeg/core`），确保 `init()` 始终能正常完成，不会挂起。
+
+你也可以通过 `disableMultiThread` 选项手动强制使用单线程模式。
+
+::: tip
+如果你使用 Next.js 或类似框架，可在服务端配置中（如 `next.config.ts`）设置响应头以启用跨域隔离，从而解锁多线程性能：
+
+```ts
+async headers() {
+  return [{
+    source: '/:path*',
+    headers: [
+      { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+      { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+    ],
+  }]
+}
+```
+:::
+
 ### WASM 专有选项
 
 在 `HlsDownloader` 构造函数的 `option` 对象中传入：

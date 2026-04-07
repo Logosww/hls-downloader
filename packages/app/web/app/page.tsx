@@ -16,6 +16,7 @@ import DownloadList, { IDownloadListItem } from '@/components/download-list';
 import { toast } from 'sonner';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { HeadersModal } from '@/components/headers-modal';
+import { useSearchParams } from 'next/navigation';
 
 export const dynamic = 'force-static';
 
@@ -29,6 +30,7 @@ const formSchema = z.object({
 
 export default function HomePage() {
   const platform = usePlatform();
+  const searchParams = useSearchParams();
   const [downloadList, setDownloadList] = useState<IDownloadListItem[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [headersModalOpen, setHeadersModalOpen] = useState(false);
@@ -36,7 +38,7 @@ export default function HomePage() {
   const [metadata, setMetadata] = useState<IConfirmModalProps['metadata']>();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { url: '' },
+    defaultValues: { url: searchParams.get('url') ?? '' },
   });
 
   const downloader = useRef<HlsDownloader<typeof WasmAdapter>>(void 0);
@@ -85,6 +87,9 @@ export default function HomePage() {
           updateDownloadTask(targetId, { status: 'failed' });
         }
       },
+    });
+    downloader.current.init().then(() => {
+      console.log(downloader.current?.isInit);
     });
   }, []);
 

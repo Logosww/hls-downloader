@@ -8,6 +8,8 @@ import { WasmAdapter } from '@hls-downloader/adapters/wasm'
 
 WASM 适配器底层使用 `@ffmpeg/ffmpeg`，在 WebAssembly 中编译并运行 FFmpeg，适用于浏览器环境。
 
+初始化时，适配器会自动检测 `crossOriginIsolated` 和 `SharedArrayBuffer` 是否可用来判断多线程支持。若不可用，则自动降级到单线程 `@ffmpeg/core` 构建，避免 `init()` 挂起。
+
 ### 额外选项
 
 | 选项 | 类型 | 默认值 | 描述 |

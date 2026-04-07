@@ -14,6 +14,7 @@ export default defineConfig({
         nav: [
           { text: 'Guide', link: '/guide/getting-started' },
           { text: 'API', link: '/api/hls-downloader' },
+          { text: 'Changelog', link: '/changelog' },
         ],
         sidebar: {
           '/guide/': [
@@ -47,6 +48,7 @@ export default defineConfig({
         nav: [
           { text: '指南', link: '/zh/guide/getting-started' },
           { text: 'API', link: '/zh/api/hls-downloader' },
+          { text: '更新日志', link: '/zh/changelog' },
         ],
         sidebar: {
           '/zh/guide/': [

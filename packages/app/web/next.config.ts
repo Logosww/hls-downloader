@@ -6,11 +6,11 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/',
+        source: '/:path*',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            value: 'credentialless',
           },
           {
             key: 'Cross-Origin-Opener-Policy',

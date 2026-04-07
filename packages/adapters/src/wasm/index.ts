@@ -38,16 +38,21 @@ const init: HlsDownloaderWasmAdapter['init'] = async function (
   this.onEvent?.(HlsDownloaderEvent.FFMPEG_LOADING);
   ffmpeg = ffmpeg ?? new FFmpeg();
   if (!ffmpeg.loaded) {
-    const FFmpegBase = option?.disableMultiThread ? __FFmpeg_Base__ : __FFmpeg_Mt_Base__;
+    const multiThreadAvailable =
+      typeof globalThis.crossOriginIsolated !== 'undefined' &&
+      globalThis.crossOriginIsolated &&
+      typeof SharedArrayBuffer !== 'undefined';
+    const useMultiThread = !option?.disableMultiThread && multiThreadAvailable;
+    const FFmpegBase = useMultiThread ? __FFmpeg_Mt_Base__ : __FFmpeg_Base__;
     const loadOption: FFMessageLoadConfig = {
       coreURL:
         option?.coreURL ?? (await toBlobURL(`${FFmpegBase}/ffmpeg-core.js`, 'text/javascript')),
       wasmURL:
         option?.wasmURL ?? (await toBlobURL(`${FFmpegBase}/ffmpeg-core.wasm`, 'application/wasm')),
-      workerURL: option?.disableMultiThread
-        ? void 0
-        : (option?.workerURL ??
-          (await toBlobURL(`${FFmpegBase}/ffmpeg-core.worker.js`, 'text/javascript'))),
+      workerURL: useMultiThread
+        ? (option?.workerURL ??
+          (await toBlobURL(`${FFmpegBase}/ffmpeg-core.worker.js`, 'text/javascript')))
+        : void 0,
     };
     await ffmpeg.load(loadOption);
     this.onEvent?.(HlsDownloaderEvent.FFMPEG_LOADED);
@@ -152,69 +157,42 @@ const captureRandomPoster = async (
   segments: Segment[],
   headers?: Record<string, string>,
 ): Promise<string | undefined> => {
+  if (!ffmpeg?.loaded) return undefined;
+
   const index = Math.min(Math.floor(segments.length * 0.25), segments.length - 1);
+  const inputFile = '__poster_input__.ts';
+  const outputFile = '__poster_output__.jpg';
+
   try {
     const response = await fetch(segments[index].uri, { headers, mode: 'cors' });
     if (!response.ok) return undefined;
 
     const buffer = await response.arrayBuffer();
-    const videoUrl = URL.createObjectURL(new Blob([buffer], { type: 'application/octet-stream' }));
+    await ffmpeg.writeFile(inputFile, new Uint8Array(buffer));
 
-    return await new Promise<string | undefined>((resolve) => {
-      let settled = false;
-      const finish = (value: string | undefined) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        video.pause();
-        URL.revokeObjectURL(videoUrl);
-        video.remove();
-        resolve(value);
-      };
+    const exitCode = await ffmpeg.exec([
+      '-i', inputFile,
+      '-vframes', '1',
+      '-q:v', '2',
+      outputFile,
+    ]);
 
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      video.preload = 'auto';
-      video.style.cssText =
-        'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
-      document.body.appendChild(video);
+    if (exitCode !== 0) return undefined;
 
-      const timer = setTimeout(() => finish(undefined), 8000);
+    const data = await ffmpeg.readFile(outputFile);
+    const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data);
+    if (bytes.length === 0) return undefined;
 
-      const captureFrame = () => {
-        if (settled || video.videoWidth === 0 || video.videoHeight === 0) return;
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            finish(undefined);
-            return;
-          }
-          ctx.drawImage(video, 0, 0);
-          finish(canvas.toDataURL('image/jpeg', 0.8));
-        } catch {
-          finish(undefined);
-        }
-      };
-
-      video.addEventListener('loadeddata', captureFrame, { once: true });
-      video.addEventListener(
-        'error',
-        (e) => {
-          console.error('Failed to capture poster with video element', e);
-          finish(undefined);
-        },
-        { once: true },
-      );
-
-      video.src = videoUrl;
-      video.play().catch(() => {});
-    });
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return `data:image/jpeg;base64,${btoa(binary)}`;
   } catch {
     return undefined;
+  } finally {
+    await ffmpeg.deleteFile(inputFile).catch(() => {});
+    await ffmpeg.deleteFile(outputFile).catch(() => {});
   }
 };
 
