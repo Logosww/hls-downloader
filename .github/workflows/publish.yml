@@ -228,10 +228,11 @@ jobs:
         run: |
           set -euo pipefail
           VER=$(node -p "require('./packages/adapters/package.json').version")
+          TAG=$(node scripts/npm-dist-tag.ts)
           PUBLISH_EXTRA=()
-          if [[ "$VER" == *-* ]]; then
-            PUBLISH_EXTRA=(--tag next)
-            echo "Prerelease version ${VER}: publishing with --tag next"
+          if [[ -n "$TAG" ]]; then
+            PUBLISH_EXTRA=(--tag "$TAG")
+            echo "Prerelease version ${VER}: publishing with --tag ${TAG}"
           fi
           for pkg in packages/adapters/src/rust/npm/*; do
             if ! ls "${pkg}"/*.node >/dev/null 2>&1; then
@@ -340,10 +341,11 @@ jobs:
         run: |
           set -euo pipefail
           VER=$(node -p "require('./packages/adapters/package.json').version")
+          TAG=$(node scripts/npm-dist-tag.ts)
           PUBLISH_EXTRA=()
-          if [[ "$VER" == *-* ]]; then
-            PUBLISH_EXTRA=(--tag next)
-            echo "Prerelease version ${VER}: publishing with --tag next"
+          if [[ -n "$TAG" ]]; then
+            PUBLISH_EXTRA=(--tag "$TAG")
+            echo "Prerelease version ${VER}: publishing with --tag ${TAG}"
           fi
           pnpm --filter "@hls-downloader/shared" publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
           pnpm --filter "@hls-downloader/core" publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
