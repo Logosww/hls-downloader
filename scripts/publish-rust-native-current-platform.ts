@@ -29,6 +29,7 @@ run(
   ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'pre-publish', '--cwd', 'src/rust', '--skip-optional-publish', '-t', 'npm'],
   root,
 );
+run('pnpm', ['run', 'adapters:inject-native-pkg-repository'], root);
 
 const platformDirs = readdirSync(npmDir)
   .map((name) => join(npmDir, name))

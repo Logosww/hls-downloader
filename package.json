@@ -7,7 +7,7 @@
   "author": "",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Logosww/hls-downloader.git"
+    "url": "https://github.com/Logosww/hls-downloader.git"
   },
   "workspaces": [
     "packages/*",
@@ -58,6 +58,7 @@
     "changelog:append": "node scripts/changelog.ts append",
     "changelog:sync": "node scripts/changelog.ts sync",
     "version:bump": "node scripts/bump-versions.ts",
+    "adapters:inject-native-pkg-repository": "node scripts/inject-rust-native-pkg-repository.ts",
     "adapters:inject-optional-deps": "node scripts/inject-adapters-optional-deps.ts",
     "adapters:verify-native-install": "node scripts/verify-adapters-native-install.ts",
     "adapters:publish-native:current-platform": "node scripts/publish-rust-native-current-platform.ts",

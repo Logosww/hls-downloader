@@ -222,6 +222,7 @@ jobs:
           pnpm --filter "@hls-downloader/adapters" exec napi create-npm-dirs --cwd src/rust
           pnpm --filter "@hls-downloader/adapters" exec napi artifacts --cwd src/rust --output-dir . --npm-dir npm
           pnpm --filter "@hls-downloader/adapters" exec napi pre-publish --cwd src/rust --skip-optional-publish -t npm
+          pnpm run adapters:inject-native-pkg-repository
 
       - name: Publish native platform packages
         run: |
