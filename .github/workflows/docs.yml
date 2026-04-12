@@ -61,7 +61,7 @@ jobs:
       - name: Install vcpkg host dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev
 
       # actions/cache does not expand ~ reliably; path must match Node os.homedir()/vcpkg.
       - name: Resolve VCPKG_ROOT (Linux)

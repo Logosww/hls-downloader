@@ -87,10 +87,43 @@ if (!existsSync(pkgConf)) {
   throw new Error(`pkgconf not found: ${pkgConf}`);
 }
 
+/** vcpkg 自带的 pkgconf 默认不扫系统目录；Cargo/openssl-sys 仍需系统里的 openssl.pc 等。 */
+function extraSystemPkgConfigPath(): string {
+  if (isWin) {
+    return '';
+  }
+  if (process.platform === 'darwin') {
+    const paths: string[] = [];
+    for (const formula of ['openssl@3', 'openssl']) {
+      try {
+        const prefix = execFileSync('brew', ['--prefix', formula], { encoding: 'utf8' }).trim();
+        const pc = join(prefix, 'lib', 'pkgconfig');
+        if (existsSync(pc)) {
+          paths.push(pc);
+        }
+      } catch {
+        /* brew 或 formula 不存在 */
+      }
+    }
+    return paths.join(':');
+  }
+  const candidates = [
+    '/usr/lib/pkgconfig',
+    '/usr/share/pkgconfig',
+    '/usr/lib/x86_64-linux-gnu/pkgconfig',
+    '/usr/lib/aarch64-linux-gnu/pkgconfig',
+    '/usr/lib/arm-linux-gnueabihf/pkgconfig',
+  ];
+  return candidates.filter((p) => existsSync(p)).join(':');
+}
+
+const extraPc = extraSystemPkgConfigPath();
+const pkgConfigPath = extraPc ? `${pcDir}:${extraPc}` : pcDir;
+
 const lines = [
   `VCPKG_ROOT=${root}`,
   `PKG_CONFIG=${pkgConf}`,
-  `PKG_CONFIG_PATH=${pcDir}`,
+  `PKG_CONFIG_PATH=${pkgConfigPath}`,
   'PKG_CONFIG_ALL_STATIC=1',
 ];
 

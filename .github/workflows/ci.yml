@@ -60,7 +60,7 @@ jobs:
       - name: Install vcpkg host dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev
 
       # actions/cache does not expand ~ reliably; path must match Node os.homedir()/vcpkg.
       - name: Resolve VCPKG_ROOT (Linux)
@@ -133,10 +133,10 @@ jobs:
             vcpkg_triplet: arm64-osx
             mode: build-and-load
             install_ffmpeg: true
-          - name: windows-x64-warmup
+          - name: windows-x64
             os: windows-latest
             vcpkg_triplet: x64-windows-static-md
-            mode: build-only
+            mode: build-and-load
             install_ffmpeg: true
           - name: windows-arm64
             os: windows-11-arm
@@ -182,11 +182,11 @@ jobs:
         if: runner.os == 'Linux' && matrix.install_ffmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev
 
       - name: Install vcpkg host dependencies (macOS)
         if: runner.os == 'macOS' && matrix.install_ffmpeg
-        run: brew install cmake ninja pkg-config
+        run: brew install cmake ninja pkg-config nasm openssl@3
 
       - name: Install LLVM (Windows, bindgen)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
