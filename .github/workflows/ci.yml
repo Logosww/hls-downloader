@@ -10,17 +10,49 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # 让 composite JS Actions 提前使用 Node 24（runner 仍默认 Node 20 至 2026-06-02 前）
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
+      FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
 
+      - name: Check Node.js (≥24.12.0)
+        id: node_check
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MIN="24.12.0"
+          if ! command -v node &>/dev/null; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          export VER="$(node -p "process.version.slice(1).split('-')[0].split('+')[0]")"
+          if node -e "const cur=process.env.VER.split('.').map(s=>parseInt(s,10));const min=process.env.MIN.split('.').map(Number);const ge=cur[0]>min[0]||(cur[0]===min[0]&&cur[1]>min[1])||(cur[0]===min[0]&&cur[1]===min[1]&&(cur[2]||0)>=(min[2]||0));process.exit(ge?0:1);"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VER" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.node_check.outputs.ok != 'true'
         with:
-          node-version: 24
+          node-version: '24'
+          cache: pnpm
+
+      - uses: actions/setup-node@v4
+        if: steps.node_check.outputs.ok == 'true'
+        with:
+          node-version: ${{ steps.node_check.outputs.version }}
           cache: pnpm
 
       - name: Install FFmpeg system dependencies
@@ -39,6 +71,9 @@ jobs:
           pkg-config --modversion libavcodec
           pkg-config --modversion libavformat
 
+      - name: Assert FFmpeg binding compatibility
+        run: node scripts/assert-ffmpeg-version.ts
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
@@ -54,6 +89,9 @@ jobs:
   native-matrix:
     name: Native verify (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    env:
+      FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
+      FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
     strategy:
       fail-fast: false
       matrix:
@@ -77,15 +115,40 @@ jobs:
           - name: windows-x64-warmup
             os: windows-latest
             mode: build-only
-            install_ffmpeg: false
+            install_ffmpeg: true
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
 
+      - name: Check Node.js (≥24.12.0)
+        id: node_check
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MIN="24.12.0"
+          if ! command -v node &>/dev/null; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          export VER="$(node -p "process.version.slice(1).split('-')[0].split('+')[0]")"
+          if node -e "const cur=process.env.VER.split('.').map(s=>parseInt(s,10));const min=process.env.MIN.split('.').map(Number);const ge=cur[0]>min[0]||(cur[0]===min[0]&&cur[1]>min[1])||(cur[0]===min[0]&&cur[1]===min[1]&&(cur[2]||0)>=(min[2]||0));process.exit(ge?0:1);"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VER" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.node_check.outputs.ok != 'true'
         with:
-          node-version: 24
+          node-version: '24'
+          cache: pnpm
+
+      - uses: actions/setup-node@v4
+        if: steps.node_check.outputs.ok == 'true'
+        with:
+          node-version: ${{ steps.node_check.outputs.version }}
           cache: pnpm
 
       - name: Install FFmpeg system dependencies (Linux)
@@ -105,12 +168,52 @@ jobs:
           brew update
           brew install pkg-config ffmpeg
 
+      - name: Cache vcpkg artifacts (Windows)
+        if: runner.os == 'Windows' && matrix.install_ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\vcpkg\archives
+            ~\vcpkg\installed
+            ~\vcpkg\downloads
+          key: ${{ runner.os }}-vcpkg-ffmpeg-x64-pkgconf-v1
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      - name: Install FFmpeg build dependencies (Windows)
+        if: runner.os == 'Windows' && matrix.install_ffmpeg
+        shell: pwsh
+        run: |
+          if (!(Test-Path "$env:USERPROFILE\vcpkg\.git")) {
+            git clone https://github.com/microsoft/vcpkg "$env:USERPROFILE\vcpkg"
+          } else {
+            git -C "$env:USERPROFILE\vcpkg" fetch --depth=1 origin master
+            git -C "$env:USERPROFILE\vcpkg" reset --hard origin/master
+          }
+          & "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          & "$env:USERPROFILE\vcpkg\vcpkg.exe" install ffmpeg:x64-windows pkgconf:x64-windows
+          "VCPKG_ROOT=$env:USERPROFILE\vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "FFMPEG_DIR=$env:USERPROFILE\vcpkg\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PKG_CONFIG=$env:USERPROFILE\vcpkg\installed\x64-windows\tools\pkgconf\pkgconf.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PKG_CONFIG_PATH=$env:USERPROFILE\vcpkg\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Log FFmpeg versions
-        if: matrix.install_ffmpeg
+        if: matrix.install_ffmpeg && runner.os != 'Windows'
         run: |
           ffmpeg -version | head -n 1
           pkg-config --modversion libavcodec
           pkg-config --modversion libavformat
+
+      - name: Log FFmpeg versions (Windows)
+        if: matrix.install_ffmpeg && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:PKG_CONFIG" --modversion libavcodec
+          & "$env:PKG_CONFIG" --modversion libavformat
+
+      - name: Assert FFmpeg binding compatibility
+        if: matrix.install_ffmpeg
+        run: node scripts/assert-ffmpeg-version.ts
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -121,4 +224,4 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Native smoke check
-        run: node scripts/ci-native-smoke.mjs ${{ matrix.mode }}
+        run: node scripts/ci-native-smoke.ts ${{ matrix.mode }}
