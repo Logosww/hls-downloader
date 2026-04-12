@@ -90,13 +90,27 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install cmake ninja pkg-config nasm openssl@3
 
-      - name: Install LLVM (Windows, bindgen)
+      - name: Enable MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      - name: Install LLVM (Windows, bindgen / ffmpeg-sys)
+        if: runner.os == 'Windows'
+        uses: KyleMayes/install-llvm-action@v2.0.7
+        with:
+          version: '19.1.7'
+          arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      - name: Set LIBCLANG_PATH (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install llvm -y --no-progress
-          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "PATH=C:\Program Files\LLVM\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+          if (-not $env:LLVM_PATH) { throw 'LLVM_PATH missing after install-llvm-action' }
+          $llvmBin = Join-Path $env:LLVM_PATH 'bin'
+          "LIBCLANG_PATH=$llvmBin" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PATH=$llvmBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Resolve VCPKG_ROOT (Unix)
         if: runner.os != 'Windows'
