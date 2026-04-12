@@ -86,34 +86,50 @@ jobs:
           brew update
           brew install pkg-config ffmpeg
 
-      - name: Cache vcpkg artifacts (Windows)
+      - name: Cache FFmpeg (Windows, BtbN extract)
         if: runner.os == 'Windows'
         uses: actions/cache@v4
         with:
-          path: |
-            ~\AppData\Local\vcpkg\archives
-            ~\vcpkg\installed
-            ~\vcpkg\downloads
-          key: ${{ runner.os }}-vcpkg-ffmpeg-x64-pkgconf-v1
-          restore-keys: |
-            ${{ runner.os }}-vcpkg-
+          path: C:\Users\runneradmin\ffmpeg-win-dev
+          key: ${{ runner.os }}-ffmpeg-btbn-n81-lgpl-shared-v1
 
-      - name: Install FFmpeg build dependencies (Windows)
+      - name: Setup FFmpeg + LLVM (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          if (!(Test-Path "$env:USERPROFILE\vcpkg\.git")) {
-            git clone https://github.com/microsoft/vcpkg "$env:USERPROFILE\vcpkg"
-          } else {
-            git -C "$env:USERPROFILE\vcpkg" fetch --depth=1 origin master
-            git -C "$env:USERPROFILE\vcpkg" reset --hard origin/master
+          $ErrorActionPreference = 'Stop'
+          choco install llvm pkgconfiglite -y --no-progress
+          $llvmBin = 'C:\Program Files\LLVM\bin'
+          $chocoBin = 'C:\ProgramData\chocolatey\bin'
+          if (-not (Test-Path (Join-Path $llvmBin 'clang.exe'))) { throw "clang.exe not found under $llvmBin" }
+          $pkgConfigExe = Join-Path $chocoBin 'pkg-config.exe'
+          if (-not (Test-Path $pkgConfigExe)) { throw "pkg-config.exe not found under $chocoBin" }
+
+          $destRoot = 'C:\Users\runneradmin\ffmpeg-win-dev'
+          New-Item -ItemType Directory -Force -Path $destRoot | Out-Null
+          $pcFile = Get-ChildItem -Path $destRoot -Recurse -Filter 'libavcodec.pc' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $pcFile) {
+            $url = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip'
+            $zip = Join-Path $env:TEMP 'ffmpeg-btbn-n81-lgpl.zip'
+            Write-Host 'Downloading FFmpeg (BtbN LGPL shared)…'
+            Invoke-WebRequest -Uri $url -OutFile $zip
+            Get-ChildItem $destRoot -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+            Expand-Archive -Path $zip -DestinationPath $destRoot -Force
+            Remove-Item $zip -Force
+            $pcFile = Get-ChildItem -Path $destRoot -Recurse -Filter 'libavcodec.pc' -File | Select-Object -First 1
+            if (-not $pcFile) { throw 'libavcodec.pc not found after BtbN extract' }
           }
-          & "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
-          & "$env:USERPROFILE\vcpkg\vcpkg.exe" install ffmpeg:x64-windows pkgconf:x64-windows
-          "VCPKG_ROOT=$env:USERPROFILE\vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "FFMPEG_DIR=$env:USERPROFILE\vcpkg\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "PKG_CONFIG=$env:USERPROFILE\vcpkg\installed\x64-windows\tools\pkgconf\pkgconf.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "PKG_CONFIG_PATH=$env:USERPROFILE\vcpkg\installed\x64-windows\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $ffmpegRoot = $pcFile.Directory.Parent.Parent.FullName
+          $ffExe = Join-Path $ffmpegRoot 'bin\ffmpeg.exe'
+          if (-not (Test-Path $ffExe)) { throw "ffmpeg.exe not found at $ffExe" }
+          $pcDir = Join-Path $ffmpegRoot 'lib\pkgconfig'
+          Write-Host "FFmpeg root: $ffmpegRoot"
+
+          "PKG_CONFIG=$pkgConfigExe" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PKG_CONFIG_PATH=$pcDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "FFMPEG_DIR=$ffmpegRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "LIBCLANG_PATH=$llvmBin" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PATH=$ffmpegRoot\bin;$llvmBin;$chocoBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Log FFmpeg versions
         if: runner.os != 'Windows'
