@@ -2,7 +2,7 @@
  * 一键同步提升根包与 workspace 核心包的版本号。
  *
  * Usage:
- *   pnpm run version:bump                              # 四个包均 patch +1
+ *   pnpm run version:bump                              # 根包、core、shared、adapters、rust-native 均 patch +1
  *   pnpm run version:bump -- --minor                   # minor +1
  *   pnpm run version:bump -- --major                   # major +1
  *   pnpm run version:bump -- --version 2.0.0-beta.1    # 指定版本字符串（不做格式校验）
@@ -10,10 +10,11 @@
  *   pnpm run version:bump -- --dry-run                 # 仅打印，不写文件
  *
  * 说明：`--version` 与 `--changeset` 互斥；精确版本仅支持直接改写 package.json。
- * `--changeset`：根包不在 pnpm workspaces glob 内，仅对 core/shared/adapters 生成 changeset，再对齐根目录 version；
+ * `--changeset`：根包与 `@hls-downloader/rust-native`（嵌套在 adapters 下）不在 Changesets workspace 内；仅对 core/shared/adapters
+ * 写 changeset，再对齐根目录与 rust-native 的 `version` 字段；
  * `updateInternalDependencies` 可能会一并抬高 app/docs 等依赖方版本，属预期行为。
  *
- * adapters 的 optionalDependencies（指向各平台 rust-native）仅在发布流水线里由 `adapters:inject-optional-deps` 写入，勿提交到 git，以免 frozen-lockfile 与「尚未发布的 native 版本」冲突。
+ * adapters 与 rust-native 的 optionalDependencies（各平台 native 包）仅在发布流水线里注入，本脚本只改 `version`，避免 CI 在包未发布时 `pnpm i` 与 lockfile 不一致。
  */
 
 import { execSync } from 'node:child_process';
@@ -24,15 +25,21 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
-/** 根包名不在 pnpm workspaces glob 内，Changesets 不会识别；--changeset 仅对下列三包写 changeset，再同步根版本。 */
+/** 参与统一升版的包；其中根包与 rust-native 不在 Changesets 识别的 workspace 成员内。 */
 const PACKAGES: { name: string; relPath: string }[] = [
   { name: '@logosw/hls-downloader', relPath: 'package.json' },
   { name: '@hls-downloader/core', relPath: 'packages/core/package.json' },
   { name: '@hls-downloader/shared', relPath: 'packages/shared/package.json' },
   { name: '@hls-downloader/adapters', relPath: 'packages/adapters/package.json' },
+  { name: '@hls-downloader/rust-native', relPath: 'packages/adapters/src/rust/package.json' },
 ];
 
-const CHANGESET_PACKAGES = PACKAGES.filter((p) => p.name !== '@logosw/hls-downloader');
+const RUST_NATIVE_REL = 'packages/adapters/src/rust/package.json';
+
+/** Changesets 仅覆盖 workspace 内的可发布子包（不含根包、不含嵌套的 rust-native）。 */
+const CHANGESET_PACKAGES = PACKAGES.filter(
+  (p) => p.name !== '@logosw/hls-downloader' && p.name !== '@hls-downloader/rust-native',
+);
 
 type Release = 'patch' | 'minor' | 'major';
 
@@ -51,7 +58,7 @@ Options:
   --patch            Patch 递增（默认）
   --minor            Minor 递增
   --major            Major 递增
-  --version, -v <str>    将四个包设为同一 version 字段（不校验 semver 格式）
+  --version, -v <str>    将上述包设为同一 version 字段（不校验 semver 格式）
   --changeset        通过 @changesets/cli 执行 semver 递增（不支持与 --version 同用）
   --dry-run          只打印结果，不写文件、不执行 changeset version
 `);
@@ -153,7 +160,7 @@ if (useChangeset) {
       `[dry-run] would add changeset (${release}) for: ${CHANGESET_PACKAGES.map((p) => p.name).join(', ')}`,
     );
     console.log('[dry-run] would run: pnpm exec changeset version');
-    console.log('[dry-run] would sync root package.json version to match workspace packages');
+    console.log('[dry-run] would sync root + rust-native to core version');
     process.exit(0);
   }
   const csPath = writeChangesetFile(release);
@@ -162,6 +169,8 @@ if (useChangeset) {
   const synced = readVersion('packages/core/package.json');
   writeVersion('package.json', synced, false);
   console.log(`Synced root @logosw/hls-downloader version to ${synced}`);
+  writeVersion(RUST_NATIVE_REL, synced, false);
+  console.log(`Synced @hls-downloader/rust-native to ${synced}`);
   process.exit(0);
 }
 
