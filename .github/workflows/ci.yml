@@ -105,7 +105,7 @@ jobs:
             mode: build-and-load
             install_ffmpeg: true
           - name: darwin-x64
-            os: macos-13
+            os: macos-15-intel
             mode: build-and-load
             install_ffmpeg: true
           - name: darwin-arm64
