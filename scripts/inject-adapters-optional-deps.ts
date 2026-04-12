@@ -25,6 +25,7 @@ pkg.optionalDependencies = {
   '@hls-downloader/rust-native-darwin-x64': version,
   '@hls-downloader/rust-native-linux-arm64-gnu': version,
   '@hls-downloader/rust-native-linux-x64-gnu': version,
+  '@hls-downloader/rust-native-win32-arm64-msvc': version,
   '@hls-downloader/rust-native-win32-x64-msvc': version,
 };
 

@@ -58,6 +58,7 @@
     "changelog:append": "node scripts/changelog.ts append",
     "changelog:sync": "node scripts/changelog.ts sync",
     "version:bump": "node scripts/bump-versions.ts",
+    "adapters:setup-vcpkg-ffmpeg": "node scripts/setup-vcpkg-ffmpeg.ts",
     "adapters:inject-native-pkg-repository": "node scripts/inject-rust-native-pkg-repository.ts",
     "adapters:inject-optional-deps": "node scripts/inject-adapters-optional-deps.ts",
     "adapters:verify-native-install": "node scripts/verify-adapters-native-install.ts",

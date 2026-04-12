@@ -11,11 +11,14 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  # microsoft/vcpkg：ports/ffmpeg 8.1；见 scripts/setup-vcpkg-ffmpeg.ts
+  VCPKG_TAG: '03b9ab95fd5ea1425427ccde11d13e92aa91bf51'
 
 jobs:
   build-adapters-native:
     name: Build adapters native (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
     env:
       FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
       FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
@@ -25,14 +28,22 @@ jobs:
         include:
           - name: linux-x64
             os: ubuntu-latest
+            vcpkg_triplet: x64-linux
           - name: linux-arm64
             os: ubuntu-24.04-arm
+            vcpkg_triplet: arm64-linux
           - name: darwin-x64
             os: macos-15-intel
+            vcpkg_triplet: x64-osx
           - name: darwin-arm64
             os: macos-14
+            vcpkg_triplet: arm64-osx
           - name: windows-x64
             os: windows-latest
+            vcpkg_triplet: x64-windows-static-md
+          - name: windows-arm64
+            os: windows-11-arm
+            vcpkg_triplet: arm64-windows-static-md
     steps:
       - uses: actions/checkout@v4
 
@@ -68,81 +79,80 @@ jobs:
           node-version: ${{ steps.node_check.outputs.version }}
           cache: pnpm
 
-      - name: Install FFmpeg system dependencies (Linux)
+      - name: Install vcpkg host dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config clang \
-            ffmpeg \
-            libavutil-dev libavcodec-dev libavformat-dev \
-            libavfilter-dev libavdevice-dev \
-            libswscale-dev libswresample-dev
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev
 
-      - name: Install FFmpeg system dependencies (macOS)
+      - name: Install vcpkg host dependencies (macOS)
         if: runner.os == 'macOS'
-        run: |
-          brew update
-          brew install pkg-config ffmpeg
+        run: brew install cmake ninja pkg-config
 
-      - name: Cache FFmpeg (Windows, BtbN extract)
+      - name: Install LLVM (Windows, bindgen)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install llvm -y --no-progress
+          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PATH=C:\Program Files\LLVM\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Resolve VCPKG_ROOT (Unix)
+        if: runner.os != 'Windows'
+        id: vcpkg_unix_root
+        shell: bash
+        run: |
+          R="${HOME}/vcpkg"
+          echo "root=$R" >> "$GITHUB_OUTPUT"
+          echo "VCPKG_ROOT=$R" >> "$GITHUB_ENV"
+
+      - name: Resolve VCPKG_ROOT (Windows)
+        if: runner.os == 'Windows'
+        id: vcpkg_win_root
+        shell: pwsh
+        run: |
+          $r = Join-Path $env:USERPROFILE 'vcpkg'
+          Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$r"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "root=$r"
+
+      - name: Cache vcpkg (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.vcpkg_unix_root.outputs.root }}
+          key: vcpkg-ff81-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          restore-keys: |
+            vcpkg-ff81-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
+
+      - name: Cache vcpkg (Windows)
         if: runner.os == 'Windows'
         uses: actions/cache@v4
         with:
-          path: C:\Users\runneradmin\ffmpeg-win-dev
-          key: ${{ runner.os }}-ffmpeg-btbn-n81-lgpl-shared-v1
+          path: ${{ steps.vcpkg_win_root.outputs.root }}
+          key: vcpkg-ff81-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          restore-keys: |
+            vcpkg-ff81-Windows-${{ matrix.vcpkg_triplet }}-
 
-      - name: Setup FFmpeg + LLVM (Windows)
+      - name: Setup vcpkg + static FFmpeg (Unix)
+        if: runner.os != 'Windows'
+        run: node scripts/setup-vcpkg-ffmpeg.ts ${{ matrix.vcpkg_triplet }}
+
+      - name: Setup vcpkg + static FFmpeg (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          choco install llvm pkgconfiglite -y --no-progress
-          $llvmBin = 'C:\Program Files\LLVM\bin'
-          $chocoBin = 'C:\ProgramData\chocolatey\bin'
-          if (-not (Test-Path (Join-Path $llvmBin 'clang.exe'))) { throw "clang.exe not found under $llvmBin" }
-          $pkgConfigExe = Join-Path $chocoBin 'pkg-config.exe'
-          if (-not (Test-Path $pkgConfigExe)) { throw "pkg-config.exe not found under $chocoBin" }
+        run: node scripts/setup-vcpkg-ffmpeg.ts ${{ matrix.vcpkg_triplet }}
 
-          $destRoot = 'C:\Users\runneradmin\ffmpeg-win-dev'
-          New-Item -ItemType Directory -Force -Path $destRoot | Out-Null
-          $pcFile = Get-ChildItem -Path $destRoot -Recurse -Filter 'libavcodec.pc' -File -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $pcFile) {
-            $url = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip'
-            $zip = Join-Path $env:TEMP 'ffmpeg-btbn-n81-lgpl.zip'
-            Write-Host 'Downloading FFmpeg (BtbN LGPL shared)…'
-            Invoke-WebRequest -Uri $url -OutFile $zip
-            Get-ChildItem $destRoot -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
-            Expand-Archive -Path $zip -DestinationPath $destRoot -Force
-            Remove-Item $zip -Force
-            $pcFile = Get-ChildItem -Path $destRoot -Recurse -Filter 'libavcodec.pc' -File | Select-Object -First 1
-            if (-not $pcFile) { throw 'libavcodec.pc not found after BtbN extract' }
-          }
-          $ffmpegRoot = $pcFile.Directory.Parent.Parent.FullName
-          $ffExe = Join-Path $ffmpegRoot 'bin\ffmpeg.exe'
-          if (-not (Test-Path $ffExe)) { throw "ffmpeg.exe not found at $ffExe" }
-          $pcDir = Join-Path $ffmpegRoot 'lib\pkgconfig'
-          Write-Host "FFmpeg root: $ffmpegRoot"
-
-          "PKG_CONFIG=$pkgConfigExe" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "PKG_CONFIG_PATH=$pcDir" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "FFMPEG_DIR=$ffmpegRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "LIBCLANG_PATH=$llvmBin" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "PATH=$ffmpegRoot\bin;$llvmBin;$chocoBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Log FFmpeg versions
+      - name: Log FFmpeg (pkg-config, Unix)
         if: runner.os != 'Windows'
         run: |
-          ffmpeg -version | head -n 1
-          pkg-config --modversion libavcodec
-          pkg-config --modversion libavformat
+          "$PKG_CONFIG" --modversion libavcodec
+          "$PKG_CONFIG" --modversion libavformat
 
-      - name: Log FFmpeg versions (Windows)
+      - name: Log FFmpeg (pkg-config, Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          & "$env:PKG_CONFIG" --modversion libavcodec
-          & "$env:PKG_CONFIG" --modversion libavformat
+          & $env:PKG_CONFIG --modversion libavcodec
+          & $env:PKG_CONFIG --modversion libavformat
 
       - name: Assert FFmpeg binding compatibility
         run: node scripts/assert-ffmpeg-version.ts
@@ -246,6 +256,7 @@ jobs:
   publish:
     needs: publish-rust-native
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     env:
       FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
       FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
@@ -297,21 +308,35 @@ jobs:
           echo "pnpm $(pnpm -v)"
           echo "npm path: $(command -v npm)"
 
-      - name: Install FFmpeg system dependencies
+      - name: Install vcpkg host dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config clang \
-            ffmpeg \
-            libavutil-dev libavcodec-dev libavformat-dev \
-            libavfilter-dev libavdevice-dev \
-            libswscale-dev libswresample-dev
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev
 
-      - name: Log FFmpeg versions
+      # actions/cache does not expand ~ reliably; path must match Node os.homedir()/vcpkg.
+      - name: Resolve VCPKG_ROOT (Linux)
+        id: vcpkg_root
+        shell: bash
         run: |
-          ffmpeg -version | head -n 1
-          pkg-config --modversion libavcodec
-          pkg-config --modversion libavformat
+          R="${HOME}/vcpkg"
+          echo "root=$R" >> "$GITHUB_OUTPUT"
+          echo "VCPKG_ROOT=$R" >> "$GITHUB_ENV"
+
+      - name: Cache vcpkg (Linux)
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.vcpkg_root.outputs.root }}
+          key: vcpkg-ff81-Linux-x64-linux-${{ env.VCPKG_TAG }}
+          restore-keys: |
+            vcpkg-ff81-Linux-x64-linux-
+
+      - name: Setup vcpkg + static FFmpeg (Linux x64)
+        run: node scripts/setup-vcpkg-ffmpeg.ts x64-linux
+
+      - name: Log FFmpeg (pkg-config)
+        run: |
+          "$PKG_CONFIG" --modversion libavcodec
+          "$PKG_CONFIG" --modversion libavformat
 
       - name: Assert FFmpeg binding compatibility
         run: node scripts/assert-ffmpeg-version.ts

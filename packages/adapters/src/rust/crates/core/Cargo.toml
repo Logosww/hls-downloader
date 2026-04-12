@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ffmpeg-next = "8.1.0"
+# static：链接静态 FFmpeg，发布的 .node 不再依赖用户机上的 libavcodec 等动态库
+ffmpeg-next = { version = "8.1.0", features = ["static"] }
 reqwest = { version = "0.12", features = ["rustls-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs"] }
 m3u8-rs = "6"

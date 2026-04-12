@@ -11,6 +11,8 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  # 与根 CI 相同：vcpkg 固定到含 FFmpeg 8.1 的 commit
+  VCPKG_TAG: '03b9ab95fd5ea1425427ccde11d13e92aa91bf51'
 
 permissions:
   contents: read
@@ -20,6 +22,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -55,14 +58,30 @@ jobs:
           node-version: ${{ steps.node_check.outputs.version }}
           cache: pnpm
 
-      - name: Install FFmpeg system dependencies
+      - name: Install vcpkg host dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config clang \
-            libavutil-dev libavcodec-dev libavformat-dev \
-            libavfilter-dev libavdevice-dev \
-            libswscale-dev libswresample-dev
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev
+
+      # actions/cache does not expand ~ reliably; path must match Node os.homedir()/vcpkg.
+      - name: Resolve VCPKG_ROOT (Linux)
+        id: vcpkg_root
+        shell: bash
+        run: |
+          R="${HOME}/vcpkg"
+          echo "root=$R" >> "$GITHUB_OUTPUT"
+          echo "VCPKG_ROOT=$R" >> "$GITHUB_ENV"
+
+      - name: Cache vcpkg (Linux)
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.vcpkg_root.outputs.root }}
+          key: vcpkg-ff81-docs-Linux-x64-linux-${{ env.VCPKG_TAG }}
+          restore-keys: |
+            vcpkg-ff81-docs-Linux-x64-linux-
+
+      - name: Setup vcpkg + static FFmpeg (Linux x64)
+        run: node scripts/setup-vcpkg-ffmpeg.ts x64-linux
 
       - uses: dtolnay/rust-toolchain@stable
 
