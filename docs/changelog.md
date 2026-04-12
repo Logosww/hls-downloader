@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **RustAdapter**: Use seperated optional native packages tu reduce package bundle size.
+- **WasmAdapter**: Support `useESM` option to load ffmpeg.wasm for vite user.
 
 ## [1.0.2] - 2026-04-08
 

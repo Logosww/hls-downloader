@@ -44,6 +44,10 @@ async headers() {
 ```
 :::
 
+### Vite and ESM FFmpeg assets
+
+Vite (and similar setups with `import.meta.env`) work more reliably with the **ESM** FFmpeg build on the CDN. The adapter **auto-detects** that case and defaults to ESM paths. If you need to force one mode, set `useESM: true` or `useESM: false` in `option` — **explicit values always win** over the default detection.
+
 ### WASM-Specific Options
 
 Pass these as part of the `option` object in the `HlsDownloader` constructor:
@@ -53,6 +57,7 @@ Pass these as part of the `option` object in the `HlsDownloader` constructor:
 | `coreURL` | `string` | Custom FFmpeg core JS URL (defaults to CDN) |
 | `wasmURL` | `string` | Custom FFmpeg WASM binary URL |
 | `workerURL` | `string` | Custom FFmpeg worker URL |
+| `useESM` | `boolean` | Use ESM vs UMD CDN paths; omit for Vite auto-detection |
 | `disableMultiThread` | `boolean` | Use single-thread FFmpeg build (no worker) |
 
 ### Example

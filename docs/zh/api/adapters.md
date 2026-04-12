@@ -10,6 +10,8 @@ WASM 适配器底层使用 `@ffmpeg/ffmpeg`，在 WebAssembly 中编译并运行
 
 初始化时，适配器会自动检测 `crossOriginIsolated` 和 `SharedArrayBuffer` 是否可用来判断多线程支持。若不可用，则自动降级到单线程 `@ffmpeg/core` 构建，避免 `init()` 挂起。
 
+加载 FFmpeg 核心资源时，会在 CDN 上的 **ESM** 与 **UMD** 路径之间选择。**未配置时**会通过 `import.meta.env` 识别 Vite 环境并默认走 ESM；也可通过 `useESM: true | false` 显式指定。
+
 ### 额外选项
 
 | 选项 | 类型 | 默认值 | 描述 |
@@ -17,6 +19,7 @@ WASM 适配器底层使用 `@ffmpeg/ffmpeg`，在 WebAssembly 中编译并运行
 | `coreURL` | `string` | CDN 地址 | FFmpeg 核心 JavaScript URL |
 | `wasmURL` | `string` | CDN 地址 | FFmpeg WASM 二进制 URL |
 | `workerURL` | `string` | CDN 地址 | FFmpeg Worker URL |
+| `useESM` | `boolean` | 自动 | 使用 ESM（`true`）或 UMD（`false`）资源。省略时：检测到 Vite（`import.meta.env`）则用 ESM，否则 UMD。 |
 | `disableMultiThread` | `boolean` | `false` | 禁用多线程（不加载 Worker） |
 
 ## RustAdapter

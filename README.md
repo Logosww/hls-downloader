@@ -115,6 +115,7 @@ await downloader.init();
 在类型 `HlsDownloaderWasmAdapter` 上，常见项包括：
 
 - `coreURL` / `wasmURL` / `workerURL`：自定义 FFmpeg 核心资源地址（默认构建时指向 CDN 上的 UMD 资源）
+- `useESM`：是否从 CDN 的 `esm/` 路径加载 FFmpeg（与 Vite 等打包器的模块解析更匹配）。**未设置时**库会通过 `import.meta.env` 检测 Vite 环境并默认启用 ESM；传入 `true` / `false` 可显式覆盖该默认行为。
 - `disableMultiThread`：为 `true` 时使用单线程 FFmpeg 变体（不加载 worker）
 
 ### 类型与扩展
@@ -250,6 +251,7 @@ Includes (not limited to): `FFMPEG_LOADING` / `FFMPEG_LOADED`, `STARTING_DOWNLOA
 On `HlsDownloaderWasmAdapter`, common fields include:
 
 - `coreURL` / `wasmURL` / `workerURL`: override FFmpeg asset URLs (default builds point at UMD assets on a CDN)
+- `useESM`: load FFmpeg from the CDN `esm/` paths (better fit for Vite-style bundlers). **When omitted**, the library detects a Vite environment via `import.meta.env` and defaults to ESM; set `true` or `false` to override explicitly.
 - `disableMultiThread`: if `true`, use the single-thread FFmpeg build (no worker)
 
 ### Types and extensions
