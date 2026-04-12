@@ -9,14 +9,29 @@ if (!['build-only', 'build-and-load'].includes(mode)) {
   process.exit(1);
 }
 
-function pnpmBin(): string {
-  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-}
-
 function run(command: string, args: string[], cwd = process.cwd()): void {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+  const isWin = process.platform === 'win32';
+  // Windows：未加 shell 时 spawn 无法可靠执行 PATH 里的 .cmd/.bat，易 ENOENT 且无输出。
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: isWin,
+    windowsHide: isWin,
+  });
+  if (result.error) {
+    console.error(`[ci-native-smoke] failed to spawn ${command}: ${result.error.message}`);
+    process.exit(1);
+  }
+  if (result.signal) {
+    console.error(`[ci-native-smoke] ${command} killed by signal ${result.signal}`);
+    process.exit(1);
+  }
+  if (result.status !== 0 && result.status !== null) {
+    process.exit(result.status);
+  }
+  if (result.status === null) {
+    console.error(`[ci-native-smoke] ${command} exited with unknown status (null)`);
+    process.exit(1);
   }
 }
 
@@ -45,7 +60,7 @@ function findNativeNodeFiles(dir: string, base: string): string[] {
 const root = process.cwd();
 const rustDir = resolve(root, 'packages/adapters/src/rust');
 
-run(pnpmBin(), ['--filter', '@hls-downloader/adapters', 'run', 'build:native'], root);
+run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:native'], root);
 
 const nativeNodes = findNativeNodeFiles(rustDir, rustDir);
 if (nativeNodes.length === 0) {
