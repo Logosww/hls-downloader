@@ -5,7 +5,7 @@
  *   pnpm run version:bump                              # 四个包均 patch +1
  *   pnpm run version:bump -- --minor                   # minor +1
  *   pnpm run version:bump -- --major                   # major +1
- *   pnpm run version:bump -- --version 2.0.0           # 指定精确版本（四个包一致）
+ *   pnpm run version:bump -- --version 2.0.0-beta.1    # 指定版本字符串（不做格式校验）
  *   pnpm run version:bump -- --changeset               # 通过 Changesets 执行 semver（patch/minor/major）
  *   pnpm run version:bump -- --dry-run                 # 仅打印，不写文件
  *
@@ -49,7 +49,7 @@ Options:
   --patch            Patch 递增（默认）
   --minor            Minor 递增
   --major            Major 递增
-  --version, -v <x.y.z>  将四个包设为同一精确版本
+  --version, -v <str>    将四个包设为同一 version 字段（不校验 semver 格式）
   --changeset        通过 @changesets/cli 执行 semver 递增（不支持与 --version 同用）
   --dry-run          只打印结果，不写文件、不执行 changeset version
 `);
@@ -61,9 +61,14 @@ Options:
     else if (a === '--changeset') useChangeset = true;
     else if (a === '--dry-run') dryRun = true;
     else if (a === '--version' || a === '-v') {
-      explicitVersion = argv[++i];
-      if (!explicitVersion) {
+      const raw = argv[++i];
+      if (!raw) {
         console.error('Missing value for --version');
+        process.exit(1);
+      }
+      explicitVersion = raw.trim();
+      if (!explicitVersion) {
+        console.error('Empty value for --version');
         process.exit(1);
       }
     }
@@ -149,15 +154,6 @@ const { release, explicitVersion, useChangeset, dryRun } = parseArgs(argv);
 if (explicitVersion && useChangeset) {
   console.error('Cannot use --version together with --changeset. Use direct bump for exact versions.');
   process.exit(1);
-}
-
-if (explicitVersion) {
-  try {
-    parseSemver(explicitVersion);
-  } catch (e) {
-    console.error((e as Error).message);
-    process.exit(1);
-  }
 }
 
 if (useChangeset) {

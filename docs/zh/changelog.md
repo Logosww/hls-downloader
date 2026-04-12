@@ -5,6 +5,12 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [1.1.0] - Unreleased
+
+### 新增
+
+- **RustAdapter**: 使用独立分发的平台二进制包以减少包体积。
+
 ## [1.0.2] - 2026-04-08
 
 ### 新增
