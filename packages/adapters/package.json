@@ -53,12 +53,5 @@
     "@types/m3u8-parser": "^7.2.6",
     "m3u8-parser": "^7.2.0",
     "p-limit": "^7.3.0"
-  },
-  "optionalDependencies": {
-    "@hls-downloader/rust-native-darwin-arm64": "1.1.0-beta.1",
-    "@hls-downloader/rust-native-darwin-x64": "1.1.0-beta.1",
-    "@hls-downloader/rust-native-linux-arm64-gnu": "1.1.0-beta.1",
-    "@hls-downloader/rust-native-linux-x64-gnu": "1.1.0-beta.1",
-    "@hls-downloader/rust-native-win32-x64-msvc": "1.1.0-beta.1"
   }
 }

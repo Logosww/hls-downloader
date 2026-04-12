@@ -12,6 +12,8 @@
  * 说明：`--version` 与 `--changeset` 互斥；精确版本仅支持直接改写 package.json。
  * `--changeset`：根包不在 pnpm workspaces glob 内，仅对 core/shared/adapters 生成 changeset，再对齐根目录 version；
  * `updateInternalDependencies` 可能会一并抬高 app/docs 等依赖方版本，属预期行为。
+ *
+ * adapters 的 optionalDependencies（指向各平台 rust-native）仅在发布流水线里由 `adapters:inject-optional-deps` 写入，勿提交到 git，以免 frozen-lockfile 与「尚未发布的 native 版本」冲突。
  */
 
 import { execSync } from 'node:child_process';
@@ -113,17 +115,6 @@ function writeVersion(relPath: string, version: string, dryRun: boolean) {
   console.log(`Updated ${relPath}: ${prev} → ${version}`);
 }
 
-function injectAdaptersOptionalDeps(dryRun: boolean) {
-  if (dryRun) {
-    console.log('[dry-run] skip: adapters:inject-optional-deps');
-    return;
-  }
-  execSync('node scripts/inject-adapters-optional-deps.ts', {
-    cwd: ROOT,
-    stdio: 'inherit',
-  });
-}
-
 function runChangesetVersion(dryRun: boolean) {
   if (dryRun) {
     console.log('[dry-run] skip: pnpm exec changeset version');
@@ -163,7 +154,6 @@ if (useChangeset) {
     );
     console.log('[dry-run] would run: pnpm exec changeset version');
     console.log('[dry-run] would sync root package.json version to match workspace packages');
-    injectAdaptersOptionalDeps(true);
     process.exit(0);
   }
   const csPath = writeChangesetFile(release);
@@ -172,7 +162,6 @@ if (useChangeset) {
   const synced = readVersion('packages/core/package.json');
   writeVersion('package.json', synced, false);
   console.log(`Synced root @logosw/hls-downloader version to ${synced}`);
-  injectAdaptersOptionalDeps(false);
   process.exit(0);
 }
 
@@ -194,5 +183,3 @@ if (explicitVersion) {
     writeVersion(p.relPath, next, dryRun);
   }
 }
-
-injectAdaptersOptionalDeps(dryRun);
