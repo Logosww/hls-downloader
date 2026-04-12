@@ -1,5 +1,14 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "HLS_FFMPEG_STATIC",
+    "PKG_CONFIG",
+    "PKG_CONFIG_PATH",
+    "PKG_CONFIG_ALL_STATIC",
+    "VCPKG_ROOT",
+    "FFMPEG_LIBAVCODEC_MIN_MAJOR",
+    "FFMPEG_LIBAVCODEC_MAX_MAJOR"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
