@@ -17,7 +17,7 @@ function run(command: string, args: string[], cwd: string): void {
   }
 }
 
-run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:native'], root);
+run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:native:static'], root);
 run('pnpm', ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'create-npm-dirs', '--cwd', 'src/rust'], root);
 run(
   'pnpm',

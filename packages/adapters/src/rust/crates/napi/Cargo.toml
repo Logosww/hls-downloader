@@ -6,6 +6,10 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+default = []
+static-ffmpeg = ["hls-core/static-ffmpeg"]
+
 [dependencies]
 hls-core = { path = "../core" }
 napi = { version = "3", features = ["napi9", "async", "tokio_rt"] }

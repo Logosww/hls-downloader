@@ -13,6 +13,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   # microsoft/vcpkg：ports/ffmpeg 8.1；见 scripts/setup-vcpkg-ffmpeg.ts
   VCPKG_TAG: '03b9ab95fd5ea1425427ccde11d13e92aa91bf51'
+  HLS_FFMPEG_STATIC: '1'
 
 jobs:
   build-adapters-native:

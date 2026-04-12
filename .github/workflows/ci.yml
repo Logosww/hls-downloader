@@ -22,6 +22,7 @@ jobs:
     env:
       FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
       FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
+      HLS_FFMPEG_STATIC: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -109,6 +110,7 @@ jobs:
     env:
       FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
       FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
+      HLS_FFMPEG_STATIC: '1'
     strategy:
       fail-fast: false
       matrix:
