@@ -2,7 +2,7 @@
  * 一键同步提升根包与 workspace 核心包的版本号。
  *
  * Usage:
- *   pnpm run version:bump                              # 根包、core、shared、adapters、rust-native 均 patch +1
+ *   pnpm run version:bump                              # 默认 patch：稳定版 +0.0.1；预发布 (beta/rc/alpha 等) → 同号正式版
  *   pnpm run version:bump -- --minor                   # minor +1
  *   pnpm run version:bump -- --major                   # major +1
  *   pnpm run version:bump -- --version 2.0.0-beta.1    # 指定版本字符串（不做格式校验）
@@ -55,7 +55,7 @@ function parseArgs(argv: string[]) {
       console.log(`Usage: pnpm run version:bump [options]
 
 Options:
-  --patch            Patch 递增（默认）
+  --patch            Patch（默认）：稳定版 x.y.(z+1)；预发布 x.y.z-tag → x.y.z
   --minor            Minor 递增
   --major            Major 递增
   --version, -v <str>    将上述包设为同一 version 字段（不校验 semver 格式）
@@ -86,17 +86,36 @@ Options:
   return { release, explicitVersion, useChangeset, dryRun };
 }
 
-const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)$/;
+/** x.y.z，可选 -prerelease、+build（与 node-semver 常见写法一致） */
+const VERSION_HEAD =
+  /^(\d+)\.(\d+)\.(\d+)(?:-([^+]+))?(?:\+([^\s]*))?$/;
 
-function parseSemver(v: string): [number, number, number] {
-  const m = v.match(SEMVER_RE);
-  if (!m) throw new Error(`Invalid semver (expect x.y.z): ${v}`);
-  return [Number(m[1]), Number(m[2]), Number(m[3])];
+function parseVersionParts(v: string): {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: boolean;
+} {
+  const m = v.trim().match(VERSION_HEAD);
+  if (!m) {
+    throw new Error(
+      `Invalid version (expect x.y.z with optional -prerelease +build): ${v}`,
+    );
+  }
+  return {
+    major: Number(m[1]),
+    minor: Number(m[2]),
+    patch: Number(m[3]),
+    prerelease: Boolean(m[4]),
+  };
 }
 
 function bumpSemver(current: string, release: Release): string {
-  const [major, minor, patch] = parseSemver(current);
-  if (release === 'patch') return `${major}.${minor}.${patch + 1}`;
+  const { major, minor, patch, prerelease } = parseVersionParts(current);
+  if (release === 'patch') {
+    if (prerelease) return `${major}.${minor}.${patch}`;
+    return `${major}.${minor}.${patch + 1}`;
+  }
   if (release === 'minor') return `${major}.${minor + 1}.0`;
   return `${major + 1}.0.0`;
 }

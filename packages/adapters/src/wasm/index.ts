@@ -33,9 +33,6 @@ let ffmpeg: FFmpeg | null = null;
 const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);
 const posterCache: Record<string, string | undefined> = Object.create(null);
 
-// @ts-ignore
-const detectIsVite = () => Boolean(import.meta?.env?.MODE);
-
 const init: HlsDownloaderWasmAdapter['init'] = async function (
   this: HlsDownloaderWasmAdapter,
   option,
@@ -49,7 +46,7 @@ const init: HlsDownloaderWasmAdapter['init'] = async function (
       typeof SharedArrayBuffer !== 'undefined';
     const useMultiThread = !option?.disableMultiThread && multiThreadAvailable;
     const FFmpegBase = useMultiThread ? __FFmpeg_Mt_Base__ : __FFmpeg_Base__;
-    const shouldUseESM = option?.useESM ?? detectIsVite();
+    const shouldUseESM = option?.useESM ?? false;
     const loadOption: FFMessageLoadConfig = {
       coreURL:
         option?.coreURL ??

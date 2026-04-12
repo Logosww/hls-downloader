@@ -44,9 +44,9 @@ async headers() {
 ```
 :::
 
-### Vite 与 ESM 资源路径
+### ESM 与 UMD 资源路径
 
-在 Vite 等提供 `import.meta.env` 的环境中，使用 CDN 上的 **ESM** 版 FFmpeg 通常更稳妥。适配器会**自动检测**该环境并默认选用 ESM 路径。若需强制某种模式，可在 `option` 中设置 `useESM: true` 或 `useESM: false`，**显式配置优先于自动检测**。
+默认从 CDN 加载 **UMD** 构建。若在 **Vite** 等更适合 ESM 的打包环境中使用，请在 `option` 中设置 `useESM: true`。
 
 ### WASM 专有选项
 
@@ -57,7 +57,7 @@ async headers() {
 | `coreURL` | `string` | 自定义 FFmpeg 核心 JS 地址（默认指向 CDN） |
 | `wasmURL` | `string` | 自定义 FFmpeg WASM 二进制地址 |
 | `workerURL` | `string` | 自定义 FFmpeg Worker 地址 |
-| `useESM` | `boolean` | 使用 ESM 或 UMD 的 CDN 路径；省略时按 Vite 环境自动选择 |
+| `useESM` | `boolean` | 为 `true` 时使用 CDN 的 `esm/` 路径（如 Vite）；省略或 `false` 为 `umd/`（默认） |
 | `disableMultiThread` | `boolean` | 使用单线程 FFmpeg 构建（不加载 Worker） |
 
 ### 示例
