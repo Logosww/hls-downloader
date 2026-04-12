@@ -3,7 +3,6 @@ name: Publish to npm
 on:
   push:
     tags: ['v*']
-  # 使用「最新已合并」的 workflow：在 Actions 里 Run workflow（选 main），不要用旧 run 的 Re-run（Re-run 固定用当时那次提交的 YAML）
   workflow_dispatch:
 
 concurrency:
