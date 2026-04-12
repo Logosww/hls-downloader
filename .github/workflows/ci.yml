@@ -72,8 +72,9 @@ jobs:
           echo "root=$R" >> "$GITHUB_OUTPUT"
           echo "VCPKG_ROOT=$R" >> "$GITHUB_ENV"
 
-      - name: Cache vcpkg (Linux)
-        uses: actions/cache@v4
+      - name: Restore vcpkg (Linux)
+        id: vcpkg_cache
+        uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
           key: vcpkg-ff81-Linux-x64-linux-${{ env.VCPKG_TAG }}
@@ -82,6 +83,13 @@ jobs:
 
       - name: Setup vcpkg + static FFmpeg (Linux x64)
         run: node scripts/setup-vcpkg-ffmpeg.ts x64-linux
+
+      - name: Save vcpkg (Linux)
+        if: success() && steps.vcpkg_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.vcpkg_root.outputs.root }}
+          key: vcpkg-ff81-Linux-x64-linux-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config)
         run: |
@@ -230,18 +238,20 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$r"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "root=$r"
 
-      - name: Cache vcpkg (Unix)
+      - name: Restore vcpkg (Unix)
         if: runner.os != 'Windows' && matrix.install_ffmpeg
-        uses: actions/cache@v4
+        id: vcpkg_cache_unix
+        uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
           key: vcpkg-ff81-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
             vcpkg-ff81-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
 
-      - name: Cache vcpkg (Windows)
+      - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
-        uses: actions/cache@v4
+        id: vcpkg_cache_win
+        uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
           key: vcpkg-ff81-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -255,6 +265,20 @@ jobs:
       - name: Setup vcpkg + static FFmpeg (Windows)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
         run: node scripts/setup-vcpkg-ffmpeg.ts ${{ matrix.vcpkg_triplet }}
+
+      - name: Save vcpkg (Unix)
+        if: success() && matrix.install_ffmpeg && runner.os != 'Windows' && steps.vcpkg_cache_unix.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.vcpkg_unix_root.outputs.root }}
+          key: vcpkg-ff81-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+
+      - name: Save vcpkg (Windows)
+        if: success() && matrix.install_ffmpeg && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.vcpkg_win_root.outputs.root }}
+          key: vcpkg-ff81-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config, Unix)
         if: matrix.install_ffmpeg && runner.os != 'Windows'

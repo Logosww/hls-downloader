@@ -26,11 +26,15 @@ export type HlsDownloaderWasmAdapter = HlsDownloaderAdapterInternal<{
   wasmURL?: string;
   workerURL?: string;
   disableMultiThread?: boolean;
+  useESM?: boolean;
 }>;
 
 let ffmpeg: FFmpeg | null = null;
 const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);
 const posterCache: Record<string, string | undefined> = Object.create(null);
+
+// @ts-ignore
+const detectIsVite = () => Boolean(import.meta?.env?.MODE);
 
 const init: HlsDownloaderWasmAdapter['init'] = async function (
   this: HlsDownloaderWasmAdapter,
@@ -45,14 +49,26 @@ const init: HlsDownloaderWasmAdapter['init'] = async function (
       typeof SharedArrayBuffer !== 'undefined';
     const useMultiThread = !option?.disableMultiThread && multiThreadAvailable;
     const FFmpegBase = useMultiThread ? __FFmpeg_Mt_Base__ : __FFmpeg_Base__;
+    const shouldUseESM = option?.useESM ?? detectIsVite();
     const loadOption: FFMessageLoadConfig = {
       coreURL:
-        option?.coreURL ?? (await toBlobURL(`${FFmpegBase}/ffmpeg-core.js`, 'text/javascript')),
+        option?.coreURL ??
+        (await toBlobURL(
+          `${FFmpegBase}/${shouldUseESM ? 'esm' : 'umd'}/ffmpeg-core.js`,
+          'text/javascript',
+        )),
       wasmURL:
-        option?.wasmURL ?? (await toBlobURL(`${FFmpegBase}/ffmpeg-core.wasm`, 'application/wasm')),
+        option?.wasmURL ??
+        (await toBlobURL(
+          `${FFmpegBase}/${shouldUseESM ? 'esm' : 'umd'}/ffmpeg-core.wasm`,
+          'application/wasm',
+        )),
       workerURL: useMultiThread
         ? (option?.workerURL ??
-          (await toBlobURL(`${FFmpegBase}/ffmpeg-core.worker.js`, 'text/javascript')))
+          (await toBlobURL(
+            `${FFmpegBase}/${shouldUseESM ? 'esm' : 'umd'}/ffmpeg-core.worker.js`,
+            'text/javascript',
+          )))
         : void 0,
     };
     await ffmpeg.load(loadOption);

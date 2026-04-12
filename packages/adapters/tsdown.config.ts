@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown';
 
-const externalFFmpegBase = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd`;
-const externalFFmpegMtBase = `https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/umd`;
+const externalFFmpegBase = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist`;
+const externalFFmpegMtBase = `https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist`;
 
 const sharedDts = {
   compilerOptions: {

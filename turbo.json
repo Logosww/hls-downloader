@@ -31,20 +31,12 @@
       "persistent": true
     },
     "@hls-downloader/docs#build": {
-      "dependsOn": [
-        "@hls-downloader/core#build",
-        "@hls-downloader/shared#build",
-        "@hls-downloader/adapters#build"
-      ],
+      "dependsOn": [],
       "env": ["VITEPRESS_BASE"],
       "outputs": [".vitepress/dist/**"]
     },
     "@hls-downloader/docs#dev": {
-      "dependsOn": [
-        "@hls-downloader/core#build",
-        "@hls-downloader/shared#build",
-        "@hls-downloader/adapters#build"
-      ],
+      "dependsOn": [],
       "cache": false,
       "persistent": true
     },
