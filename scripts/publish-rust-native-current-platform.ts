@@ -1,11 +1,17 @@
 import { spawnSync } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = process.cwd();
+const adaptersPkgPath = resolve(root, 'packages/adapters/package.json');
 const rustDir = resolve(root, 'packages/adapters/src/rust');
 const npmDir = resolve(rustDir, 'npm');
 const shouldUseProvenance = process.env.GITHUB_ACTIONS === 'true';
+
+function adaptersVersionIsPrerelease(): boolean {
+  const pkg = JSON.parse(readFileSync(adaptersPkgPath, 'utf8')) as { version?: string };
+  return Boolean(pkg.version?.includes('-'));
+}
 
 function run(command: string, args: string[], cwd: string): void {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
@@ -32,6 +38,10 @@ const platformDirs = readdirSync(npmDir)
   .filter((p) => statSync(p).isDirectory());
 
 let published = 0;
+const prerelease = adaptersVersionIsPrerelease();
+if (prerelease) {
+  console.log('Prerelease adapters version: publishing with dist-tag "next"');
+}
 
 for (const pkgDir of platformDirs) {
   const files = readdirSync(pkgDir);
@@ -41,6 +51,9 @@ for (const pkgDir of platformDirs) {
   const publishArgs = ['publish', '--access', 'public', '--no-git-checks'];
   if (shouldUseProvenance) {
     publishArgs.push('--provenance');
+  }
+  if (prerelease) {
+    publishArgs.push('--tag', 'next');
   }
   run('pnpm', publishArgs, pkgDir);
   published += 1;

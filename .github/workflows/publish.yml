@@ -226,13 +226,20 @@ jobs:
 
       - name: Publish native platform packages
         run: |
+          set -euo pipefail
+          VER=$(node -p "require('./packages/adapters/package.json').version")
+          PUBLISH_EXTRA=()
+          if [[ "$VER" == *-* ]]; then
+            PUBLISH_EXTRA=(--tag next)
+            echo "Prerelease version ${VER}: publishing with --tag next"
+          fi
           for pkg in packages/adapters/src/rust/npm/*; do
             if ! ls "${pkg}"/*.node >/dev/null 2>&1; then
               echo "Skip ${pkg} (no .node artifact)"
               continue
             fi
             echo "Publishing ${pkg}"
-            (cd "${pkg}" && pnpm publish --provenance --access public --no-git-checks)
+            (cd "${pkg}" && pnpm publish --provenance --access public --no-git-checks "${PUBLISH_EXTRA[@]}")
           done
 
   publish:
@@ -331,7 +338,14 @@ jobs:
 
       - name: Publish packages
         run: |
-          pnpm --filter "@hls-downloader/shared" publish --provenance --no-git-checks
-          pnpm --filter "@hls-downloader/core" publish --provenance --no-git-checks
-          pnpm --filter "@hls-downloader/adapters" publish --provenance --no-git-checks
-          pnpm publish --provenance --no-git-checks
+          set -euo pipefail
+          VER=$(node -p "require('./packages/adapters/package.json').version")
+          PUBLISH_EXTRA=()
+          if [[ "$VER" == *-* ]]; then
+            PUBLISH_EXTRA=(--tag next)
+            echo "Prerelease version ${VER}: publishing with --tag next"
+          fi
+          pnpm --filter "@hls-downloader/shared" publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
+          pnpm --filter "@hls-downloader/core" publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
+          pnpm --filter "@hls-downloader/adapters" publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
+          pnpm publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
