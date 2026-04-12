@@ -57,6 +57,7 @@
     "changelog": "node scripts/changelog.ts",
     "changelog:append": "node scripts/changelog.ts append",
     "changelog:sync": "node scripts/changelog.ts sync",
+    "version:bump": "node scripts/bump-versions.ts",
     "adapters:inject-optional-deps": "node scripts/inject-adapters-optional-deps.ts",
     "adapters:verify-native-install": "node scripts/verify-adapters-native-install.ts",
     "adapters:publish-native:current-platform": "node scripts/publish-rust-native-current-platform.ts",

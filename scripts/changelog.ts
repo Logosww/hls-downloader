@@ -108,9 +108,9 @@ function formatMarkdown(version: string, sections: Record<string, Commit[]>): st
   return lines.join('\n');
 }
 
-function generate(): void {
+function generate(_version?: string): void {
   const tag = getLatestTag();
-  const version = getNextVersion();
+  const version = _version ?? getNextVersion();
   const range = tag ? `${tag}..HEAD` : 'HEAD';
   const rawLog = git(`git log ${range} --oneline --no-merges`);
 
@@ -190,7 +190,9 @@ function append(args: string[]): void {
   }
 
   const unreleasedStart = content.indexOf(unreleasedMatch[0]);
-  const nextVersionMatch = content.slice(unreleasedStart + unreleasedMatch[0].length).match(/^## \[/m);
+  const nextVersionMatch = content
+    .slice(unreleasedStart + unreleasedMatch[0].length)
+    .match(/^## \[/m);
   const unreleasedEnd = nextVersionMatch
     ? unreleasedStart + unreleasedMatch[0].length + nextVersionMatch.index!
     : content.length;
@@ -242,6 +244,6 @@ switch (subcommand) {
     append(flags);
     break;
   default:
-    generate();
+    generate(subcommand);
     break;
 }
