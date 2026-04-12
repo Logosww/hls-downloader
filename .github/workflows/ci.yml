@@ -89,6 +89,7 @@ jobs:
   native-matrix:
     name: Native verify (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     env:
       FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
       FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
