@@ -70,12 +70,16 @@ jobs:
         with:
           path: docs/.vitepress/dist
 
+  # 勿在此 job 使用 environment: github-pages：该环境默认常限制为仅 default branch，
+  # 而本 workflow 由 tag v* 触发，会报 “Tag vX is not allowed … environment protection rules”。
+  # deploy-pages 仅需 pages + id-token 权限即可部署。
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
