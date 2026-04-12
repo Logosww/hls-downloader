@@ -15,7 +15,7 @@ export default defineConfig([
   {
     entry: { wasm: 'src/wasm/index.ts' },
     format: 'esm',
-    platform: 'neutral',
+    platform: 'browser',
     minify: true,
     deps: {
       alwaysBundle: ['m3u8-parser', '@ffmpeg/util', 'p-limit'],

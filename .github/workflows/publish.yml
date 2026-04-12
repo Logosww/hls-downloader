@@ -11,7 +11,117 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build-adapters-native:
+    name: Build adapters native (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+          - name: darwin-x64
+            os: macos-13
+          - name: darwin-arm64
+            os: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install FFmpeg system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config clang \
+            ffmpeg \
+            libavutil-dev libavcodec-dev libavformat-dev \
+            libavfilter-dev libavdevice-dev \
+            libswscale-dev libswresample-dev
+
+      - name: Install FFmpeg system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install pkg-config ffmpeg
+
+      - name: Log FFmpeg versions
+        run: |
+          ffmpeg -version | head -n 1
+          pkg-config --modversion libavcodec
+          pkg-config --modversion libavformat
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/adapters/src/rust -> target
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build native module
+        run: pnpm --filter "@hls-downloader/adapters" run build:native
+
+      - name: Upload native binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: adapters-native-${{ matrix.name }}
+          path: packages/adapters/src/rust/native.*.node
+          if-no-files-found: error
+
+  publish-rust-native:
+    needs: build-adapters-native
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Download native binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: adapters-native-*
+          merge-multiple: true
+          path: packages/adapters/src/rust
+
+      - name: Prepare native platform packages
+        run: |
+          pnpm --filter "@hls-downloader/adapters" exec napi create-npm-dirs --cwd src/rust
+          pnpm --filter "@hls-downloader/adapters" exec napi artifacts --cwd src/rust --output-dir . --npm-dir npm
+          pnpm --filter "@hls-downloader/adapters" exec napi pre-publish --cwd src/rust --skip-optional-publish -t npm
+
+      - name: Publish native platform packages
+        run: |
+          for pkg in packages/adapters/src/rust/npm/*; do
+            if ! ls "${pkg}"/*.node >/dev/null 2>&1; then
+              echo "Skip ${pkg} (no .node artifact)"
+              continue
+            fi
+            echo "Publishing ${pkg}"
+            (cd "${pkg}" && pnpm publish --provenance --access public --no-git-checks)
+          done
+
   publish:
+    needs: publish-rust-native
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,9 +150,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config clang \
+            ffmpeg \
             libavutil-dev libavcodec-dev libavformat-dev \
             libavfilter-dev libavdevice-dev \
             libswscale-dev libswresample-dev
+
+      - name: Log FFmpeg versions
+        run: |
+          ffmpeg -version | head -n 1
+          pkg-config --modversion libavcodec
+          pkg-config --modversion libavformat
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -53,6 +170,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm run build
+
+      - name: Inject adapters optional native dependencies
+        run: pnpm run adapters:inject-optional-deps
 
       - name: Log toolchain versions before publish
         run: |

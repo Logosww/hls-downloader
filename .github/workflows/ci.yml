@@ -28,9 +28,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config clang \
+            ffmpeg \
             libavutil-dev libavcodec-dev libavformat-dev \
             libavfilter-dev libavdevice-dev \
             libswscale-dev libswresample-dev
+
+      - name: Log FFmpeg versions
+        run: |
+          ffmpeg -version | head -n 1
+          pkg-config --modversion libavcodec
+          pkg-config --modversion libavformat
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -43,3 +50,75 @@ jobs:
       - run: pnpm exec turbo run lint --filter=!@hls-downloader/app-web
 
       - run: pnpm run build
+
+  native-matrix:
+    name: Native verify (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+            mode: build-and-load
+            install_ffmpeg: true
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            mode: build-and-load
+            install_ffmpeg: true
+          - name: darwin-x64
+            os: macos-13
+            mode: build-and-load
+            install_ffmpeg: true
+          - name: darwin-arm64
+            os: macos-14
+            mode: build-and-load
+            install_ffmpeg: true
+          - name: windows-x64-warmup
+            os: windows-latest
+            mode: build-only
+            install_ffmpeg: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install FFmpeg system dependencies (Linux)
+        if: runner.os == 'Linux' && matrix.install_ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config clang \
+            ffmpeg \
+            libavutil-dev libavcodec-dev libavformat-dev \
+            libavfilter-dev libavdevice-dev \
+            libswscale-dev libswresample-dev
+
+      - name: Install FFmpeg system dependencies (macOS)
+        if: runner.os == 'macOS' && matrix.install_ffmpeg
+        run: |
+          brew update
+          brew install pkg-config ffmpeg
+
+      - name: Log FFmpeg versions
+        if: matrix.install_ffmpeg
+        run: |
+          ffmpeg -version | head -n 1
+          pkg-config --modversion libavcodec
+          pkg-config --modversion libavformat
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/adapters/src/rust -> target
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Native smoke check
+        run: node scripts/ci-native-smoke.mjs ${{ matrix.mode }}

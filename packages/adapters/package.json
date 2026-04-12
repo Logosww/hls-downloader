@@ -36,9 +36,11 @@
     "build:native": "cd src/rust && pnpm exec napi build --manifest-path crates/napi/Cargo.toml --release --platform --js native.js --dts native.d.ts --output-dir .",
     "build:ts": "tsdown -c tsdown.config.ts",
     "build:copy-native": "cp src/rust/native.js src/rust/native.d.ts dist/ && cp src/rust/native.*.node dist/ 2>/dev/null || true",
+    "build:copy-native-publish": "cp src/rust/native.js src/rust/native.d.ts dist/",
     "build:barrel": "printf 'export * from \"@hls-downloader/shared\";\\nexport * from \"./wasm.mjs\";\\nexport * from \"./rust.mjs\";\\n' | tee dist/index.mjs > dist/index.d.mts",
     "build": "pnpm run build:native && pnpm run build:ts && pnpm run build:copy-native && pnpm run build:barrel",
-    "prepublishOnly": "pnpm run build"
+    "build:publish": "pnpm run build:native && pnpm run build:ts && pnpm run build:copy-native-publish && pnpm run build:barrel",
+    "prepublishOnly": "pnpm run build:publish"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

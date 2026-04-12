@@ -1,27 +1,4 @@
-import { defineConfig, type Rolldown } from 'tsdown';
-import { copyFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-
-const ADAPTERS_DIST = 'packages/adapters/dist';
-
-function nativeAdapterPlugin(): Rolldown.Plugin {
-  return {
-    name: 'native-adapter',
-    resolveId(source) {
-      if (/native\.js/.test(source)) {
-        return { id: './native.js', external: true };
-      }
-    },
-    writeBundle(options) {
-      const outDir = options.dir ?? 'dist';
-      for (const f of readdirSync(ADAPTERS_DIST)) {
-        if (f.startsWith('native')) {
-          copyFileSync(join(ADAPTERS_DIST, f), join(outDir, f));
-        }
-      }
-    },
-  };
-}
+import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
@@ -34,9 +11,8 @@ export default defineConfig({
   format: 'esm',
   platform: 'neutral',
   minify: true,
-  plugins: [nativeAdapterPlugin()],
   deps: {
-    neverBundle: [/^@ffmpeg\/ffmpeg/, /^node:/],
+    neverBundle: [/^@hls-downloader\//, /^@ffmpeg\/ffmpeg/, /^node:/],
   },
   inputOptions: {
     resolve: {
