@@ -87,6 +87,19 @@ The Rust adapter loads a native `.node` addon built with N-API. It provides bett
 
 - Node.js ≥ 20
 - The native `.node` binary must match your platform and Node ABI
+- Optional: [aria2](https://aria2.github.io/) (`aria2c` on your `PATH`, or a custom path via `aria2.path`) when `aria2.enabled` is `true`
+
+### Rust-specific options
+
+These may be passed in `HlsDownloader` `option` / `setOption` (they are forwarded to each `download()`):
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `aria2` | `object` | Optional. Set `enabled: true` to download segments with **aria2** (CLI + session file). Use `path`, `maxConcurrentDownloads`, etc. — see **Adapter API**. |
+
+Concurrency for segment downloads follows **`downloadConcurrency`** on each `download()` (or the adapter default `chunkDownloadConcurrency`). Retry count follows **`maxRetry`** and maps to aria2’s `--max-tries`.
+
+Custom `headers` are applied per segment in the aria2 input file (`header=Name: value`). If aria2 is not installed or fails, `download()` throws with an error that mentions installing aria2.
 
 ### Example
 
@@ -96,6 +109,14 @@ import { RustAdapter } from '@hls-downloader/adapters/rust'
 
 const downloader = new HlsDownloader({
   adapter: RustAdapter,
+  option: {
+    aria2: {
+      enabled: true,
+      // path: '/opt/homebrew/bin/aria2c',
+      maxConcurrentDownloads: 16,
+      // maxConnectionPerServer: 8,
+    },
+  },
 })
 
 await downloader.init()

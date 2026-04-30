@@ -15,12 +15,16 @@ import {
   downloadAndMerge,
   extractPoster,
   type NapiParseHlsResult,
+  type NapiAria2Config,
 } from './native.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+export type RustAdapterAria2Options = NapiAria2Config;
+
 export type HlsDownloaderRustAdapter = HlsDownloaderAdapterInternal<{
   disableMultiThread?: boolean;
+  aria2?: RustAdapterAria2Options;
 }>;
 
 let initialized = false;
@@ -114,6 +118,7 @@ const download: HlsDownloaderRustAdapter['download'] = async function (
     filename = 'output.mp4',
     maxRetry = this.segmentRetryAttempts,
     downloadConcurrency = this.chunkDownloadConcurrency,
+    aria2,
   },
 ): Promise<DownloadResult> {
   this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
@@ -131,6 +136,7 @@ const download: HlsDownloaderRustAdapter['download'] = async function (
     headers,
     downloadConcurrency,
     maxRetry,
+    aria2 ?? null,
     (phase: string, completed: number, total: number) => {
       if (phase === 'downloading') {
         self.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, { total, completed });

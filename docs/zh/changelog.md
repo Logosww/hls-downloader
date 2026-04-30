@@ -5,6 +5,12 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [1.2.0] - 未发布
+
+### 新增
+
+- **RustAdapter**: 支持通过 `aria2` 选项配置启用 [aria2](https://aria2.github.io/) 下载分片。
+
 ## [1.1.0] - 2026-04-13
 
 ### 新增

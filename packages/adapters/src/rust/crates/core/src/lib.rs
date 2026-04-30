@@ -2,7 +2,9 @@ pub mod download;
 pub mod hls;
 pub mod poster;
 
-pub use download::{download_and_merge, DownloadProgress, MergeProgress};
+pub use download::{
+    download_and_merge, download_segments_to_dir, Aria2Options, DownloadProgress, MergeProgress,
+};
 pub use hls::{parse_hls, ParseHlsResult, Playlist, Segment};
 pub use poster::extract_poster;
 
@@ -22,6 +24,8 @@ pub enum HlsError {
     Io(#[from] std::io::Error),
     #[error("URL error: {0}")]
     Url(#[from] url::ParseError),
+    #[error("Aria2: {0}")]
+    Aria2(String),
 }
 
 pub fn init() -> Result<(), HlsError> {

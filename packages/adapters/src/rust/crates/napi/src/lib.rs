@@ -40,6 +40,48 @@ fn to_napi_err(e: hls_core::HlsError) -> Error {
     Error::from_reason(e.to_string())
 }
 
+#[napi(object)]
+pub struct NapiAria2Config {
+    pub enabled: Option<bool>,
+    pub path: Option<String>,
+    pub max_concurrent_downloads: Option<u32>,
+    pub max_connection_per_server: Option<u32>,
+    pub split: Option<u32>,
+    pub min_split_size: Option<String>,
+    pub extra_args: Option<Vec<String>>,
+}
+
+fn aria2_binding_to_core(
+    n: Option<NapiAria2Config>,
+) -> (
+    bool,
+    Option<String>,
+    hls_core::Aria2Options,
+) {
+    match n {
+        None => (
+            false,
+            None,
+            hls_core::Aria2Options::default(),
+        ),
+        Some(cfg) => {
+            let use_aria2 = cfg.enabled.unwrap_or(false);
+            let exe = cfg
+                .path
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| s.trim().to_owned());
+            let cli = hls_core::Aria2Options {
+                max_concurrent_downloads: cfg.max_concurrent_downloads.map(|x| x as usize),
+                max_connection_per_server: cfg.max_connection_per_server.map(|x| x as usize),
+                split: cfg.split.map(|x| x as usize),
+                min_split_size: cfg.min_split_size,
+                extra_args: cfg.extra_args.unwrap_or_default(),
+            };
+            (use_aria2, exe, cli)
+        }
+    }
+}
+
 // ── Exported functions ─────────────────────────────────────────────────
 
 #[napi]
@@ -94,7 +136,7 @@ pub async fn parse_hls_native(
 }
 
 #[napi(
-    ts_args_type = "segments: NapiSegment[], outputPath: string, headers: Record<string, string> | undefined | null, concurrency: number, maxRetry: number, onProgress: (phase: string, completed: number, total: number) => void"
+    ts_args_type = "segments: NapiSegment[], outputPath: string, headers: Record<string, string> | undefined | null, concurrency: number, maxRetry: number, aria2: NapiAria2Config | undefined | null, onProgress: (phase: string, completed: number, total: number) => void"
 )]
 pub async fn download_and_merge(
     segments: Vec<NapiSegment>,
@@ -102,6 +144,7 @@ pub async fn download_and_merge(
     headers: Option<HashMap<String, String>>,
     concurrency: u32,
     max_retry: u32,
+    aria2: Option<NapiAria2Config>,
     on_progress: ThreadsafeFunction<(String, u32, u32)>,
 ) -> Result<String> {
     let core_segments: Vec<hls_core::Segment> = segments
@@ -130,12 +173,18 @@ pub async fn download_and_merge(
             );
         });
 
+    let (use_aria2, aria2_path_owned, aria2_core) = aria2_binding_to_core(aria2);
+    let aria2_exec = aria2_path_owned.as_deref();
+
     let result = hls_core::download_and_merge(
         &core_segments,
         &output,
         headers.as_ref(),
         concurrency as usize,
         max_retry as usize,
+        use_aria2,
+        aria2_exec,
+        aria2_core,
         Some(progress_cb),
     )
     .await

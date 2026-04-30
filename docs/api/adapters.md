@@ -30,6 +30,32 @@ import { RustAdapter } from '@hls-downloader/adapters/rust'
 
 The Rust adapter loads a native `.node` N-API addon. It provides native performance for HLS parsing, segment downloading, and stream merging.
 
+### Additional Options
+
+Pass these via `HlsDownloader` `option` / `setOption` (they are merged into each `download()` call). Segment downloads use **reqwest** by default, or **aria2** (`aria2c` CLI with an input session file) when `aria2.enabled` is `true`.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `aria2` | `object` | — | Optional. Enables and configures aria2 for segment downloads (see fields below). Omit to use the built-in HTTP stack. |
+
+When `aria2.enabled` is `true`, [aria2](https://aria2.github.io/) must be installed. Custom request headers are written into aria2’s session file (`header=Name: value` per URI). If aria2 is missing or exits with an error, `download()` rejects with a clear error message.
+
+Segment-level concurrency follows the **`downloadConcurrency`** argument on each `download()` (and the adapter’s `chunkDownloadConcurrency` default when omitted). Retries follow **`maxRetry`** (`--max-tries` for aria2).
+
+### `aria2` object (`RustAdapterAria2Options`)
+
+The public TypeScript alias matches the native **`NapiAria2Config`** shape passed through N-API.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Optional. When `true`, download segments with aria2. Default `false` if omitted. |
+| `path` | `string` | Optional. Path to the `aria2c` executable when it is not on `PATH` (only used when `enabled` is `true`). |
+| `maxConcurrentDownloads` | `number` | Optional. Maps to `--max-concurrent-downloads`. When omitted, `downloadConcurrency` is used |
+| `maxConnectionPerServer` | `number` | Optional. Maps to `--max-connection-per-server` |
+| `split` | `number` | Optional. Maps to `--split` |
+| `minSplitSize` | `string` | Optional. Maps to `--min-split-size` (e.g. `'1M'`) |
+| `extraArgs` | `string[]` | Optional. Extra CLI arguments appended after built-in flags (advanced) |
+
 ### Platform Support
 
 The native addon must match your operating system and Node.js ABI. Pre-built binaries are published for common platforms.

@@ -61,6 +61,10 @@ export interface HlsDownloaderAdapterInternal<
   segmentRetryAttempts: number;
   init(option?: AdditionalOption): Promise<void>;
   parseHls(option: HlsDownloaderFetchOption): Promise<ParseHlsResult>;
-  download(option: HlsDownloaderFetchOption & HlsDownloaderDownloadOption): Promise<DownloadResult>;
+  download(
+    option: HlsDownloaderFetchOption &
+      HlsDownloaderDownloadOption &
+      Partial<AdditionalOption>,
+  ): Promise<DownloadResult>;
   getPosterUrl(option: HlsDownloaderFetchOption): Promise<string | undefined>;
 }
