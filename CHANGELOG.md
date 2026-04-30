@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **RustAdapter**: Introduce `aria2` option to support downloading segements via [aria2](https://aria2.github.io/).
 
+### Changed
+
+- **Breaking**: Rename constructor field `option` to `options`, `setOption` to `setOptions`, and pluralize option types.
+
 ## [1.1.0] - 2026-04-13
 
 ### Added

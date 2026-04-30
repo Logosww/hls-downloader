@@ -11,6 +11,10 @@
 
 - **RustAdapter**: 支持通过 `aria2` 选项配置启用 [aria2](https://aria2.github.io/) 下载分片。
 
+### 变更
+
+- **破坏性变更**：构造函数字段 `option` 重命名为 `options`，`setOption` 重命名为 `setOptions`，相关类型改为复数形式。
+
 ## [1.1.0] - 2026-04-13
 
 ### 新增

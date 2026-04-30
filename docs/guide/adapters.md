@@ -46,11 +46,11 @@ async headers() {
 
 ### ESM vs UMD FFmpeg assets
 
-By default the adapter loads the **UMD** build from the CDN. For bundlers such as **Vite** that resolve ESM better, set `useESM: true` in `option`.
+By default the adapter loads the **UMD** build from the CDN. For bundlers such as **Vite** that resolve ESM better, set `useESM: true` in `options`.
 
 ### WASM-Specific Options
 
-Pass these as part of the `option` object in the `HlsDownloader` constructor:
+Pass these as part of the `options` object in the `HlsDownloader` constructor:
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -65,7 +65,7 @@ Pass these as part of the `option` object in the `HlsDownloader` constructor:
 ```ts
 const downloader = new HlsDownloader({
   adapter: WasmAdapter,
-  option: {
+  options: {
     coreURL: '/ffmpeg/ffmpeg-core.js',
     wasmURL: '/ffmpeg/ffmpeg-core.wasm',
     disableMultiThread: true,
@@ -91,7 +91,7 @@ The Rust adapter loads a native `.node` addon built with N-API. It provides bett
 
 ### Rust-specific options
 
-These may be passed in `HlsDownloader` `option` / `setOption` (they are forwarded to each `download()`):
+These may be passed in `HlsDownloader` `options` / `setOptions` (they are forwarded to each `download()`):
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -109,7 +109,7 @@ import { RustAdapter } from '@hls-downloader/adapters/rust'
 
 const downloader = new HlsDownloader({
   adapter: RustAdapter,
-  option: {
+  options: {
     aria2: {
       enabled: true,
       // path: '/opt/homebrew/bin/aria2c',

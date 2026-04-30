@@ -3,34 +3,34 @@ import { getInternalAdapter, ParseHlsResult, DownloadResult } from '@hls-downloa
 import type {
   HlsDownloaderAdapter,
   HlsDownloaderAdapterInternal,
-  HlsDownloaderFetchOption,
+  HlsDownloaderFetchOptions,
 } from '@hls-downloader/shared';
 
 export { HlsDownloaderEvent } from '@hls-downloader/shared';
 
-export type GetAdditionalOption<T> =
-  T extends HlsDownloaderAdapterInternal<infer AdditionalOption> ? AdditionalOption : never;
+export type GetAdditionalOptions<T> =
+  T extends HlsDownloaderAdapterInternal<infer AdditionalOptions> ? AdditionalOptions : never;
 
 export class HlsDownloader<T extends HlsDownloaderAdapter> {
   #isInit: boolean = false;
   #initPromise: Promise<void> | null = null;
-  #customOption: Omit<HlsDownloaderFetchOption, 'url'> = {};
+  #customOptions: Omit<HlsDownloaderFetchOptions, 'url'> = {};
   readonly #adapter: HlsDownloaderAdapterInternal;
-  readonly #initOption: any;
+  readonly #initOptions: any;
   get isInit(): boolean {
     return this.#isInit;
   }
   constructor({
     adapter,
-    option,
+    options,
     onEvent,
   }: {
     adapter: T;
-    option?: Omit<HlsDownloaderFetchOption, 'url'> & GetAdditionalOption<T>;
+    options?: Omit<HlsDownloaderFetchOptions, 'url'> & GetAdditionalOptions<T>;
     onEvent?: HlsDownloaderAdapter['onEvent'];
   }) {
-    this.#customOption = option || {};
-    this.#initOption = option;
+    this.#customOptions = options ?? {};
+    this.#initOptions = options;
     this.#adapter = getInternalAdapter(adapter) as HlsDownloaderAdapterInternal;
     this.#adapter.onEvent = onEvent;
   }
@@ -38,7 +38,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     if (this.#isInit) return;
     if (!this.#initPromise) {
       this.#initPromise = this.#adapter
-        .init(this.#initOption)
+        .init(this.#initOptions)
         .then(() => {
           this.#isInit = true;
         })
@@ -49,18 +49,18 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     }
     return this.#initPromise;
   }
-  setOption(option: Omit<HlsDownloaderFetchOption, 'url'> & GetAdditionalOption<T>): void {
-    this.#customOption = option;
+  setOptions(options: Omit<HlsDownloaderFetchOptions, 'url'> & GetAdditionalOptions<T>): void {
+    this.#customOptions = options;
   }
-  async parseHls(option: HlsDownloaderFetchOption): Promise<ParseHlsResult> {
-    return await this.#adapter.parseHls({ ...this.#customOption, ...option });
+  async parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult> {
+    return await this.#adapter.parseHls({ ...this.#customOptions, ...options });
   }
-  async download(option: HlsDownloaderFetchOption): Promise<DownloadResult> {
+  async download(options: HlsDownloaderFetchOptions): Promise<DownloadResult> {
     await this.init();
-    return await this.#adapter.download({ ...this.#customOption, ...option });
+    return await this.#adapter.download({ ...this.#customOptions, ...options });
   }
-  async getPosterUrl(option: HlsDownloaderFetchOption): Promise<string | undefined> {
-    return await this.#adapter.getPosterUrl({ ...this.#customOption, ...option });
+  async getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined> {
+    return await this.#adapter.getPosterUrl({ ...this.#customOptions, ...options });
   }
 }
 

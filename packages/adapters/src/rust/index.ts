@@ -4,7 +4,7 @@ import {
   selectBestVariant,
   type DownloadResult,
   type HlsDownloaderAdapterInternal,
-  type HlsDownloaderFetchOption,
+  type HlsDownloaderFetchOptions,
   type ParseHlsResult,
   type Playlist,
   type Segment,
@@ -57,7 +57,7 @@ function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
 
 const init: HlsDownloaderRustAdapter['init'] = async function (
   this: HlsDownloaderRustAdapter,
-  _option,
+  _options,
 ) {
   if (initialized) return;
   this.onEvent?.(HlsDownloaderEvent.FFMPEG_LOADING);
@@ -80,18 +80,18 @@ const parseHls: HlsDownloaderRustAdapter['parseHls'] = async function (
 
 async function resolveToSegments(
   adapter: HlsDownloaderRustAdapter,
-  option: HlsDownloaderFetchOption,
+  options: HlsDownloaderFetchOptions,
 ): Promise<{ segments: Segment[]; resolvedUrl: string }> {
-  const result = await parseHls.call(adapter, option);
+  const result = await parseHls.call(adapter, options);
 
   if (result.type === 'segment') {
-    return { segments: result.data as Segment[], resolvedUrl: option.url };
+    return { segments: result.data as Segment[], resolvedUrl: options.url };
   }
 
   if (result.type === 'playlist') {
     const best = selectBestVariant(result.data as Playlist[]);
     if (!best) throw new Error('Empty master playlist: no variant available');
-    return resolveToSegments(adapter, { ...option, url: best.uri });
+    return resolveToSegments(adapter, { ...options, url: best.uri });
   }
 
   throw new Error(result.message ?? 'Failed to parse HLS');
@@ -99,14 +99,14 @@ async function resolveToSegments(
 
 const getPosterUrl: HlsDownloaderRustAdapter['getPosterUrl'] = async function (
   this: HlsDownloaderRustAdapter,
-  option,
+  options,
 ) {
-  if (posterCache[option.url]) {
-    return posterCache[option.url];
+  if (posterCache[options.url]) {
+    return posterCache[options.url];
   }
-  const { segments } = await resolveToSegments(this, option);
+  const { segments } = await resolveToSegments(this, options);
   const index = Math.min(Math.floor(segments.length * 0.25), segments.length - 1);
-  const poster = await extractPoster(segments[index].uri, option.headers);
+  const poster = await extractPoster(segments[index].uri, options.headers);
   return poster ?? undefined;
 };
 

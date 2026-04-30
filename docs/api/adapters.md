@@ -32,7 +32,7 @@ The Rust adapter loads a native `.node` N-API addon. It provides native performa
 
 ### Additional Options
 
-Pass these via `HlsDownloader` `option` / `setOption` (they are merged into each `download()` call). Segment downloads use **reqwest** by default, or **aria2** (`aria2c` CLI with an input session file) when `aria2.enabled` is `true`.
+Pass these via `HlsDownloader` `options` / `setOptions` (they are merged into each `download()` call). Segment downloads use **reqwest** by default, or **aria2** (`aria2c` CLI with an input session file) when `aria2.enabled` is `true`.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|

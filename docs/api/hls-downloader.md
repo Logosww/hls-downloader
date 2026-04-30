@@ -7,7 +7,7 @@ The main facade class for downloading HLS streams. Imported from `@hls-downloade
 ```ts
 new HlsDownloader({
   adapter,
-  option?,
+  options?,
   onEvent?,
 })
 ```
@@ -15,7 +15,7 @@ new HlsDownloader({
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `adapter` | `WasmAdapter \| RustAdapter` | The adapter to use |
-| `option` | `object` | Default fetch options (e.g. `headers`) plus adapter-specific options. Merged with each `parseHls` / `download` call |
+| `options` | `object` | Default fetch options (e.g. `headers`) plus adapter-specific options. Merged with each `parseHls` / `download` call |
 | `onEvent` | `(event, payload?) => void` | Event callback for tracking progress and errors |
 
 ## Properties
@@ -38,18 +38,18 @@ async init(): Promise<void>
 
 Initialize the adapter. For the WASM adapter this loads FFmpeg; for the Rust adapter it prepares the native module. Must be called before `download()`. Calling `download()` automatically triggers `init()` if not yet initialized.
 
-### `setOption()`
+### `setOptions()`
 
 ```ts
-setOption(option): void
+setOptions(options): void
 ```
 
-Update the default options (per-call `url` is not stored here). Accepts the same shape as the constructor `option`. Options set here are merged with each `parseHls` / `download` call.
+Update the default options (per-call `url` is not stored here). Accepts the same shape as the constructor `options`. Options set here are merged with each `parseHls` / `download` call.
 
 ### `parseHls()`
 
 ```ts
-async parseHls(option: HlsDownloaderFetchOption): Promise<ParseHlsResult>
+async parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult>
 ```
 
 Parse an HLS playlist without downloading segments. Returns a `ParseHlsResult`:
@@ -62,7 +62,7 @@ Parse an HLS playlist without downloading segments. Returns a `ParseHlsResult`:
 
 ```ts
 async download(
-  option: HlsDownloaderFetchOption & HlsDownloaderDownloadOption
+  options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions
 ): Promise<DownloadResult>
 ```
 
@@ -80,7 +80,7 @@ Parse, download all segments, and merge them into a single file. Returns `{ blob
 
 ```ts
 async getPosterUrl(
-  option: HlsDownloaderFetchOption
+  options: HlsDownloaderFetchOptions
 ): Promise<string | undefined>
 ```
 

@@ -38,12 +38,12 @@ export type HlsDownloaderAdapter = {
   ) => void;
 };
 
-export type HlsDownloaderFetchOption = {
+export type HlsDownloaderFetchOptions = {
   url: string;
   headers?: Record<string, string>;
 };
 
-export type HlsDownloaderDownloadOption = {
+export type HlsDownloaderDownloadOptions = {
   filename?: string;
   maxRetry?: number;
   downloadConcurrency?: number;
@@ -55,16 +55,16 @@ export type DownloadResult = {
 } | void;
 
 export interface HlsDownloaderAdapterInternal<
-  AdditionalOption extends Record<string, any> = {},
+  AdditionalOptions extends Record<string, any> = {},
 > extends HlsDownloaderAdapter {
   chunkDownloadConcurrency: number;
   segmentRetryAttempts: number;
-  init(option?: AdditionalOption): Promise<void>;
-  parseHls(option: HlsDownloaderFetchOption): Promise<ParseHlsResult>;
+  init(options?: AdditionalOptions): Promise<void>;
+  parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult>;
   download(
-    option: HlsDownloaderFetchOption &
-      HlsDownloaderDownloadOption &
-      Partial<AdditionalOption>,
+    options: HlsDownloaderFetchOptions &
+      HlsDownloaderDownloadOptions &
+      Partial<AdditionalOptions>,
   ): Promise<DownloadResult>;
-  getPosterUrl(option: HlsDownloaderFetchOption): Promise<string | undefined>;
+  getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined>;
 }

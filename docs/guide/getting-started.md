@@ -30,7 +30,7 @@ import { WasmAdapter } from '@hls-downloader/adapters/wasm'
 
 const downloader = new HlsDownloader({
   adapter: WasmAdapter,
-  option: {
+  options: {
     // Optional: adapter-specific options
   },
   onEvent: (event, progress) => {

@@ -4,7 +4,7 @@ import {
   HlsDownloaderEvent,
   selectBestVariant,
   type HlsDownloaderAdapterInternal,
-  type HlsDownloaderFetchOption,
+  type HlsDownloaderFetchOptions,
   type ParseHlsResult,
   type Playlist,
   type Segment,
@@ -35,7 +35,7 @@ const posterCache: Record<string, string | undefined> = Object.create(null);
 
 const init: HlsDownloaderWasmAdapter['init'] = async function (
   this: HlsDownloaderWasmAdapter,
-  option,
+  options,
 ) {
   this.onEvent?.(HlsDownloaderEvent.FFMPEG_LOADING);
   ffmpeg = ffmpeg ?? new FFmpeg();
@@ -44,24 +44,24 @@ const init: HlsDownloaderWasmAdapter['init'] = async function (
       typeof globalThis.crossOriginIsolated !== 'undefined' &&
       globalThis.crossOriginIsolated &&
       typeof SharedArrayBuffer !== 'undefined';
-    const useMultiThread = !option?.disableMultiThread && multiThreadAvailable;
+    const useMultiThread = !options?.disableMultiThread && multiThreadAvailable;
     const FFmpegBase = useMultiThread ? __FFmpeg_Mt_Base__ : __FFmpeg_Base__;
-    const shouldUseESM = option?.useESM ?? false;
+    const shouldUseESM = options?.useESM ?? false;
     const loadOption: FFMessageLoadConfig = {
       coreURL:
-        option?.coreURL ??
+        options?.coreURL ??
         (await toBlobURL(
           `${FFmpegBase}/${shouldUseESM ? 'esm' : 'umd'}/ffmpeg-core.js`,
           'text/javascript',
         )),
       wasmURL:
-        option?.wasmURL ??
+        options?.wasmURL ??
         (await toBlobURL(
           `${FFmpegBase}/${shouldUseESM ? 'esm' : 'umd'}/ffmpeg-core.wasm`,
           'application/wasm',
         )),
       workerURL: useMultiThread
-        ? (option?.workerURL ??
+        ? (options?.workerURL ??
           (await toBlobURL(
             `${FFmpegBase}/${shouldUseESM ? 'esm' : 'umd'}/ffmpeg-core.worker.js`,
             'text/javascript',
@@ -150,18 +150,18 @@ const parseHls: HlsDownloaderWasmAdapter['parseHls'] = async function (
 
 async function resolveToSegments(
   adapter: HlsDownloaderWasmAdapter,
-  option: HlsDownloaderFetchOption,
+  options: HlsDownloaderFetchOptions,
 ): Promise<{ segments: Segment[]; resolvedUrl: string }> {
-  const result = await parseHls.call(adapter, option);
+  const result = await parseHls.call(adapter, options);
 
   if (result.type === 'segment') {
-    return { segments: result.data as Segment[], resolvedUrl: option.url };
+    return { segments: result.data as Segment[], resolvedUrl: options.url };
   }
 
   if (result.type === 'playlist') {
     const best = selectBestVariant(result.data as Playlist[]);
     if (!best) throw new Error('Empty master playlist: no variant available');
-    return resolveToSegments(adapter, { ...option, url: best.uri });
+    return resolveToSegments(adapter, { ...options, url: best.uri });
   }
 
   throw new Error(result.message ?? 'Failed to parse HLS');
@@ -249,13 +249,13 @@ const captureRandomPoster = async function (
 
 const getPosterUrl: HlsDownloaderWasmAdapter['getPosterUrl'] = async function (
   this: HlsDownloaderWasmAdapter,
-  option,
+  options,
 ) {
-  if (posterCache[option.url]) {
-    return posterCache[option.url];
+  if (posterCache[options.url]) {
+    return posterCache[options.url];
   }
-  const { segments } = await resolveToSegments(this, option);
-  return await captureRandomPoster.call(this, segments, option.headers);
+  const { segments } = await resolveToSegments(this, options);
+  return await captureRandomPoster.call(this, segments, options.headers);
 };
 
 const download: HlsDownloaderWasmAdapter['download'] = async function (

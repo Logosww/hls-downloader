@@ -56,10 +56,10 @@ enum HlsDownloaderEvent {
 }
 ```
 
-## HlsDownloaderFetchOption
+## HlsDownloaderFetchOptions
 
 ```ts
-type HlsDownloaderFetchOption = {
+type HlsDownloaderFetchOptions = {
   url: string
   headers?: Record<string, string>
 }
@@ -67,10 +67,10 @@ type HlsDownloaderFetchOption = {
 
 对 HLS 源发起请求的基础选项。
 
-## HlsDownloaderDownloadOption
+## HlsDownloaderDownloadOptions
 
 ```ts
-type HlsDownloaderDownloadOption = {
+type HlsDownloaderDownloadOptions = {
   filename?: string
   maxRetry?: number
   downloadConcurrency?: number
