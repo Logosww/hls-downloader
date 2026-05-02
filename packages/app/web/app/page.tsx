@@ -174,10 +174,10 @@ export default function HomePage() {
       return [task, ...tasks];
     });
     try {
-      const result = (await downloader.current?.download({
+      const result = await downloader.current?.download({
         url: selectedPlaylist.uri,
         headers: Object.keys(headers).length ? headers : undefined,
-      })) as { blobURL: string } | void;
+      });
       if (!result?.blobURL) {
         throw new Error('下载失败');
       }

@@ -12,6 +12,10 @@ WASM 适配器底层使用 `@ffmpeg/ffmpeg`，在 WebAssembly 中编译并运行
 
 加载 FFmpeg 核心资源时，CDN 上 **ESM** 与 **UMD** 路径仅由 `useESM` 决定（`true` → `esm/`，省略或 `false` → `umd/`）。
 
+### `download()` 返回值
+
+成功时解析为 `{ blobURL: string, totalSegments: number }`。`blobURL` 为浏览器中合并后文件的 `blob:` 对象 URL。
+
 ### 额外选项
 
 | 选项 | 类型 | 默认值 | 描述 |
@@ -29,6 +33,10 @@ import { RustAdapter } from '@hls-downloader/adapters/rust'
 ```
 
 Rust 适配器加载原生 `.node` N-API 模块。提供原生性能的 HLS 解析、分片下载和流合并。
+
+### `download()` 返回值
+
+成功时解析为 `{ filePath: string, totalSegments: number }`。`filePath` 为合并后文件在**本机磁盘上的绝对路径**。
 
 ### 额外选项
 

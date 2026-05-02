@@ -66,7 +66,7 @@ async download(
 ): Promise<DownloadResult>
 ```
 
-解析、下载全部分片并合并为单个文件。成功时返回 `{ blobURL, totalSegments }`，失败时返回 `void`。
+解析、下载全部分片并合并为单个文件。成功时：**`WasmAdapter`** 解析为 `{ blobURL, totalSegments }`；**`RustAdapter`** 解析为 `{ filePath, totalSegments }`。失败时 Promise 被拒绝。
 
 | 选项 | 类型 | 描述 |
 |------|------|------|

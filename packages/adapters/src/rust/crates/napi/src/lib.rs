@@ -136,11 +136,12 @@ pub async fn parse_hls_native(
 }
 
 #[napi(
-    ts_args_type = "segments: NapiSegment[], outputPath: string, headers: Record<string, string> | undefined | null, concurrency: number, maxRetry: number, aria2: NapiAria2Config | undefined | null, onProgress: (phase: string, completed: number, total: number) => void"
+    ts_args_type = "segments: NapiSegment[], workDir: string, filename: string, headers: Record<string, string> | undefined | null, concurrency: number, maxRetry: number, aria2: NapiAria2Config | undefined | null, onProgress: (phase: string, completed: number, total: number) => void"
 )]
 pub async fn download_and_merge(
     segments: Vec<NapiSegment>,
-    output_path: String,
+    work_dir: String,
+    filename: String,
     headers: Option<HashMap<String, String>>,
     concurrency: u32,
     max_retry: u32,
@@ -155,7 +156,7 @@ pub async fn download_and_merge(
         })
         .collect();
 
-    let output = std::path::PathBuf::from(&output_path);
+    let work = std::path::PathBuf::from(work_dir);
 
     let progress_cb: hls_core::download::ProgressCallback =
         Arc::new(move |p: DownloadProgress| {
@@ -178,7 +179,8 @@ pub async fn download_and_merge(
 
     let result = hls_core::download_and_merge(
         &core_segments,
-        &output,
+        &work,
+        filename.as_str(),
         headers.as_ref(),
         concurrency as usize,
         max_retry as usize,

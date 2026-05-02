@@ -49,22 +49,16 @@ export type HlsDownloaderDownloadOptions = {
   downloadConcurrency?: number;
 };
 
-export type DownloadResult = {
-  blobURL: string;
-  totalSegments: number;
-} | void;
-
 export interface HlsDownloaderAdapterInternal<
   AdditionalOptions extends Record<string, any> = {},
+  DownloadResult = unknown,
 > extends HlsDownloaderAdapter {
   chunkDownloadConcurrency: number;
   segmentRetryAttempts: number;
   init(options?: AdditionalOptions): Promise<void>;
   parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult>;
   download(
-    options: HlsDownloaderFetchOptions &
-      HlsDownloaderDownloadOptions &
-      Partial<AdditionalOptions>,
+    options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions & Partial<AdditionalOptions>,
   ): Promise<DownloadResult>;
   getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined>;
 }

@@ -79,14 +79,31 @@ type HlsDownloaderDownloadOptions = {
 
 Additional options specific to the `download()` method.
 
-## DownloadResult
+## Download result (adapter-specific)
+
+`HlsDownloader.download()` resolves to a value whose shape depends on the adapter passed to the constructor. On failure, the returned promise is **rejected** (it does not resolve to a sentinel value).
+
+### WasmAdapter
 
 ```ts
-type DownloadResult = {
+type WasmAdapterDownloadResult = {
   blobURL: string
   totalSegments: number
-} | void
+}
 ```
 
-Returned by `download()`. On success, contains the blob URL of the merged file and the total number of segments. Returns `void` on failure.
+`blobURL` is a browser object URL (`blob:...`) for the merged file.
+
+### RustAdapter
+
+```ts
+type RustAdapterDownloadResult = {
+  filePath: string
+  totalSegments: number
+}
+```
+
+`filePath` is an absolute path to the merged file on disk.
+
+There is no single exported `DownloadResult` in `@hls-downloader/shared`; TypeScript infers the correct fields from the adapter type on `HlsDownloader`.
 

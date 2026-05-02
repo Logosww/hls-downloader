@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **Breaking**: Rename constructor field `option` to `options`, `setOption` to `setOptions`, and pluralize option types.
+- **Breaking** Rust adapter `download` method download and merge segements on disk and returns aboslute file path.
 
 ## [1.1.0] - 2026-04-13
 

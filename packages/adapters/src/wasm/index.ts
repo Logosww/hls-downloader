@@ -21,13 +21,21 @@ declare global {
   const __FFmpeg_Mt_Base__: string;
 }
 
-export type HlsDownloaderWasmAdapter = HlsDownloaderAdapterInternal<{
-  coreURL?: string;
-  wasmURL?: string;
-  workerURL?: string;
-  disableMultiThread?: boolean;
-  useESM?: boolean;
-}>;
+type DownloadResult = {
+  blobURL: string;
+  totalSegments: number;
+};
+
+export type HlsDownloaderWasmAdapter = HlsDownloaderAdapterInternal<
+  {
+    coreURL?: string;
+    wasmURL?: string;
+    workerURL?: string;
+    disableMultiThread?: boolean;
+    useESM?: boolean;
+  },
+  DownloadResult
+>;
 
 let ffmpeg: FFmpeg | null = null;
 const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);

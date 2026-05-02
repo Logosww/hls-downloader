@@ -2,7 +2,6 @@ import {
   createAdapter,
   HlsDownloaderEvent,
   selectBestVariant,
-  type DownloadResult,
   type HlsDownloaderAdapterInternal,
   type HlsDownloaderFetchOptions,
   type ParseHlsResult,
@@ -17,15 +16,23 @@ import {
   type NapiParseHlsResult,
   type NapiAria2Config,
 } from './native.js';
-import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export type RustAdapterAria2Options = NapiAria2Config;
-
-export type HlsDownloaderRustAdapter = HlsDownloaderAdapterInternal<{
+type AdditionalOptions = {
   disableMultiThread?: boolean;
   aria2?: RustAdapterAria2Options;
-}>;
+};
+type DownloadResult = {
+  filePath: string;
+  totalSegments: number;
+};
+export type HlsDownloaderRustAdapter = HlsDownloaderAdapterInternal<
+  AdditionalOptions,
+  DownloadResult
+>;
 
 let initialized = false;
 const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);
@@ -126,13 +133,15 @@ const download: HlsDownloaderRustAdapter['download'] = async function (
   const { segments } = await resolveToSegments(this, { url, headers });
   this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
 
-  const outputPath = join(tmpdir(), `hls-dl-${Date.now()}-${filename}`);
+  const workDir = join(process.cwd(), randomUUID());
+  await mkdir(workDir, { recursive: true });
   const napiSegments = segments.map((s) => ({ uri: s.uri, duration: s.duration ?? 0 }));
 
   const self = this;
   const filePath = await downloadAndMerge(
     napiSegments,
-    outputPath,
+    workDir,
+    filename,
     headers,
     downloadConcurrency,
     maxRetry,
@@ -149,7 +158,7 @@ const download: HlsDownloaderRustAdapter['download'] = async function (
   this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
   return {
-    blobURL: filePath,
+    filePath: filePath,
     totalSegments: segments.length,
   };
 };

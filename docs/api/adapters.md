@@ -12,6 +12,10 @@ During initialization, the adapter automatically detects whether multi-threading
 
 For FFmpeg core assets, **ESM** vs **UMD** paths on the CDN are controlled only by `useESM` (`true` → `esm/`, omitted or `false` → `umd/`).
 
+### `download()` result
+
+On success, resolves to `{ blobURL: string, totalSegments: number }`. `blobURL` is a browser `blob:` object URL for the merged file.
+
 ### Additional Options
 
 | Option | Type | Default | Description |
@@ -29,6 +33,10 @@ import { RustAdapter } from '@hls-downloader/adapters/rust'
 ```
 
 The Rust adapter loads a native `.node` N-API addon. It provides native performance for HLS parsing, segment downloading, and stream merging.
+
+### `download()` result
+
+On success, resolves to `{ filePath: string, totalSegments: number }`. `filePath` is an **absolute path** to the merged file on the local filesystem.
 
 ### Additional Options
 

@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "rootDir": ".",
+    "paths": {
+      "@/*": [
+        "."
+      ]
+    },
+    "types": [
+      "node"
+    ],
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "module": "ESNext",
+    "strict": true,
+    "allowSyntheticDefaultImports": true,
+    "isolatedDeclarations": true,
+    "esModuleInterop": true,
+    "target": "ESNext",
+    "outDir": "dist"
+  },
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
+  "include": [
+    "**/*"
+  ]
+}

@@ -75,7 +75,8 @@ const result = await downloader.download({
 });
 
 if (result) {
-  // result.blobURL：浏览器侧多为 blob: URL，可用于 <a download> 或创建 Object URL
+  // WasmAdapter：result.blobURL 多为 blob: URL，可用于 <a download>
+  // RustAdapter：result.filePath 为合并文件的绝对路径
   console.log(result.totalSegments);
 }
 
@@ -102,7 +103,7 @@ await downloader.init();
 | `isInit`                                                                  | 是否已完成初始化                                                                            |
 | `setOptions(options)`                                                     | 更新默认选项（不含单次请求的 `url`）                                                               |
 | `parseHls({ url, headers? })`                                             | 返回 `ParseHlsResult`：主列表 `playlist`、媒体列表 `segment` 或 `error`                         |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency? })` | 下载并合并；成功时返回 `{ blobURL, totalSegments }`（具体语义以适配器实现为准）                              |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency? })` | 下载并合并；**WasmAdapter** 成功时 `{ blobURL, totalSegments }`，**RustAdapter** 成功时 `{ filePath, totalSegments }`；失败则 Promise 拒绝 |
 | `getPosterUrl({ url, headers? })`                                         | 返回封面 URL 字符串，若无则 `undefined`                                                        |
 
 
@@ -211,7 +212,8 @@ const result = await downloader.download({
 });
 
 if (result) {
-  // result.blobURL: often a blob: URL in the browser; use with <a download> or Object URL
+  // WasmAdapter: result.blobURL — often a blob: URL; use with <a download>
+  // RustAdapter: result.filePath — absolute path to the merged file
   console.log(result.totalSegments);
 }
 
@@ -238,7 +240,7 @@ await downloader.init();
 | `isInit`                                                                  | Whether initialization finished                                                                                   |
 | `setOptions(options)`                                                     | Update defaults (per-call `url` is not stored here)                                                               |
 | `parseHls({ url, headers? })`                                             | Returns `ParseHlsResult`: `playlist`, `segment`, or `error`                                                       |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency? })` | Download and merge; on success returns `{ blobURL, totalSegments }` (exact semantics depend on the adapter)       |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency? })` | Download and merge; **WasmAdapter** resolves to `{ blobURL, totalSegments }`, **RustAdapter** to `{ filePath, totalSegments }`; failures reject the promise |
 | `getPosterUrl({ url, headers? })`                                         | Poster URL string, or `undefined`                                                                                 |
 
 

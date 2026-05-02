@@ -10,7 +10,8 @@
     "prepare:prepublish": "napi pre-publish --skip-optional-publish -t npm"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3"
+    "@napi-rs/cli": "^3",
+    "@types/node": "^25.6.0"
   },
   "napi": {
     "binaryName": "native",

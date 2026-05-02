@@ -66,7 +66,7 @@ async download(
 ): Promise<DownloadResult>
 ```
 
-Parse, download all segments, and merge them into a single file. Returns `{ blobURL, totalSegments }` on success, or `void` on failure.
+Parse, download all segments, and merge them into a single file. On success, **`WasmAdapter`** resolves to `{ blobURL, totalSegments }`; **`RustAdapter`** resolves to `{ filePath, totalSegments }`. On failure, the promise rejects.
 
 | Option | Type | Description |
 |--------|------|-------------|

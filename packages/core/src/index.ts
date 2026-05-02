@@ -1,4 +1,4 @@
-import { getInternalAdapter, ParseHlsResult, DownloadResult } from '@hls-downloader/shared';
+import { getInternalAdapter, ParseHlsResult } from '@hls-downloader/shared';
 
 import type {
   HlsDownloaderAdapter,
@@ -8,8 +8,13 @@ import type {
 
 export { HlsDownloaderEvent } from '@hls-downloader/shared';
 
-export type GetAdditionalOptions<T> =
-  T extends HlsDownloaderAdapterInternal<infer AdditionalOptions> ? AdditionalOptions : never;
+type HlsDownloaderConfigFactory<T> =
+  T extends HlsDownloaderAdapterInternal<infer AdditionalOptions, infer DownloadResult>
+    ? {
+        additionalOptions: AdditionalOptions;
+        downloadResult: DownloadResult;
+      }
+    : never;
 
 export class HlsDownloader<T extends HlsDownloaderAdapter> {
   #isInit: boolean = false;
@@ -26,7 +31,8 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     onEvent,
   }: {
     adapter: T;
-    options?: Omit<HlsDownloaderFetchOptions, 'url'> & GetAdditionalOptions<T>;
+    options?: Omit<HlsDownloaderFetchOptions, 'url'> &
+      HlsDownloaderConfigFactory<T>['additionalOptions'];
     onEvent?: HlsDownloaderAdapter['onEvent'];
   }) {
     this.#customOptions = options ?? {};
@@ -49,15 +55,23 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     }
     return this.#initPromise;
   }
-  setOptions(options: Omit<HlsDownloaderFetchOptions, 'url'> & GetAdditionalOptions<T>): void {
+  setOptions(
+    options: Omit<HlsDownloaderFetchOptions, 'url'> &
+      HlsDownloaderConfigFactory<T>['additionalOptions'],
+  ): void {
     this.#customOptions = options;
   }
   async parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult> {
     return await this.#adapter.parseHls({ ...this.#customOptions, ...options });
   }
-  async download(options: HlsDownloaderFetchOptions): Promise<DownloadResult> {
+  async download(
+    options: HlsDownloaderFetchOptions,
+  ): Promise<HlsDownloaderConfigFactory<T>['downloadResult']> {
     await this.init();
-    return await this.#adapter.download({ ...this.#customOptions, ...options });
+    return (await this.#adapter.download({
+      ...this.#customOptions,
+      ...options,
+    })) as HlsDownloaderConfigFactory<T>['downloadResult'];
   }
   async getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined> {
     return await this.#adapter.getPosterUrl({ ...this.#customOptions, ...options });

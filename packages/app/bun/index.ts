@@ -125,7 +125,7 @@ async function processDownload(task: DownloadTask, headers?: Record<string, stri
     if (!result) throw new Error('Download returned empty result');
 
     task.status = 'completed';
-    task.filePath = result.blobURL;
+    task.filePath = result.filePath;
     task.totalSegments = result.totalSegments;
     scheduleCleanup(task);
     emitTaskEvent(task.id, 'completed', taskToResponse(task));

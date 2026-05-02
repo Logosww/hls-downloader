@@ -79,14 +79,31 @@ type HlsDownloaderDownloadOptions = {
 
 `download()` 方法的额外选项。
 
-## DownloadResult
+## 下载结果（随适配器而异）
+
+`HlsDownloader.download()` 成功时解析得到的字段由构造时传入的**适配器**决定。失败时 Promise **被拒绝**，不会解析为特殊占位值。
+
+### WasmAdapter
 
 ```ts
-type DownloadResult = {
+type WasmAdapterDownloadResult = {
   blobURL: string
   totalSegments: number
-} | void
+}
 ```
 
-`download()` 的返回值。成功时包含合并文件的 blob URL 和分片总数。失败时返回 `void`。
+`blobURL` 为浏览器对象 URL（`blob:...`），指向合并后的文件。
+
+### RustAdapter
+
+```ts
+type RustAdapterDownloadResult = {
+  filePath: string
+  totalSegments: number
+}
+```
+
+`filePath` 为磁盘上合并文件的**绝对路径**。
+
+`@hls-downloader/shared` 中不导出单一的 `DownloadResult`；TypeScript 会根据 `HlsDownloader` 上的适配器类型推断具体字段。
 
