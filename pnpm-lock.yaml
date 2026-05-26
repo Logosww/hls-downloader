@@ -200,6 +200,13 @@ importers:
   packages/shared: {}
 
   test:
+    dependencies:
+      '@hls-downloader/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@hls-downloader/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0

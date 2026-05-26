@@ -1,0 +1,20 @@
+{
+  "name": "@hls-downloader/test",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "pnpm run test:e2e",
+    "test:e2e": "vitest run library-api.e2e.test.ts",
+    "test:e2e:publish": "HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS=1 vitest run library-api.e2e.test.ts publish-entrypoints.e2e.test.ts",
+    "test:native": "vitest run node-adapter-transcode.test.ts",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@hls-downloader/core": "workspace:*",
+    "@hls-downloader/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.0"
+  }
+}

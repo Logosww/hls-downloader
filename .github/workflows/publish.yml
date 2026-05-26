@@ -390,6 +390,9 @@ jobs:
 
       - run: pnpm run build
 
+      - name: Run publish e2e tests
+        run: pnpm run test:e2e:publish
+
       - name: Inject adapters optional native dependencies
         run: pnpm run adapters:inject-optional-deps
 
