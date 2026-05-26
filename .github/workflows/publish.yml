@@ -4,6 +4,15 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      publish_scope:
+        description: Publish scope
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - root-only
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,6 +26,7 @@ env:
 
 jobs:
   build-adapters-native:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
     name: Build adapters native (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
@@ -207,6 +217,7 @@ jobs:
           if-no-files-found: error
 
   publish-rust-native:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
     needs: build-adapters-native
     runs-on: ubuntu-latest
     permissions:
@@ -286,6 +297,7 @@ jobs:
 
   publish:
     needs: publish-rust-native
+    if: ${{ always() && ((github.event_name == 'workflow_dispatch' && inputs.publish_scope == 'root-only') || needs.publish-rust-native.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -340,12 +352,14 @@ jobs:
           echo "npm path: $(command -v npm)"
 
       - name: Install vcpkg host dependencies (Linux)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev
 
       # actions/cache does not expand ~ reliably; path must match Node os.homedir()/vcpkg.
       - name: Resolve VCPKG_ROOT (Linux)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         id: vcpkg_root
         shell: bash
         run: |
@@ -354,6 +368,7 @@ jobs:
           echo "VCPKG_ROOT=$R" >> "$GITHUB_ENV"
 
       - name: Restore vcpkg (Linux)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         id: vcpkg_cache
         uses: actions/cache/restore@v4
         with:
@@ -363,37 +378,50 @@ jobs:
             vcpkg-ff81-Linux-x64-linux-
 
       - name: Setup vcpkg + static FFmpeg (Linux x64)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: node scripts/setup-vcpkg-ffmpeg.ts x64-linux
 
       - name: Save vcpkg (Linux)
-        if: success() && steps.vcpkg_cache.outputs.cache-hit != 'true'
+        if: ${{ success() && (github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all') && steps.vcpkg_cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
           key: vcpkg-ff81-Linux-x64-linux-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: |
           "$PKG_CONFIG" --modversion libavcodec
           "$PKG_CONFIG" --modversion libavformat
 
       - name: Assert FFmpeg binding compatibility
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: node scripts/assert-ffmpeg-version.ts
 
       - uses: dtolnay/rust-toolchain@stable
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
 
       - uses: Swatinem/rust-cache@v2
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         with:
           workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm run build
+      - name: Build packages
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
+        run: pnpm run build
+
+      - name: Build root package
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_scope == 'root-only' }}
+        run: pnpm run build:root
 
       - name: Run publish e2e tests
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: pnpm run test:e2e:publish
 
       - name: Inject adapters optional native dependencies
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: pnpm run adapters:inject-optional-deps
 
       - name: Log toolchain versions before publish
@@ -405,6 +433,7 @@ jobs:
           echo "npm path: $(command -v npm)"
 
       - name: Publish packages
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: |
           set -euo pipefail
           VER=$(node -p "require('./packages/adapters/package.json').version")
@@ -417,4 +446,17 @@ jobs:
           pnpm --filter "@hls-downloader/shared" publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
           pnpm --filter "@hls-downloader/core" publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
           pnpm --filter "@hls-downloader/adapters" publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
+          pnpm publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
+
+      - name: Publish root package
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_scope == 'root-only' }}
+        run: |
+          set -euo pipefail
+          VER=$(node -p "require('./package.json').version")
+          TAG=$(node scripts/npm-dist-tag.ts)
+          PUBLISH_EXTRA=()
+          if [[ -n "$TAG" ]]; then
+            PUBLISH_EXTRA=(--tag "$TAG")
+            echo "Prerelease version ${VER}: publishing with --tag ${TAG}"
+          fi
           pnpm publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
