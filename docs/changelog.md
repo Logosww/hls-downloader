@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [2.0.0] - 2026-05-23
+## [2.0.0] - Unreleased
 
 ### Added
 
@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- **Breaking**: Ordinary HLS downloads now default to transmux/remux and keep source codecs instead of eagerly using FFmpeg.
+- **Breaking**: Ordinary HLS downloads now use the pure transmux/remux path by default and keep source codecs; pass `transcode` to opt in to FFmpeg-based encoding.
+- **Breaking**: Download output naming now treats `filename` as the basename only. The final extension is resolved internally from the output container (`mp4` by default, preset/format-aware for transcode).
 - **Breaking**: Adapter `init()` is now lightweight; FFmpeg is loaded only when transcoding, poster extraction, or an FFmpeg-backed path is used.
 - **Deprecated**: `WasmAdapter` and `RustAdapter` remain available as compatibility aliases, but new code should use `BrowserAdapter` and `NodeAdapter`.
 

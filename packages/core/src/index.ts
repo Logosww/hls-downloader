@@ -11,6 +11,7 @@ import type {
   HlsDownloaderAdapterInternal,
   HlsDownloaderGlobalDownloadOptions,
   HlsDownloaderFetchOptions,
+  HlsDownloaderDownloadOptions,
   HlsDownloaderTranscodeOptions,
 } from '@hls-downloader/shared';
 
@@ -100,7 +101,9 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     return await this.#adapter.parseHls(injectContext(options, this.#context));
   }
   async download(
-    options: HlsDownloaderFetchOptions,
+    options: HlsDownloaderFetchOptions &
+      HlsDownloaderDownloadOptions &
+      Partial<HlsDownloaderConfigFactory<T>['additionalOptions']>,
   ): Promise<HlsDownloaderConfigFactory<T>['downloadResult']> {
     await this.init();
     return (await this.#adapter.download(

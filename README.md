@@ -71,7 +71,7 @@ const parsed = await downloader.parseHls({
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
   headers: {},
-  filename: 'output.mp4',
+  filename: 'output',
 });
 
 if (result) {
@@ -104,7 +104,7 @@ await downloader.init();
 | `globalOptions`                                                           | 当前默认选项，未设置时为 `null`                                                              |
 | `setOptions(options)`                                                     | 更新默认选项                                                                               |
 | `parseHls({ url, headers? })`                                             | 返回 `ParseHlsResult`：主列表 `playlist`、媒体列表 `segment` 或 `error`                         |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, ... })` | 下载并合并；默认走 transmux/remux，显式 `transcode` 时进入 FFmpeg 路径。**BrowserAdapter** → `{ blobURL, totalSegments }`，**NodeAdapter** → `{ filePath, totalSegments }` |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, ... })` | 下载并合并；`filename` 不含扩展名，扩展名由内部按容器生成。默认走 transmux/remux，显式 `transcode` 时进入 FFmpeg 路径。**BrowserAdapter** → `{ blobURL, totalSegments }`，**NodeAdapter** → `{ filePath, totalSegments }` |
 | `getPosterUrl({ url, headers? })`                                         | 返回封面 URL 字符串，若无则 `undefined`                                                        |
 
 `GlobalOptions.download` 字段：`headers`、`concurrency`、`maxRetry`。单次 `download({ downloadConcurrency })` 覆盖 `download.concurrency`。
@@ -223,7 +223,7 @@ const parsed = await downloader.parseHls({
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
   headers: {},
-  filename: 'output.mp4',
+  filename: 'output',
 });
 
 if (result) {
@@ -256,7 +256,7 @@ await downloader.init();
 | `globalOptions`                                                           | Current default options, or `null` if unset                                                                       |
 | `setOptions(options)`                                                     | Replace default options                                                                                           |
 | `parseHls({ url, headers? })`                                             | Returns `ParseHlsResult`: `playlist`, `segment`, or `error`                                                       |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, ... })` | Download and merge; default transmux/remux, explicit `transcode` uses FFmpeg. **BrowserAdapter** → `{ blobURL, totalSegments }`, **NodeAdapter** → `{ filePath, totalSegments }` |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, ... })` | Download and merge; `filename` excludes the extension, which is generated internally from the container. Default transmux/remux, explicit `transcode` uses FFmpeg. **BrowserAdapter** → `{ blobURL, totalSegments }`, **NodeAdapter** → `{ filePath, totalSegments }` |
 | `getPosterUrl({ url, headers? })`                                         | Poster URL string, or `undefined`                                                                                 |
 
 `GlobalOptions.download` fields: `headers`, `concurrency`, `maxRetry`. Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.

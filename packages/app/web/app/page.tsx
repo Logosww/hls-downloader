@@ -158,14 +158,15 @@ export default function HomePage() {
       toast.error('未找到可下载的视频流');
       return;
     }
-    const filename = (title || '').trim() || 'output.mp4';
+    const filename = ((title || '').trim() || 'output').replace(/\.[^/.]+$/, '');
+    const outputTitle = `${filename}.mp4`;
     const taskId = Date.now().toString();
     currentDownloadId.current = taskId;
     setDownloadList((tasks) => {
       const task: IDownloadListItem = {
         id: taskId,
         url: selectedPlaylist.uri,
-        title: filename,
+        title: outputTitle,
         previewSrc: metadata.previewSrc,
         percentage: 0,
         status: 'downloading',
@@ -177,6 +178,7 @@ export default function HomePage() {
       const result = await downloader.current?.download({
         url: selectedPlaylist.uri,
         headers: Object.keys(headers).length ? headers : undefined,
+        filename,
       });
       if (!result?.blobURL) {
         throw new Error('下载失败');

@@ -60,7 +60,7 @@ const parsed = await downloader.parseHls({
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
   headers: {},
-  filename: 'output.mp4',
+  filename: 'output',
 })
 
 // Explicit transcode — loads FFmpeg (see Adapter docs)

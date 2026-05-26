@@ -21,7 +21,7 @@ Ordinary downloads use a **lightweight browser transmux path**. **`@ffmpeg/ffmpe
 | `parseHls()` | No | — |
 | `init()` | No | — |
 | `download()` | **No** (default) | Omit `transcode` and `globalOptions.transcode` → transmux only |
-| `download()` | **Yes** | `transcode` with a `preset` or explicit output codecs, or `globalOptions.transcode` |
+| `download()` | **Yes** | `transcode` with a `preset`, explicit output codecs, or `format`, or `globalOptions.transcode` |
 | `getPosterUrl()` | No | Uses segment-based extraction only |
 
 When FFmpeg is loaded, the adapter automatically detects whether multi-threading is available by checking `crossOriginIsolated` and `SharedArrayBuffer`. If not available, it falls back to the single-threaded `@ffmpeg/core` build.

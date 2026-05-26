@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { NodeAdapter } from '@hls-downloader/adapters/node';
 import { HlsDownloader } from '@hls-downloader/core';
-import { HlsDownloaderEvent } from '@hls-downloader/shared';
+import { getDownloadOutputFilename, HlsDownloaderEvent } from '@hls-downloader/shared';
 import { randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 
@@ -221,7 +221,7 @@ const app = new Elysia()
         id: randomUUID(),
         status: 'pending',
         url: body.url,
-        filename: body.filename ?? 'output.mp4',
+        filename: body.filename ?? 'output',
         createdAt: Date.now(),
       };
 
@@ -285,7 +285,7 @@ const app = new Elysia()
       headers: {
         'Content-Type': 'video/mp4',
         'Content-Length': String(file.size),
-        'Content-Disposition': `attachment; filename="${task.filename}"`,
+        'Content-Disposition': `attachment; filename="${getDownloadOutputFilename(task.filename)}"`,
       },
     });
   })

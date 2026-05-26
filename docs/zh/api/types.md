@@ -96,7 +96,7 @@ type HlsDownloaderTranscodeOptions = {
 | `hevc` | libx265 | aac | mp4 | 仅 Node |
 | `vp9` | libvpx-vp9 | libopus | webm | 仅 Node |
 
-省略 `transcode` 即默认 transmux/remux（不加载 FFmpeg）。`needsFfmpegTranscode()` 在设置了 `preset` 或任一输出编码非 `copy` 时返回 `true`。
+省略 `transcode` 即默认 transmux/remux（不加载 FFmpeg）。`needsFfmpegTranscode()` 在设置了 `preset`、`format` 或任一输出编码非 `copy` 时返回 `true`。
 
 ## HlsDownloaderBrowserTranscodeOptions
 
@@ -121,7 +121,7 @@ type HlsDownloaderDownloadOptions = {
 }
 ```
 
-`download()` 单次调用选项。
+`download()` 单次调用选项。`filename` 是不含扩展名的单纯文件名；最终扩展名由内部根据输出容器解析（默认 `mp4`，设置 `transcode` 时感知 preset/format）。
 
 ## GlobalOptions
 

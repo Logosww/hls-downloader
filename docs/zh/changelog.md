@@ -5,7 +5,7 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
-## [2.0.0] - 2026-05-23
+## [2.0.0] - 未发布
 
 ### 新增
 
@@ -14,7 +14,8 @@
 
 ### 变更
 
-- **破坏性变更**：普通 HLS 下载默认走 transmux/remux 并保留源编码，不再预先进入 FFmpeg 链路。
+- **破坏性变更**：普通 HLS 下载默认走纯 transmux/remux 路径并保留源编码；需要 FFmpeg 编码时通过 `transcode` 显式启用。
+- **破坏性变更**：下载输出命名现在将 `filename` 视为 basename，不再要求传入扩展名；最终扩展名由内部根据输出容器解析（默认 `mp4`，设置 transcode 时感知 preset/format）。
 - **破坏性变更**：适配器 `init()` 变为轻量初始化；只有转码、封面提取或 FFmpeg-backed 路径才会加载 FFmpeg。
 - **已弃用**：`WasmAdapter` 与 `RustAdapter` 仍作为兼容别名保留；新代码请使用 `BrowserAdapter` 与 `NodeAdapter`。
 

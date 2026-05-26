@@ -11,6 +11,7 @@ import {
   type HlsDownloaderTranscodeOptions,
   needsFfmpegTranscode,
   buildFfmpegOutputArgs,
+  getDownloadOutputFilename,
   type ParseHlsResult,
   type Playlist,
   type Segment,
@@ -71,18 +72,19 @@ function mergeDownloadOptions(
   const callOptions = stripContext(options) as HlsDownloaderFetchOptions &
     HlsDownloaderDownloadOptions &
     AdditionalOptions;
+  const transcode = callOptions.transcode ?? globalOptions?.transcode;
 
   return {
     url: callOptions.url,
     headers: callOptions.headers ?? globalOptions?.download?.headers,
-    filename: callOptions.filename ?? 'output.mp4',
+    filename: getDownloadOutputFilename(callOptions.filename, transcode),
     maxRetry:
       callOptions.maxRetry ?? globalOptions?.download?.maxRetry ?? adapter.segmentRetryAttempts,
     downloadConcurrency:
       callOptions.downloadConcurrency ??
       globalOptions?.download?.concurrency ??
       adapter.chunkDownloadConcurrency,
-    transcode: callOptions.transcode ?? globalOptions?.transcode,
+    transcode,
     aria2: callOptions.aria2 ?? globalOptions?.aria2,
   };
 }

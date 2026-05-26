@@ -11,6 +11,7 @@ import {
   type HlsDownloaderGlobalDownloadOptions,
   buildBrowserFfmpegOutputArgs,
   assertBrowserTranscodeOptions,
+  getDownloadOutputFilename,
   needsBrowserFfmpegTranscode,
   type HlsDownloaderBrowserTranscodeOptions,
   type ParseHlsResult,
@@ -82,11 +83,12 @@ function mergeDownloadOptions(
     BrowserAdditionalOptions;
 
   const mergedTranscode = callOptions.transcode ?? globalOptions?.transcode;
+  const filename = getDownloadOutputFilename(callOptions.filename, mergedTranscode);
 
   return {
     url: callOptions.url,
     headers: callOptions.headers ?? globalOptions?.download?.headers,
-    filename: callOptions.filename ?? 'output.mp4',
+    filename,
     maxRetry:
       callOptions.maxRetry ?? globalOptions?.download?.maxRetry ?? adapter.segmentRetryAttempts,
     downloadConcurrency:

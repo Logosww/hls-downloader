@@ -96,7 +96,7 @@ type HlsDownloaderTranscodeOptions = {
 | `hevc` | libx265 | aac | mp4 | Node only |
 | `vp9` | libvpx-vp9 | libopus | webm | Node only |
 
-Omit `transcode` for default transmux/remux (no FFmpeg). `needsFfmpegTranscode()` returns true when a `preset` is set or any output codec is not `copy`.
+Omit `transcode` for default transmux/remux (no FFmpeg). `needsFfmpegTranscode()` returns true when a `preset` or `format` is set, or any output codec is not `copy`.
 
 ## HlsDownloaderBrowserTranscodeOptions
 
@@ -121,7 +121,7 @@ type HlsDownloaderDownloadOptions = {
 }
 ```
 
-Per-call options for `download()`.
+Per-call options for `download()`. `filename` is a plain filename without extension; the final extension is resolved internally from the output container (`mp4` by default, preset/format-aware when `transcode` is set).
 
 ## GlobalOptions
 

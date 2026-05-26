@@ -7,7 +7,7 @@
 
 FFmpeg **仅在按需**、且某条代码路径确实需要时才会加载 — 各适配器的具体触发条件见[适配器 API](./adapters.md)。`init()` 与 `parseHls()` 均不会加载 FFmpeg。
 
-若需通过 FFmpeg 转码，请在 `download()` 上传入带 `preset` 或显式输出编码的 `transcode` 选项（也可在 `globalOptions.transcode` 中设置）。省略 `transcode` 则走默认 transmux/remux 路径。
+若需通过 FFmpeg 转码，请在 `download()` 上传入带 `preset`、显式输出编码或 `format` 的 `transcode` 选项（也可在 `globalOptions.transcode` 中设置）。省略 `transcode` 则走默认 transmux/remux 路径。
 :::
 
 ## 构造函数
@@ -111,7 +111,7 @@ async download(
 
 解析、下载全部分片并合并为单个文件。成功时：**`BrowserAdapter`** 解析为 `{ blobURL, totalSegments }`；**`NodeAdapter`** 解析为 `{ filePath, totalSegments }`。失败时 Promise 被拒绝。
 
-**默认（不传 `transcode`）** 各适配器走轻量 transmux 路径 — **不会加载 FFmpeg**。传入带 `preset` 或显式输出编码的 `transcode` 对象后切换为 FFmpeg 路径。
+**默认（不传 `transcode`）** 各适配器走轻量 transmux 路径 — **不会加载 FFmpeg**。传入带 `preset`、显式输出编码或 `format` 的 `transcode` 对象后切换为 FFmpeg 路径。
 
 单次传入的选项与 `globalOptions` 合并，单次选项优先。
 
@@ -119,7 +119,7 @@ async download(
 |------|------|------|
 | `url` | `string` | HLS 播放列表地址 |
 | `headers` | `Record<string, string>` | 请求头 |
-| `filename` | `string` | 输出文件名 |
+| `filename` | `string` | 不含扩展名的输出文件名。扩展名由内部根据输出容器解析（默认 `mp4`，`vp9` 为 `webm`，或取 `transcode.format`） |
 | `maxRetry` | `number` | 每个分片的最大重试次数 |
 | `downloadConcurrency` | `number` | 分片并发下载数 |
 | `transcode` | `HlsDownloaderTranscodeOptions` | **FFmpeg 转码。** 省略时默认 transmux/remux（不加载 FFmpeg） |

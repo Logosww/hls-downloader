@@ -8,7 +8,7 @@ HLS Downloader uses an adapter pattern to support different runtimes. Choose the
 ::: warning Transmux by default — FFmpeg only when needed
 **Ordinary `download()` uses a lightweight transmux/remux path and does not load FFmpeg.** Source codecs are preserved (e.g. remux to MP4).
 
-FFmpeg is loaded **on demand** only when a specific API requires it. **`init()` and `parseHls()` never load FFmpeg.** To transcode on download, pass `transcode` with a `preset` or explicit output codecs (or set `globalOptions.transcode`).
+FFmpeg is loaded **on demand** only when a specific API requires it. **`init()` and `parseHls()` never load FFmpeg.** To transcode on download, pass `transcode` with a `preset`, explicit output codecs, or `format` (or set `globalOptions.transcode`).
 
 See each adapter section below for **when FFmpeg loads**.
 :::
@@ -28,7 +28,7 @@ The browser adapter performs ordinary downloads with a **lightweight transmux pa
 | API | FFmpeg | Trigger |
 |-----|--------|---------|
 | `download()` (default) | No | Omit `transcode` |
-| `download()` | Yes | `transcode` with a `preset` or explicit output codecs, or `globalOptions.transcode` |
+| `download()` | Yes | `transcode` with a `preset`, explicit output codecs, or `format`, or `globalOptions.transcode` |
 | `getPosterUrl()` | No | Segment-based extraction only |
 | `parseHls()` / `init()` | No | — |
 
@@ -169,7 +169,7 @@ await downloader.init()
 
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
-  filename: 'output.mp4',
+  filename: 'output',
 })
 ```
 

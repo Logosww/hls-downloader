@@ -4,6 +4,9 @@ import {
   buildBrowserFfmpegOutputArgs,
   buildFfmpegOutputArgs,
   createAdapter,
+  getDownloadFilenameBase,
+  getDownloadOutputExt,
+  getDownloadOutputFilename,
   getAdapterGlobalOptionsFromInternal,
   getInternalAdapter,
   getTranscodeDefaultFilename,
@@ -101,7 +104,7 @@ function createMemoryAdapter() {
       return {
         url: fetchOptions.url,
         headers: fetchOptions.headers ?? globalOptions.download?.headers,
-        filename: fetchOptions.filename ?? 'output.mp4',
+        filename: fetchOptions.filename ?? 'output',
         maxRetry:
           fetchOptions.maxRetry ?? globalOptions.download?.maxRetry ?? internal.segmentRetryAttempts,
         downloadConcurrency:
@@ -171,13 +174,13 @@ describe('library API e2e', () => {
 
     const download = await downloader.download({
       url: 'https://cdn.example.test/video.m3u8',
-      filename: 'video.mp4',
+      filename: 'video',
     });
 
     expect(download).toEqual({
       url: 'https://cdn.example.test/video.m3u8',
       headers: { authorization: 'Bearer global' },
-      filename: 'video.mp4',
+      filename: 'video',
       maxRetry: 11,
       downloadConcurrency: 7,
       transcode: { preset: 'h264', crf: 24 },
@@ -245,6 +248,7 @@ describe('shared API e2e', () => {
     expect(needsFfmpegTranscode()).toBe(false);
     expect(needsFfmpegTranscode({ videoCodec: 'copy', audioCodec: 'copy' })).toBe(false);
     expect(needsFfmpegTranscode({ preset: 'h264' })).toBe(true);
+    expect(needsFfmpegTranscode({ format: 'webm' })).toBe(true);
     expect(needsBrowserFfmpegTranscode({ preset: 'h264' })).toBe(true);
     expect(resolveTranscodeOptions({ preset: 'vp9', crf: 32 })).toEqual({
       preset: 'vp9',
@@ -253,6 +257,16 @@ describe('shared API e2e', () => {
       audioCodec: 'libopus',
       format: 'webm',
     });
+    expect(getDownloadFilenameBase('archive.video.mp4')).toBe('archive.video');
+    expect(getDownloadOutputExt()).toBe('mp4');
+    expect(getDownloadOutputFilename('video.mp4')).toBe('video.mp4');
+    expect(getDownloadOutputFilename('video', { preset: 'vp9' })).toBe('video.webm');
+    expect(
+      getDownloadOutputFilename('video', { videoCodec: 'libvpx-vp9', audioCodec: 'libopus' }),
+    ).toBe('video.webm');
+    expect(getDownloadOutputFilename('video', { preset: 'vp9', format: 'mp4' })).toBe(
+      'video.mp4',
+    );
     expect(getTranscodeDefaultFilename({ preset: 'vp9' })).toBe('output.webm');
     expect(getTranscodeMimeType({ preset: 'h264' })).toBe('video/mp4');
     expect(buildFfmpegOutputArgs({ preset: 'h264', crf: 23, speed: 'fast' })).toEqual([

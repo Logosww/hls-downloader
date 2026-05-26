@@ -60,7 +60,7 @@ const parsed = await downloader.parseHls({
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
   headers: {},
-  filename: 'output.mp4',
+  filename: 'output',
 })
 
 // 显式转码 — 会加载 FFmpeg（详见适配器文档）

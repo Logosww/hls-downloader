@@ -7,7 +7,7 @@ The main facade class for downloading HLS streams. Imported from `@hls-downloade
 
 FFmpeg is loaded **only on demand** when a code path actually needs it — see [Adapter API](./adapters.md) for adapter-specific triggers. `init()` and `parseHls()` never load FFmpeg.
 
-To use FFmpeg for transcoding, pass a `transcode` options object with a `preset` or explicit output codecs on `download()` (or set `globalOptions.transcode`). Omit `transcode` for the default transmux/remux path.
+To use FFmpeg for transcoding, pass a `transcode` options object with a `preset`, explicit output codecs, or `format` on `download()` (or set `globalOptions.transcode`). Omit `transcode` for the default transmux/remux path.
 :::
 
 ## Constructor
@@ -111,7 +111,7 @@ async download(
 
 Parse, download all segments, and merge them into a single file. On success, **`BrowserAdapter`** resolves to `{ blobURL, totalSegments }`; **`NodeAdapter`** resolves to `{ filePath, totalSegments }`. On failure, the promise rejects.
 
-**By default (no `transcode`)**, adapters use the lightweight transmux path — **FFmpeg is not loaded**. Passing a `transcode` object with a `preset` or explicit output codecs switches to the FFmpeg path.
+**By default (no `transcode`)**, adapters use the lightweight transmux path — **FFmpeg is not loaded**. Passing a `transcode` object with a `preset`, explicit output codecs, or `format` switches to the FFmpeg path.
 
 Merges per-call options with `globalOptions` (per-call wins).
 
@@ -119,7 +119,7 @@ Merges per-call options with `globalOptions` (per-call wins).
 |--------|------|-------------|
 | `url` | `string` | HLS playlist URL |
 | `headers` | `Record<string, string>` | Request headers |
-| `filename` | `string` | Output filename |
+| `filename` | `string` | Output filename without extension. The extension is resolved internally from the output container (`mp4` by default, `webm` for `vp9`, or `transcode.format`) |
 | `maxRetry` | `number` | Max retry attempts per segment |
 | `downloadConcurrency` | `number` | Concurrent segment downloads |
 | `transcode` | `HlsDownloaderTranscodeOptions` | **Transcode with FFmpeg.** Omit for default transmux/remux (no FFmpeg) |

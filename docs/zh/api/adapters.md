@@ -21,7 +21,7 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 | `parseHls()` | 否 | — |
 | `init()` | 否 | — |
 | `download()` | **否**（默认） | 省略 `transcode` 与 `globalOptions.transcode` → 仅 transmux |
-| `download()` | **是** | 带 `preset` 或显式输出编码的 `transcode`，或 `globalOptions.transcode` |
+| `download()` | **是** | 带 `preset`、显式输出编码或 `format` 的 `transcode`，或 `globalOptions.transcode` |
 | `getPosterUrl()` | 否 | 仅基于分片的轻量提取 |
 
 加载 FFmpeg 时，适配器会自动检测 `crossOriginIsolated` 和 `SharedArrayBuffer` 是否可用来判断多线程支持。若不可用，则自动降级到单线程 `@ffmpeg/core` 构建。

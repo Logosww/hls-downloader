@@ -14,6 +14,13 @@ const TRANSCODE_PRESETS: Record<
 };
 
 const X264_X265_CODECS = new Set(['libx264', 'libx265']);
+const DEFAULT_DOWNLOAD_FILENAME = 'output';
+const DEFAULT_DOWNLOAD_EXT = 'mp4';
+const FORMAT_EXTENSIONS: Record<string, string> = {
+  matroska: 'mkv',
+  mpegts: 'ts',
+  quicktime: 'mov',
+};
 
 const BROWSER_TRANSCODE_FORBIDDEN_KEYS = [
   'videoCodec',
@@ -29,6 +36,20 @@ function formatBitrate(value: string | number): string {
   return typeof value === 'number' ? String(value) : value;
 }
 
+function normalizeFormatExt(format?: string): string {
+  if (!format) {
+    return DEFAULT_DOWNLOAD_EXT;
+  }
+
+  const normalized = format
+    .trim()
+    .toLowerCase()
+    .replace(/^\.+/, '')
+    .split(/[,\s]/)[0];
+
+  return (FORMAT_EXTENSIONS[normalized] ?? normalized) || DEFAULT_DOWNLOAD_EXT;
+}
+
 /** Whether download should use FFmpeg for encoding (Node / full transcode options). */
 export function needsFfmpegTranscode(
   transcode?: HlsDownloaderTranscodeOptions,
@@ -38,6 +59,10 @@ export function needsFfmpegTranscode(
   }
 
   if (transcode.preset) {
+    return true;
+  }
+
+  if (transcode.format) {
     return true;
   }
 
@@ -71,6 +96,45 @@ export function resolveTranscodeOptions(
   };
 }
 
+export function getDownloadFilenameBase(filename?: string): string {
+  const trimmed = filename?.trim();
+  if (!trimmed) {
+    return DEFAULT_DOWNLOAD_FILENAME;
+  }
+
+  const basename = trimmed.replace(/\\/g, '/').split('/').filter(Boolean).at(-1);
+  if (!basename || basename === '.' || basename === '..') {
+    return DEFAULT_DOWNLOAD_FILENAME;
+  }
+
+  const dotIndex = basename.lastIndexOf('.');
+  if (dotIndex > 0) {
+    return basename.slice(0, dotIndex) || DEFAULT_DOWNLOAD_FILENAME;
+  }
+
+  return basename;
+}
+
+export function getDownloadOutputExt(transcode?: HlsDownloaderTranscodeOptions): string {
+  if (!transcode) {
+    return DEFAULT_DOWNLOAD_EXT;
+  }
+
+  const options = resolveTranscodeOptions(transcode);
+  if (!options.format && (options.videoCodec === 'libvpx-vp9' || options.audioCodec === 'libopus')) {
+    return 'webm';
+  }
+
+  return normalizeFormatExt(options.format);
+}
+
+export function getDownloadOutputFilename(
+  filename?: string,
+  transcode?: HlsDownloaderTranscodeOptions,
+): string {
+  return `${getDownloadFilenameBase(filename)}.${getDownloadOutputExt(transcode)}`;
+}
+
 function appendEncodingArgs(
   args: string[],
   options: HlsDownloaderTranscodeOptions,
@@ -101,13 +165,11 @@ function appendBrowserOutputArgs(args: string[]): void {
 }
 
 export function getTranscodeDefaultFilename(transcode: HlsDownloaderTranscodeOptions): string {
-  const options = resolveTranscodeOptions(transcode);
-  return options.format === 'webm' ? 'output.webm' : 'output.mp4';
+  return getDownloadOutputFilename(undefined, transcode);
 }
 
 export function getTranscodeMimeType(transcode: HlsDownloaderTranscodeOptions): string {
-  const options = resolveTranscodeOptions(transcode);
-  return options.format === 'webm' ? 'video/webm' : 'video/mp4';
+  return getDownloadOutputExt(transcode) === 'webm' ? 'video/webm' : 'video/mp4';
 }
 
 export function assertBrowserTranscodeOptions(

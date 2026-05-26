@@ -56,10 +56,11 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('默认下载（无 transcode）保持原始编码', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'default.mp4',
+      filename: 'default',
     });
 
     expect(result.filePath).toBeTruthy();
+    expect(result.filePath.endsWith('default.mp4')).toBe(true);
     expect(existsSync(result.filePath)).toBe(true);
     downloadedFiles.push(result.filePath);
 
@@ -75,11 +76,12 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('h264 preset 输出 H.264/AAC/MP4', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'h264.mp4',
+      filename: 'h264',
       transcode: { preset: 'h264' },
     });
 
     expect(result.filePath).toBeTruthy();
+    expect(result.filePath.endsWith('h264.mp4')).toBe(true);
     expect(existsSync(result.filePath)).toBe(true);
     downloadedFiles.push(result.filePath);
 
@@ -95,11 +97,12 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('hevc preset 输出 H.265/AAC/MP4', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'hevc.mp4',
+      filename: 'hevc',
       transcode: { preset: 'hevc' },
     });
 
     expect(result.filePath).toBeTruthy();
+    expect(result.filePath.endsWith('vp9.webm')).toBe(true);
     expect(existsSync(result.filePath)).toBe(true);
     downloadedFiles.push(result.filePath);
 
@@ -115,11 +118,12 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('vp9 preset 输出 VP9/Opus/WebM', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'vp9.webm',
+      filename: 'vp9',
       transcode: { preset: 'vp9' },
     });
 
     expect(result.filePath).toBeTruthy();
+    expect(result.filePath.endsWith('custom-acodec.webm')).toBe(true);
     expect(existsSync(result.filePath)).toBe(true);
     downloadedFiles.push(result.filePath);
 
@@ -135,7 +139,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('videoCodec: copy 保持原始视频编码', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'copy.mp4',
+      filename: 'copy',
       transcode: { videoCodec: 'copy', audioCodec: 'copy' },
     });
 
@@ -153,7 +157,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('下载结果包含 totalSegments', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'segments.mp4',
+      filename: 'segments',
     });
 
     expect(result.totalSegments).toBeGreaterThan(0);
@@ -168,7 +172,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
 
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'global-transcode.mp4',
+      filename: 'global-transcode',
     });
 
     expect(result.filePath).toBeTruthy();
@@ -188,7 +192,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
 
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'override.mp4',
+      filename: 'override',
       transcode: { preset: 'hevc' },
     });
 
@@ -205,7 +209,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('自定义 videoCodec: libx265 输出 H.265', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'custom-vcodec.mp4',
+      filename: 'custom-vcodec',
       transcode: { videoCodec: 'libx265' },
     });
 
@@ -220,7 +224,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('自定义 audioCodec: libopus 输出 Opus', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'custom-acodec.webm',
+      filename: 'custom-acodec',
       transcode: { videoCodec: 'libvpx-vp9', audioCodec: 'libopus', format: 'webm' },
     });
 
@@ -238,7 +242,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('crf 选项影响编码质量', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'crf.mp4',
+      filename: 'crf',
       transcode: { preset: 'h264', crf: 28 },
     });
 
@@ -253,7 +257,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('videoBitrate 选项限制视频比特率', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'vbitrate.mp4',
+      filename: 'vbitrate',
       transcode: { preset: 'h264', videoBitrate: '1000k' },
     });
 
@@ -268,7 +272,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('audioBitrate 选项限制音频比特率', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'abitrate.mp4',
+      filename: 'abitrate',
       transcode: { preset: 'h264', audioBitrate: '128k' },
     });
 
@@ -283,7 +287,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('speed 选项影响编码速度', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'speed.mp4',
+      filename: 'speed',
       transcode: { preset: 'h264', speed: 'ultrafast' },
     });
 
@@ -298,7 +302,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('组合选项: preset + crf + speed', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'combined.mp4',
+      filename: 'combined',
       transcode: { preset: 'h264', crf: 23, speed: 'fast' },
     });
 
@@ -318,7 +322,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   it('无 preset 的自定义组合', async () => {
     const result = await downloader.download({
       url: HLS_URL,
-      filename: 'no-preset.mp4',
+      filename: 'no-preset',
       transcode: {
         videoCodec: 'libx264',
         audioCodec: 'aac',

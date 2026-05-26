@@ -92,7 +92,7 @@ export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfi
                 <FormItem className="mb-3">
                   <FormLabel>文件标题</FormLabel>
                   <FormControl>
-                    <Input {...field} type="text" placeholder="output.mp4" />
+                    <Input {...field} type="text" placeholder="output" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
