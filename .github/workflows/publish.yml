@@ -414,7 +414,7 @@ jobs:
             PUBLISH_EXTRA=(--tag "$TAG")
             echo "Prerelease version ${VER}: publishing with --tag ${TAG}"
           fi
-          pnpm --filter "@hls-downloader/shared" publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
-          pnpm --filter "@hls-downloader/core" publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
-          pnpm --filter "@hls-downloader/adapters" publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
-          pnpm publish --provenance --no-git-checks "${PUBLISH_EXTRA[@]}"
+          pnpm --filter "@hls-downloader/shared" publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
+          pnpm --filter "@hls-downloader/core" publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
+          pnpm --filter "@hls-downloader/adapters" publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
+          pnpm publish --provenance --no-git-checks --ignore-scripts "${PUBLISH_EXTRA[@]}"
