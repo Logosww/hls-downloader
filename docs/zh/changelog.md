@@ -5,7 +5,7 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
-## [2.0.0] - 未发布
+## [2.0.0] - 2026-05-26
 
 ### 新增
 
