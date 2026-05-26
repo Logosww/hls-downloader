@@ -12,8 +12,8 @@
 
 用于解析 HLS（`.m3u8`）并下载、合并为可播放文件的 TypeScript 库。通过 `**HlsDownloader**` 统一入口，按运行环境选择适配器：
 
-- **浏览器**：`@hls-downloader/adapters/wasm`（FFmpeg WASM）
-- **Node.js**：`@hls-downloader/adapters/rust`（Rust N-API 原生实现，性能与路径处理更适合服务端）
+- **浏览器**：`@hls-downloader/adapters/browser`（FFmpeg WASM）
+- **Node.js**：`@hls-downloader/adapters/node`（Rust N-API 原生实现，性能与路径处理更适合服务端）
 
 ### 安装
 
@@ -28,23 +28,23 @@ pnpm add @logosw/hls-downloader
 ```bash
 pnpm add @hls-downloader/core @hls-downloader/shared
 # 按需二选一（通常与运行环境一致）
-pnpm add @hls-downloader/adapters   # 再通过子路径导入 wasm 或 rust，见下文
+pnpm add @hls-downloader/adapters   # 再通过子路径导入 browser 或 node，见下文
 ```
 
-`@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时（聚合包或独立安装）均需能解析到 `**@hls-downloader/adapters**` 中的 wasm/rust 实现。
+`@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时（聚合包或独立安装）均需能解析到 `@hls-downloader/adapters` 中的 browser/node 实现（`/wasm`、`/rust` 为兼容别名）。
 
-**运行环境**：Node.js **≥ 20**（与 `core` 及聚合包根 `engines` 一致）。Rust 适配器在 Node 下会加载 **原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **WASM** 子路径，不要把 Node 原生模块打进前端。
+**运行环境**：Node.js **≥ 20**（与 `core` 及聚合包根 `engines` 一致）。Node 适配器在 Node 下会加载 **原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **browser** 子路径，不要把 Node 原生模块打进前端。
 
 ### 基本用法
 
 ```ts
-// 也可：import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from '@logosw/hls-downloader';
+// 也可：import { HlsDownloader, HlsDownloaderEvent, BrowserAdapter } from '@logosw/hls-downloader';
 import { HlsDownloader } from '@hls-downloader/core';
 import { HlsDownloaderEvent } from '@hls-downloader/shared';
-import { WasmAdapter } from '@hls-downloader/adapters/wasm';
+import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 
 const downloader = new HlsDownloader({
-  adapter: WasmAdapter,
+  adapter: BrowserAdapter,
   options: {
     // 可选：与适配器相关的额外选项，见下文
   },
@@ -58,7 +58,7 @@ const downloader = new HlsDownloader({
   },
 });
 
-// 下载前必须先 init（WASM 会在此加载 FFmpeg）
+// 下载前可显式 init；2.0 起普通下载不会在 init 阶段加载 FFmpeg
 await downloader.init();
 
 // 仅解析主/子 playlist，不下载分片
@@ -75,8 +75,8 @@ const result = await downloader.download({
 });
 
 if (result) {
-  // WasmAdapter：result.blobURL 多为 blob: URL，可用于 <a download>
-  // RustAdapter：result.filePath 为合并文件的绝对路径
+  // BrowserAdapter：result.blobURL 多为 blob: URL，可用于 <a download>
+  // NodeAdapter：result.filePath 为合并文件的绝对路径
   console.log(result.totalSegments);
 }
 
@@ -84,12 +84,12 @@ if (result) {
 const poster = await downloader.getPosterUrl({ url: '...' });
 ```
 
-Node 侧将 `WasmAdapter` 换成 `RustAdapter` 即可，构造方式相同：
+Node 侧将 `BrowserAdapter` 换成 `NodeAdapter` 即可，构造方式相同：
 
 ```ts
-import { RustAdapter } from '@hls-downloader/adapters/rust';
+import { NodeAdapter } from '@hls-downloader/adapters/node';
 
-const downloader = new HlsDownloader({ adapter: RustAdapter, onEvent: ... });
+const downloader = new HlsDownloader({ adapter: NodeAdapter, onEvent: ... });
 await downloader.init();
 ```
 
@@ -98,30 +98,45 @@ await downloader.init();
 
 | 成员                                                                        | 说明                                                                                  |
 | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `constructor({ adapter, options?, onEvent? })`                             | `options` 为「默认请求选项 + 当前适配器专有选项」，会与每次 `parseHls` / `download` 传入的 `url`/`headers` 等合并 |
-| `init()`                                                                  | 初始化适配器（WASM 会加载 FFmpeg；未完成前勿并发多次下载）                                                 |
+| `constructor({ adapter, options?, onEvent? })`                             | `options` 为 `GlobalOptions<T>`：`download`、`transcode` 及适配器专有字段，会与每次调用合并 |
+| `init()`                                                                  | 初始化适配器状态；普通下载不会加载 FFmpeg，转码或封面提取会按需加载 FFmpeg                                                 |
 | `isInit`                                                                  | 是否已完成初始化                                                                            |
-| `setOptions(options)`                                                     | 更新默认选项（不含单次请求的 `url`）                                                               |
+| `globalOptions`                                                           | 当前默认选项，未设置时为 `null`                                                              |
+| `setOptions(options)`                                                     | 更新默认选项                                                                               |
 | `parseHls({ url, headers? })`                                             | 返回 `ParseHlsResult`：主列表 `playlist`、媒体列表 `segment` 或 `error`                         |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency? })` | 下载并合并；**WasmAdapter** 成功时 `{ blobURL, totalSegments }`，**RustAdapter** 成功时 `{ filePath, totalSegments }`；失败则 Promise 拒绝 |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, ... })` | 下载并合并；默认走 transmux/remux，显式 `transcode` 时进入 FFmpeg 路径。**BrowserAdapter** → `{ blobURL, totalSegments }`，**NodeAdapter** → `{ filePath, totalSegments }` |
 | `getPosterUrl({ url, headers? })`                                         | 返回封面 URL 字符串，若无则 `undefined`                                                        |
+
+`GlobalOptions.download` 字段：`headers`、`concurrency`、`maxRetry`。单次 `download({ downloadConcurrency })` 覆盖 `download.concurrency`。
 
 
 ### 事件 `HlsDownloaderEvent`
 
 包括但不限于：`FFMPEG_LOADING` / `FFMPEG_LOADED`、`STARTING_DOWNLOAD`、`SOURCE_PARSED`、`DOWNLOADING`、`DOWNLOADING_SEGMENTS`、`STICHING_SEGMENTS`（后两者回调中带 `{ total, completed }`）、`READY_FOR_DOWNLOAD`、`ERROR`。在 `onEvent` 中按需监听即可。
 
-### WASM 适配器专有选项（`init` / 构造时的 `options`）
+### BrowserAdapter 专有选项
 
-在类型 `HlsDownloaderWasmAdapter` 上，常见项包括：
+| 字段 | 类型 |
+|------|------|
+| `ffmpeg` | `object` |
 
-- `coreURL` / `wasmURL` / `workerURL`：自定义 FFmpeg 核心资源地址（默认构建时指向 CDN 上的 UMD 资源）
-- `useESM`：为 `true` 时从 CDN 的 `esm/` 路径加载 FFmpeg（适合 Vite 等需要 ESM 资源的场景）；**省略或为 `false` 时**使用 `umd/` 路径（默认）。
-- `disableMultiThread`：为 `true` 时使用单线程 FFmpeg 变体（不加载 worker）
+`ffmpeg` 字段：`coreURL`、`wasmURL`、`workerURL`、`useESM`、`disableMultiThread`。
+
+### NodeAdapter 专有选项
+
+| 字段 | 类型 |
+|------|------|
+| `aria2` | `object` |
+
+`aria2` 字段见文档 [Adapter API](docs/api/adapters.md)。
+
+### 2.0 命名兼容
+
+`BrowserAdapter` / `NodeAdapter` 是推荐名称。旧的 `WasmAdapter` / `RustAdapter` 仍可导入，但已标记为 deprecated，后续版本可能移除。
 
 ### 类型与扩展
 
-高级用法可从 `@hls-downloader/shared` 引用 `ParseHlsResult`、`HlsDownloaderFetchOptions`、`HlsDownloaderDownloadOptions`、`Playlist`、`Segment` 等。若需自定义适配器，需实现 `HlsDownloaderAdapterInternal` 并通过 `createAdapter` 包装后交给 `HlsDownloader`（与内置适配器相同模式）。
+高级用法可从 `@hls-downloader/shared` 引用 `ParseHlsResult`、`HlsDownloaderFetchOptions`、`HlsDownloaderDownloadOptions`、`HlsDownloaderGlobalDownloadOptions`、`Playlist`、`Segment` 等；从 `@hls-downloader/core` 引用 `GlobalOptions`。
 
 ### 合规
 
@@ -135,8 +150,8 @@ await downloader.init();
 
 A TypeScript library for parsing HLS (`.m3u8`) playlists and downloading/merging streams into playable files. Use the `**HlsDownloader**` facade and pick an adapter for your runtime:
 
-- **Browser**: `@hls-downloader/adapters/wasm` (FFmpeg WASM)
-- **Node.js**: `@hls-downloader/adapters/rust` (Rust N-API; better fit for servers and path handling)
+- **Browser**: `@hls-downloader/adapters/browser` (FFmpeg WASM)
+- **Node.js**: `@hls-downloader/adapters/node` (Rust N-API; better fit for servers and path handling)
 
 ### Installation
 
@@ -153,9 +168,9 @@ pnpm add @hls-downloader/core @hls-downloader/shared
 pnpm add @hls-downloader/adapters
 ```
 
-The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the wasm/rust implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
+The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the browser/node implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`; `/wasm` and `/rust` are deprecated aliases).
 
-**Runtime**: Node.js **≥ 20** (matches `engines` on `core` and the root package). The Rust adapter loads a **native `.node` addon** on Node—use a build that matches your platform and Node ABI. For browser bundles, only include the **WASM** subpath; do not bundle the Node native addon into frontend code.
+**Runtime**: Node.js **≥ 20** (matches `engines` on `core` and the root package). The Node adapter loads a **native `.node` addon** on Node—use a build that matches your platform and Node ABI. For browser bundles, only include the **browser** subpath; do not bundle the Node native addon into frontend code.
 
 ### Packages and subpaths
 
@@ -165,23 +180,23 @@ The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-do
 | `@logosw/hls-downloader`                       | Umbrella: default export `HlsDownloader`, re-exports `shared`, WASM/Rust adapters (same as installing scoped packages) |
 | `@logosw/hls-downloader/core`                  | Same as `@hls-downloader/core`                                                                                         |
 | `@logosw/hls-downloader/shared`                | Same as `@hls-downloader/shared`                                                                                       |
-| `@logosw/hls-downloader/adapters`, `.../wasm`, `.../rust` | Same as `@hls-downloader/adapters` and subpaths                                                                        |
+| `@logosw/hls-downloader/adapters`, `.../browser`, `.../node` | Same as `@hls-downloader/adapters` and subpaths (`.../wasm`, `.../rust` are deprecated aliases) |
 | `@hls-downloader/core`                            | `HlsDownloader` class                                                                                                  |
 | `@hls-downloader/shared`                          | Types, `HlsDownloaderEvent`, `createAdapter`, etc. (pulled in via core/adapters)                                       |
-| `@hls-downloader/adapters/wasm`                   | Browser adapter `WasmAdapter`                                                                                          |
-| `@hls-downloader/adapters/rust`                   | Node adapter `RustAdapter`                                                                                             |
+| `@hls-downloader/adapters/browser`                   | Browser adapter `BrowserAdapter`                                                                                          |
+| `@hls-downloader/adapters/node`                   | Node adapter `NodeAdapter`                                                                                             |
 
 
 ### Basic usage
 
 ```ts
-// Or: import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from '@logosw/hls-downloader';
+// Or: import { HlsDownloader, HlsDownloaderEvent, BrowserAdapter } from '@logosw/hls-downloader';
 import { HlsDownloader } from '@hls-downloader/core';
 import { HlsDownloaderEvent } from '@hls-downloader/shared';
-import { WasmAdapter } from '@hls-downloader/adapters/wasm';
+import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 
 const downloader = new HlsDownloader({
-  adapter: WasmAdapter,
+  adapter: BrowserAdapter,
   options: {
     // Optional: adapter-specific options (see below)
   },
@@ -195,7 +210,7 @@ const downloader = new HlsDownloader({
   },
 });
 
-// Must call init before download (WASM loads FFmpeg here)
+// You may call init before download; ordinary downloads do not load FFmpeg in init
 await downloader.init();
 
 // Parse master/media playlist only; does not fetch segments
@@ -212,8 +227,8 @@ const result = await downloader.download({
 });
 
 if (result) {
-  // WasmAdapter: result.blobURL — often a blob: URL; use with <a download>
-  // RustAdapter: result.filePath — absolute path to the merged file
+  // BrowserAdapter: result.blobURL — often a blob: URL; use with <a download>
+  // NodeAdapter: result.filePath — absolute path to the merged file
   console.log(result.totalSegments);
 }
 
@@ -221,12 +236,12 @@ if (result) {
 const poster = await downloader.getPosterUrl({ url: '...' });
 ```
 
-On Node, swap `WasmAdapter` for `RustAdapter`; construction is the same:
+On Node, swap `BrowserAdapter` for `NodeAdapter`; construction is the same:
 
 ```ts
-import { RustAdapter } from '@hls-downloader/adapters/rust';
+import { NodeAdapter } from '@hls-downloader/adapters/node';
 
-const downloader = new HlsDownloader({ adapter: RustAdapter, onEvent: ... });
+const downloader = new HlsDownloader({ adapter: NodeAdapter, onEvent: ... });
 await downloader.init();
 ```
 
@@ -235,30 +250,45 @@ await downloader.init();
 
 | Member                                                                    | Description                                                                                                       |
 | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `constructor({ adapter, options?, onEvent? })`                             | `options` holds default fetch options plus adapter-specific options; merged with each `parseHls` / `download` call |
-| `init()`                                                                  | Initialize the adapter (WASM loads FFmpeg; avoid overlapping heavy downloads before init completes)               |
+| `constructor({ adapter, options?, onEvent? })`                             | `options` is `GlobalOptions<T>`: `download`, `transcode`, and adapter-specific fields; merged into each call |
+| `init()`                                                                  | Initialize lightweight adapter state; FFmpeg loads on demand for transcode / poster extraction               |
 | `isInit`                                                                  | Whether initialization finished                                                                                   |
-| `setOptions(options)`                                                     | Update defaults (per-call `url` is not stored here)                                                               |
+| `globalOptions`                                                           | Current default options, or `null` if unset                                                                       |
+| `setOptions(options)`                                                     | Replace default options                                                                                           |
 | `parseHls({ url, headers? })`                                             | Returns `ParseHlsResult`: `playlist`, `segment`, or `error`                                                       |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency? })` | Download and merge; **WasmAdapter** resolves to `{ blobURL, totalSegments }`, **RustAdapter** to `{ filePath, totalSegments }`; failures reject the promise |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, ... })` | Download and merge; default transmux/remux, explicit `transcode` uses FFmpeg. **BrowserAdapter** → `{ blobURL, totalSegments }`, **NodeAdapter** → `{ filePath, totalSegments }` |
 | `getPosterUrl({ url, headers? })`                                         | Poster URL string, or `undefined`                                                                                 |
+
+`GlobalOptions.download` fields: `headers`, `concurrency`, `maxRetry`. Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
 
 
 ### `HlsDownloaderEvent` values
 
 Includes (not limited to): `FFMPEG_LOADING` / `FFMPEG_LOADED`, `STARTING_DOWNLOAD`, `SOURCE_PARSED`, `DOWNLOADING`, `DOWNLOADING_SEGMENTS`, `STICHING_SEGMENTS` (the last two pass `{ total, completed }`), `READY_FOR_DOWNLOAD`, `ERROR`. Handle them in `onEvent` as needed.
 
-### WASM-only options (`init` / constructor `options`)
+### BrowserAdapter options
 
-On `HlsDownloaderWasmAdapter`, common fields include:
+| Field | Type |
+|-------|------|
+| `ffmpeg` | `object` |
 
-- `coreURL` / `wasmURL` / `workerURL`: override FFmpeg asset URLs (default builds point at UMD assets on a CDN)
-- `useESM`: when `true`, load FFmpeg from the CDN `esm/` paths (e.g. Vite); **when omitted or `false`**, use `umd/` paths (default).
-- `disableMultiThread`: if `true`, use the single-thread FFmpeg build (no worker)
+`ffmpeg` fields: `coreURL`, `wasmURL`, `workerURL`, `useESM`, `disableMultiThread`.
+
+### NodeAdapter options
+
+| Field | Type |
+|-------|------|
+| `aria2` | `object` |
+
+See [Adapter API](docs/api/adapters.md) for `aria2` fields.
+
+### 2.0 naming compatibility
+
+`BrowserAdapter` / `NodeAdapter` are the recommended names. The old `WasmAdapter` / `RustAdapter` exports still work, but are deprecated and may be removed in a future major version.
 
 ### Types and extensions
 
-Import `ParseHlsResult`, `HlsDownloaderFetchOptions`, `HlsDownloaderDownloadOptions`, `Playlist`, `Segment`, etc. from `@hls-downloader/shared`. For a custom adapter, implement `HlsDownloaderAdapterInternal`, wrap with `createAdapter`, and pass it to `HlsDownloader` (same pattern as built-ins).
+Import `ParseHlsResult`, `HlsDownloaderFetchOptions`, `HlsDownloaderDownloadOptions`, `HlsDownloaderGlobalDownloadOptions`, `Playlist`, `Segment`, etc. from `@hls-downloader/shared`; import `GlobalOptions` from `@hls-downloader/core`.
 
 ### Compliance
 

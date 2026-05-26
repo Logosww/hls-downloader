@@ -103,7 +103,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/adapters/src/rust -> target
+          workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile
 
@@ -301,7 +301,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/adapters/src/rust -> target
+          workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile
 

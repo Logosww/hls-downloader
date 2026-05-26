@@ -11,7 +11,7 @@ import ConfirmModal, { IConfirmModalProps } from '@/components/confirm-modal';
 import { Platform, usePlatform } from '@/hooks';
 import { ModeToggle } from '@/components/mode-toggle';
 import HlsDownloader, { HlsDownloaderEvent } from '@hls-downloader/core';
-import { WasmAdapter } from '@hls-downloader/adapters/wasm';
+import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import DownloadList, { IDownloadListItem } from '@/components/download-list';
 import { toast } from 'sonner';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -41,7 +41,7 @@ export default function HomePage() {
     defaultValues: { url: searchParams.get('url') ?? '' },
   });
 
-  const downloader = useRef<HlsDownloader<typeof WasmAdapter>>(void 0);
+  const downloader = useRef<HlsDownloader<typeof BrowserAdapter>>(void 0);
   const currentDownloadId = useRef<string>(void 0);
 
   const updateDownloadTask = (id: string, payload: Partial<IDownloadListItem>) => {
@@ -52,7 +52,7 @@ export default function HomePage() {
 
   useEffect(() => {
     downloader.current = new HlsDownloader({
-      adapter: WasmAdapter,
+      adapter: BrowserAdapter,
       onEvent: (event: HlsDownloaderEvent, progress) => {
         const targetId = currentDownloadId.current;
         if (!targetId) {
@@ -183,7 +183,8 @@ export default function HomePage() {
       }
       updateDownloadTask(taskId, { blobURL: result.blobURL, percentage: 100, status: 'completed' });
       toast.success('下载完成，请点击保存');
-    } catch {
+    } catch (e) {
+      console.error(e);
       updateDownloadTask(taskId, { status: 'failed' });
       toast.error('下载失败，请稍后重试');
     } finally {

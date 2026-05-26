@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
 const adaptersRoot = join(repoRoot, 'packages', 'adapters');
-const rustDir = join(adaptersRoot, 'src', 'rust');
+const nodeDir = join(adaptersRoot, 'src', 'node');
 
 const useStatic =
   process.env.HLS_FFMPEG_STATIC === '1' || process.argv.includes('--static');
@@ -34,7 +34,7 @@ if (useStatic) {
 
 const shell = process.platform === 'win32';
 const r: SpawnSyncReturns<Buffer> = spawnSync('pnpm', args, {
-  cwd: rustDir,
+  cwd: nodeDir,
   stdio: 'inherit',
   shell,
   env: process.env,

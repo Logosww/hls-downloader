@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { RustAdapter } from '@hls-downloader/adapters/rust';
+import { NodeAdapter } from '@hls-downloader/adapters/node';
 import { HlsDownloader } from '@hls-downloader/core';
 import { HlsDownloaderEvent } from '@hls-downloader/shared';
 import { randomUUID } from 'node:crypto';
@@ -48,7 +48,7 @@ const taskSubscribers = new Map<string, Set<TaskEventCallback>>();
 let currentTaskId: string | null = null;
 
 const downloader = new HlsDownloader({
-  adapter: RustAdapter,
+  adapter: NodeAdapter,
   onEvent: (event, progress) => {
     if (!currentTaskId) return;
     const task = tasks.get(currentTaskId);

@@ -58,16 +58,16 @@ function findNativeNodeFiles(dir: string, base: string): string[] {
 }
 
 const root = process.cwd();
-const rustDir = resolve(root, 'packages/adapters/src/rust');
+const nodeDir = resolve(root, 'packages/adapters/src/node');
 
 run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:native'], root);
 
-const nativeNodes = findNativeNodeFiles(rustDir, rustDir);
+const nativeNodes = findNativeNodeFiles(nodeDir, nodeDir);
 if (nativeNodes.length === 0) {
-  console.error('No native .node artifact produced under packages/adapters/src/rust (expected native.*.node).');
+  console.error('No native .node artifact produced under packages/adapters/src/node (expected native.*.node).');
   try {
-    const top = readdirSync(rustDir);
-    console.error(`Top-level entries in rust dir (${top.length}): ${top.slice(0, 40).join(', ')}${top.length > 40 ? '…' : ''}`);
+    const top = readdirSync(nodeDir);
+    console.error(`Top-level entries in node dir (${top.length}): ${top.slice(0, 40).join(', ')}${top.length > 40 ? '…' : ''}`);
   } catch {
     /* ignore */
   }
@@ -78,7 +78,7 @@ console.log(`Found native artifact(s): ${nativeNodes.join(', ')}`);
 
 if (mode === 'build-and-load') {
   const require = createRequire(import.meta.url);
-  require(resolve(rustDir, 'native.js'));
+  require(resolve(nodeDir, 'native.js'));
   console.log('Native binding loaded successfully.');
 } else {
   console.log('Native build-only check passed.');

@@ -21,17 +21,21 @@ The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-do
 
 **Runtime**: Node.js **≥ 20**. The Rust adapter loads a **native `.node` addon** on Node — use a build that matches your platform and Node ABI. For browser bundles, only include the **WASM** subpath; do not bundle the Node native addon into frontend code.
 
+::: info Default download path (transmux)
+**Ordinary `download()` does not load FFmpeg.** Segments are merged via a lightweight transmux/remux path while keeping source codecs. Pass `transcode` on `download()` (or set `globalOptions.transcode`) only when you need FFmpeg-based merging or transcoding. See [Adapters](/guide/adapters) for per-adapter FFmpeg triggers.
+:::
+
 ## Basic Usage
 
 ```ts
 import { HlsDownloader } from '@hls-downloader/core'
 import { HlsDownloaderEvent } from '@hls-downloader/shared'
-import { WasmAdapter } from '@hls-downloader/adapters/wasm'
+import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 
 const downloader = new HlsDownloader({
-  adapter: WasmAdapter,
+  adapter: BrowserAdapter,
   options: {
-    // Optional: adapter-specific options
+    download: { headers: { Authorization: 'Bearer ...' } },
   },
   onEvent: (event, progress) => {
     if (
@@ -43,21 +47,24 @@ const downloader = new HlsDownloader({
   },
 })
 
-// Must call init before download (WASM loads FFmpeg here)
+// init() is lightweight and does not load FFmpeg
 await downloader.init()
 
-// Parse master/media playlist only; does not fetch segments
+// Parse playlist only — no segments, no FFmpeg
 const parsed = await downloader.parseHls({
   url: 'https://example.com/master.m3u8',
   headers: { Authorization: 'Bearer ...' },
 })
 
-// Parse, fetch, and merge
+// Default download — transmux only, no FFmpeg
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
   headers: {},
   filename: 'output.mp4',
 })
+
+// Explicit transcode — loads FFmpeg (see Adapter docs)
+// await downloader.download({ url: '...', transcode: { preset: 'h264' } })
 
 if (result) {
   console.log(result.totalSegments)
@@ -70,16 +77,16 @@ const poster = await downloader.getPosterUrl({ url: '...' })
 You can also use the umbrella import:
 
 ```ts
-import { HlsDownloader, HlsDownloaderEvent, WasmAdapter } from '@logosw/hls-downloader'
+import { HlsDownloader, HlsDownloaderEvent, BrowserAdapter } from '@logosw/hls-downloader'
 ```
 
-On Node.js, swap `WasmAdapter` for `RustAdapter`:
+On Node.js, swap `BrowserAdapter` for `NodeAdapter`:
 
 ```ts
-import { RustAdapter } from '@hls-downloader/adapters/rust'
+import { NodeAdapter } from '@hls-downloader/adapters/node'
 
 const downloader = new HlsDownloader({
-  adapter: RustAdapter,
+  adapter: NodeAdapter,
   onEvent: (event, progress) => {
     // ...
   },
@@ -94,11 +101,11 @@ await downloader.init()
 | `@logosw/hls-downloader` | Umbrella: default export `HlsDownloader`, re-exports `shared`, WASM/Rust adapters |
 | `@logosw/hls-downloader/core` | Same as `@hls-downloader/core` |
 | `@logosw/hls-downloader/shared` | Same as `@hls-downloader/shared` |
-| `@logosw/hls-downloader/adapters`, `.../wasm`, `.../rust` | Same as `@hls-downloader/adapters` and subpaths |
+| `@logosw/hls-downloader/adapters`, `.../browser`, `.../node` | Same as `@hls-downloader/adapters` and subpaths (`.../wasm`, `.../rust` are deprecated aliases) |
 | `@hls-downloader/core` | `HlsDownloader` class |
 | `@hls-downloader/shared` | Types, `HlsDownloaderEvent`, `createAdapter`, etc. |
-| `@hls-downloader/adapters/wasm` | Browser adapter `WasmAdapter` |
-| `@hls-downloader/adapters/rust` | Node adapter `RustAdapter` |
+| `@hls-downloader/adapters/browser` | Browser adapter `BrowserAdapter` |
+| `@hls-downloader/adapters/node` | Node adapter `NodeAdapter` |
 
 ## Compliance
 

@@ -1,6 +1,3 @@
-/**
- * @deprecated Use `@logosw/hls-downloader/adapters/browser` instead.
- */
 export {
   BrowserAdapter,
   WasmAdapter,

@@ -1,6 +1,6 @@
 # Types
 
-All types are exported from `@hls-downloader/shared` (or `@logosw/hls-downloader/shared`).
+Types below are exported from `@hls-downloader/shared` unless noted.
 
 ## Segment
 
@@ -10,8 +10,6 @@ type Segment = {
   [key: string]: any
 }
 ```
-
-Represents a single HLS segment with a URI and any additional properties from the playlist.
 
 ## Playlist
 
@@ -23,8 +21,6 @@ type Playlist = {
 }
 ```
 
-Represents a variant stream in a master playlist.
-
 ## ParseHlsResult
 
 ```ts
@@ -33,12 +29,6 @@ type ParseHlsResult =
   | { type: 'segment'; data: Segment[]; message?: undefined }
   | { type: 'error'; data?: undefined; message: string }
 ```
-
-Discriminated union returned by `parseHls()`:
-
-- `playlist` — the URL pointed to a master playlist containing variant streams
-- `segment` — the URL pointed to a media playlist containing segments
-- `error` — parsing failed with a message
 
 ## HlsDownloaderEvent
 
@@ -65,7 +55,60 @@ type HlsDownloaderFetchOptions = {
 }
 ```
 
-Base options for any request to an HLS source.
+## HlsDownloaderGlobalDownloadOptions
+
+```ts
+type HlsDownloaderGlobalDownloadOptions = {
+  headers?: Record<string, string>
+  concurrency?: number
+  maxRetry?: number
+}
+```
+
+Used in `GlobalOptions.download` (from `@hls-downloader/core`).
+
+## HlsDownloaderTranscodeOptions
+
+```ts
+type HlsDownloaderTranscodePreset = 'h264' | 'hevc' | 'vp9'
+
+type HlsDownloaderEncoderSpeed =
+  | 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast'
+  | 'medium' | 'slow' | 'slower' | 'veryslow'
+
+type HlsDownloaderTranscodeOptions = {
+  preset?: HlsDownloaderTranscodePreset
+  videoCodec?: string
+  audioCodec?: string
+  format?: string
+  crf?: number
+  videoBitrate?: string | number
+  audioBitrate?: string | number
+  speed?: HlsDownloaderEncoderSpeed
+}
+```
+
+**Presets** (override with explicit codec/format fields):
+
+| `preset` | Video | Audio | Container | BrowserAdapter |
+|----------|-------|-------|-----------|----------------|
+| `h264` | libx264 | aac | mp4 | Yes (`{ preset: 'h264' }` only) |
+| `hevc` | libx265 | aac | mp4 | Node only |
+| `vp9` | libvpx-vp9 | libopus | webm | Node only |
+
+Omit `transcode` for default transmux/remux (no FFmpeg). `needsFfmpegTranscode()` returns true when a `preset` is set or any output codec is not `copy`.
+
+## HlsDownloaderBrowserTranscodeOptions
+
+Browser FFmpeg.wasm only supports H.264 via preset — no fine-grained encoding fields.
+
+```ts
+type HlsDownloaderBrowserTranscodeOptions = {
+  preset: 'h264'
+}
+```
+
+Use with `BrowserAdapter` / `GlobalOptions<typeof BrowserAdapter>`. `hevc` and `vp9` require `NodeAdapter`.
 
 ## HlsDownloaderDownloadOptions
 
@@ -74,36 +117,43 @@ type HlsDownloaderDownloadOptions = {
   filename?: string
   maxRetry?: number
   downloadConcurrency?: number
+  transcode?: HlsDownloaderTranscodeOptions
 }
 ```
 
-Additional options specific to the `download()` method.
+Per-call options for `download()`.
+
+## GlobalOptions
+
+```ts
+type GlobalOptions<T extends HlsDownloaderAdapter> = {
+  download?: HlsDownloaderGlobalDownloadOptions
+  transcode?: HlsDownloaderTranscodeOptions
+} & AdapterSpecificOptions<T>
+```
+
+Exported from `@hls-downloader/core`. `AdapterSpecificOptions<T>` is inferred from the adapter type (see [Adapter API](./adapters.md)).
 
 ## Download result (adapter-specific)
 
-`HlsDownloader.download()` resolves to a value whose shape depends on the adapter passed to the constructor. On failure, the returned promise is **rejected** (it does not resolve to a sentinel value).
+`HlsDownloader.download()` resolves to a value whose shape depends on the adapter. On failure, the promise is **rejected**.
 
-### WasmAdapter
+### BrowserAdapter
 
 ```ts
-type WasmAdapterDownloadResult = {
+type BrowserAdapterDownloadResult = {
   blobURL: string
   totalSegments: number
 }
 ```
 
-`blobURL` is a browser object URL (`blob:...`) for the merged file.
-
-### RustAdapter
+### NodeAdapter
 
 ```ts
-type RustAdapterDownloadResult = {
+type NodeAdapterDownloadResult = {
   filePath: string
   totalSegments: number
 }
 ```
 
-`filePath` is an absolute path to the merged file on disk.
-
-There is no single exported `DownloadResult` in `@hls-downloader/shared`; TypeScript infers the correct fields from the adapter type on `HlsDownloader`.
-
+TypeScript infers the correct result type from the adapter passed to `HlsDownloader`.

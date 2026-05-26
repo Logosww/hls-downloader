@@ -13,11 +13,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const root = process.cwd();
-const rustDir = resolve(root, 'packages/adapters/src/rust');
+const nodeDir = resolve(root, 'packages/adapters/src/node');
 const adaptersDir = resolve(root, 'packages/adapters');
 const coreDir = resolve(root, 'packages/core');
 const sharedDir = resolve(root, 'packages/shared');
-const npmDir = resolve(rustDir, 'npm');
+const npmDir = resolve(nodeDir, 'npm');
 const tempRoot = mkdtempSync(join(tmpdir(), 'hls-adapters-verify-'));
 
 type PackageJson = {
@@ -56,15 +56,15 @@ try {
   run('pnpm', ['--filter', '@hls-downloader/core', 'run', 'build'], root);
   run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:publish'], root);
   run('pnpm', ['run', 'build:root'], root);
-  run('pnpm', ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'create-npm-dirs', '--cwd', 'src/rust'], root);
+  run('pnpm', ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'create-npm-dirs', '--cwd', 'src/node'], root);
   run(
     'pnpm',
-    ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'artifacts', '--cwd', 'src/rust', '--output-dir', '.', '--npm-dir', 'npm'],
+    ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'artifacts', '--cwd', 'src/node', '--output-dir', '.', '--npm-dir', 'npm'],
     root,
   );
   run(
     'pnpm',
-    ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'pre-publish', '--cwd', 'src/rust', '--skip-optional-publish', '-t', 'npm'],
+    ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'pre-publish', '--cwd', 'src/node', '--skip-optional-publish', '-t', 'npm'],
     root,
   );
 
@@ -145,8 +145,8 @@ const distFiles = readdirSync(adaptersPath);
 if (distFiles.some((f) => f.endsWith('.node'))) {
   throw new Error('adapters dist should not contain .node files');
 }
-await import('@hls-downloader/adapters/rust');
-console.log('OK: adapters installs without bundled .node and rust adapter imports successfully.');
+await import('@hls-downloader/adapters/node');
+console.log('OK: adapters installs without bundled .node and node adapter imports successfully.');
 `;
   writeFileSync(join(consumerDir, 'verify.mjs'), checkScript, 'utf8');
   run('node', ['verify.mjs'], consumerDir);
@@ -182,8 +182,8 @@ console.log('OK: adapters installs without bundled .node and rust adapter import
   run('pnpm', ['add', rootTarPath], aggregateConsumerDir);
 
   const aggregateCheckScript = `
-await import('@logosw/hls-downloader/adapters/rust');
-console.log('OK: aggregate package installs and loads rust adapter via platform package.');
+await import('@logosw/hls-downloader/adapters/node');
+console.log('OK: aggregate package installs and loads node adapter via platform package.');
 `;
   writeFileSync(join(aggregateConsumerDir, 'verify.mjs'), aggregateCheckScript, 'utf8');
   run('node', ['verify.mjs'], aggregateConsumerDir);

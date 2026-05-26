@@ -1,6 +1,6 @@
 # 类型定义
 
-所有类型从 `@hls-downloader/shared`（或 `@logosw/hls-downloader/shared`）导出。
+以下类型默认从 `@hls-downloader/shared` 导出，另有说明的除外。
 
 ## Segment
 
@@ -10,8 +10,6 @@ type Segment = {
   [key: string]: any
 }
 ```
-
-表示单个 HLS 分片，包含 URI 及播放列表中的其他属性。
 
 ## Playlist
 
@@ -23,8 +21,6 @@ type Playlist = {
 }
 ```
 
-表示主播放列表中的变体流。
-
 ## ParseHlsResult
 
 ```ts
@@ -33,12 +29,6 @@ type ParseHlsResult =
   | { type: 'segment'; data: Segment[]; message?: undefined }
   | { type: 'error'; data?: undefined; message: string }
 ```
-
-`parseHls()` 返回的可辨识联合类型：
-
-- `playlist` — URL 指向包含变体流的主播放列表
-- `segment` — URL 指向包含分片的媒体播放列表
-- `error` — 解析失败，附带错误信息
 
 ## HlsDownloaderEvent
 
@@ -65,7 +55,60 @@ type HlsDownloaderFetchOptions = {
 }
 ```
 
-对 HLS 源发起请求的基础选项。
+## HlsDownloaderGlobalDownloadOptions
+
+```ts
+type HlsDownloaderGlobalDownloadOptions = {
+  headers?: Record<string, string>
+  concurrency?: number
+  maxRetry?: number
+}
+```
+
+用于 `@hls-downloader/core` 的 `GlobalOptions.download`。
+
+## HlsDownloaderTranscodeOptions
+
+```ts
+type HlsDownloaderTranscodePreset = 'h264' | 'hevc' | 'vp9'
+
+type HlsDownloaderEncoderSpeed =
+  | 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast'
+  | 'medium' | 'slow' | 'slower' | 'veryslow'
+
+type HlsDownloaderTranscodeOptions = {
+  preset?: HlsDownloaderTranscodePreset
+  videoCodec?: string
+  audioCodec?: string
+  format?: string
+  crf?: number
+  videoBitrate?: string | number
+  audioBitrate?: string | number
+  speed?: HlsDownloaderEncoderSpeed
+}
+```
+
+**预设**（可用显式 codec/format 字段覆盖）：
+
+| `preset` | 视频 | 音频 | 容器 | BrowserAdapter |
+|----------|------|------|------|----------------|
+| `h264` | libx264 | aac | mp4 | 支持（仅 `{ preset: 'h264' }`） |
+| `hevc` | libx265 | aac | mp4 | 仅 Node |
+| `vp9` | libvpx-vp9 | libopus | webm | 仅 Node |
+
+省略 `transcode` 即默认 transmux/remux（不加载 FFmpeg）。`needsFfmpegTranscode()` 在设置了 `preset` 或任一输出编码非 `copy` 时返回 `true`。
+
+## HlsDownloaderBrowserTranscodeOptions
+
+浏览器 FFmpeg.wasm 仅支持 H.264 preset，不提供细粒度编码字段。
+
+```ts
+type HlsDownloaderBrowserTranscodeOptions = {
+  preset: 'h264'
+}
+```
+
+配合 `BrowserAdapter` / `GlobalOptions<typeof BrowserAdapter>` 使用。`hevc`、`vp9` 请用 `NodeAdapter`。
 
 ## HlsDownloaderDownloadOptions
 
@@ -74,36 +117,43 @@ type HlsDownloaderDownloadOptions = {
   filename?: string
   maxRetry?: number
   downloadConcurrency?: number
+  transcode?: HlsDownloaderTranscodeOptions
 }
 ```
 
-`download()` 方法的额外选项。
+`download()` 单次调用选项。
+
+## GlobalOptions
+
+```ts
+type GlobalOptions<T extends HlsDownloaderAdapter> = {
+  download?: HlsDownloaderGlobalDownloadOptions
+  transcode?: HlsDownloaderTranscodeOptions
+} & AdapterSpecificOptions<T>
+```
+
+从 `@hls-downloader/core` 导出。`AdapterSpecificOptions<T>` 由适配器类型推断（见[适配器 API](./adapters.md)）。
 
 ## 下载结果（随适配器而异）
 
-`HlsDownloader.download()` 成功时解析得到的字段由构造时传入的**适配器**决定。失败时 Promise **被拒绝**，不会解析为特殊占位值。
+`HlsDownloader.download()` 成功时返回的字段由适配器决定。失败时 Promise **被拒绝**。
 
-### WasmAdapter
+### BrowserAdapter
 
 ```ts
-type WasmAdapterDownloadResult = {
+type BrowserAdapterDownloadResult = {
   blobURL: string
   totalSegments: number
 }
 ```
 
-`blobURL` 为浏览器对象 URL（`blob:...`），指向合并后的文件。
-
-### RustAdapter
+### NodeAdapter
 
 ```ts
-type RustAdapterDownloadResult = {
+type NodeAdapterDownloadResult = {
   filePath: string
   totalSegments: number
 }
 ```
 
-`filePath` 为磁盘上合并文件的**绝对路径**。
-
-`@hls-downloader/shared` 中不导出单一的 `DownloadResult`；TypeScript 会根据 `HlsDownloader` 上的适配器类型推断具体字段。
-
+TypeScript 会根据传入 `HlsDownloader` 的适配器类型推断具体结果类型。

@@ -13,12 +13,12 @@ const sharedDts = {
 
 export default defineConfig([
   {
-    entry: { wasm: 'src/wasm/index.ts' },
+    entry: { browser: 'src/browser/index.ts' },
     format: 'esm',
     platform: 'browser',
     minify: true,
     deps: {
-      alwaysBundle: ['m3u8-parser', '@ffmpeg/util', 'p-limit'],
+      alwaysBundle: ['m3u8-parser', '@ffmpeg/util', 'p-limit', 'mediabunny'],
     },
     dts: sharedDts,
     define: {
@@ -32,7 +32,7 @@ export default defineConfig([
     },
   },
   {
-    entry: { rust: 'src/rust/index.ts' },
+    entry: { node: 'src/node/index.ts' },
     format: 'esm',
     platform: 'node',
     minify: true,

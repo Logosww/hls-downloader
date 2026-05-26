@@ -6,7 +6,7 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = process.cwd();
-const npmDir = resolve(root, 'packages/adapters/src/rust/npm');
+const npmDir = resolve(root, 'packages/adapters/src/node/npm');
 const rootPkgPath = resolve(root, 'package.json');
 
 type Repo = { type?: string; url?: string; directory?: string };
@@ -46,7 +46,7 @@ for (const ent of readdirSync(npmDir, { withFileTypes: true })) {
   pkg.repository = {
     type: baseRepo.type,
     url: baseRepo.url,
-    directory: 'packages/adapters/src/rust',
+    directory: 'packages/adapters/src/node',
   };
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
   updated += 1;

@@ -35,8 +35,8 @@ pnpm run adapters:verify-native-install
 
 1. `@hls-downloader/adapters` 安装产物中不包含 `.node`
 2. 仅通过 optionalDependencies 安装当前平台 native 包
-3. `@hls-downloader/adapters/rust` 可以正常 import
-4. 通过聚合包 `@logosw/hls-downloader` 安装后，`@logosw/hls-downloader/adapters/rust` 也可正常 import
+3. `@hls-downloader/adapters/node` 可以正常 import
+4. 通过聚合包 `@logosw/hls-downloader` 安装后，`@logosw/hls-downloader/adapters/node` 也可正常 import
 
 ## 正式发布
 

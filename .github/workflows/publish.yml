@@ -192,7 +192,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/adapters/src/rust -> target
+          workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile
 
@@ -203,7 +203,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: adapters-native-${{ matrix.name }}
-          path: packages/adapters/src/rust/native.*.node
+          path: packages/adapters/src/node/native.*.node
           if-no-files-found: error
 
   publish-rust-native:
@@ -256,13 +256,13 @@ jobs:
         with:
           pattern: adapters-native-*
           merge-multiple: true
-          path: packages/adapters/src/rust
+          path: packages/adapters/src/node
 
       - name: Prepare native platform packages
         run: |
-          pnpm --filter "@hls-downloader/adapters" exec napi create-npm-dirs --cwd src/rust
-          pnpm --filter "@hls-downloader/adapters" exec napi artifacts --cwd src/rust --output-dir . --npm-dir npm
-          pnpm --filter "@hls-downloader/adapters" exec napi pre-publish --cwd src/rust --skip-optional-publish -t npm
+          pnpm --filter "@hls-downloader/adapters" exec napi create-npm-dirs --cwd src/node
+          pnpm --filter "@hls-downloader/adapters" exec napi artifacts --cwd src/node --output-dir . --npm-dir npm
+          pnpm --filter "@hls-downloader/adapters" exec napi pre-publish --cwd src/node --skip-optional-publish -t npm
           pnpm run adapters:inject-native-pkg-repository
 
       - name: Publish native platform packages
@@ -275,7 +275,7 @@ jobs:
             PUBLISH_EXTRA=(--tag "$TAG")
             echo "Prerelease version ${VER}: publishing with --tag ${TAG}"
           fi
-          for pkg in packages/adapters/src/rust/npm/*; do
+          for pkg in packages/adapters/src/node/npm/*; do
             if ! ls "${pkg}"/*.node >/dev/null 2>&1; then
               echo "Skip ${pkg} (no .node artifact)"
               continue
@@ -384,7 +384,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/adapters/src/rust -> target
+          workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile
 

@@ -6,8 +6,8 @@ import { distTagForVersion } from './npm-dist-tag.ts';
 
 const root = process.cwd();
 const adaptersPkgPath = resolve(root, 'packages/adapters/package.json');
-const rustDir = resolve(root, 'packages/adapters/src/rust');
-const npmDir = resolve(rustDir, 'npm');
+const nodeDir = resolve(root, 'packages/adapters/src/node');
+const npmDir = resolve(nodeDir, 'npm');
 const shouldUseProvenance = process.env.GITHUB_ACTIONS === 'true';
 
 function run(command: string, args: string[], cwd: string): void {
@@ -18,15 +18,15 @@ function run(command: string, args: string[], cwd: string): void {
 }
 
 run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:native:static'], root);
-run('pnpm', ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'create-npm-dirs', '--cwd', 'src/rust'], root);
+run('pnpm', ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'create-npm-dirs', '--cwd', 'src/node'], root);
 run(
   'pnpm',
-  ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'artifacts', '--cwd', 'src/rust', '--output-dir', '.', '--npm-dir', 'npm'],
+  ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'artifacts', '--cwd', 'src/node', '--output-dir', '.', '--npm-dir', 'npm'],
   root,
 );
 run(
   'pnpm',
-  ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'pre-publish', '--cwd', 'src/rust', '--skip-optional-publish', '-t', 'npm'],
+  ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'pre-publish', '--cwd', 'src/node', '--skip-optional-publish', '-t', 'npm'],
   root,
 );
 run('pnpm', ['run', 'adapters:inject-native-pkg-repository'], root);

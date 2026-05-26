@@ -20,6 +20,11 @@ pub enum DownloadProgress {
 pub type MergeProgress = DownloadProgress;
 pub type ProgressCallback = Arc<dyn Fn(DownloadProgress) + Send + Sync>;
 
+#[derive(Debug, Clone, Default)]
+pub struct TranscodeOptions {
+    pub ffmpeg_output_args: Vec<String>,
+}
+
 /// Optional knobs for aria2 (only used when downloading via aria2).
 #[derive(Debug, Clone, Default)]
 pub struct Aria2Options {
@@ -205,7 +210,7 @@ fn run_aria2_download(
 }
 
 /// Stream-concatenate TS segments to one file, then remux to the output path via ffmpeg-next (stream copy).
-fn merge_segments_with_ffmpeg(
+pub(crate) fn merge_segments_with_ffmpeg(
     segment_paths: &[PathBuf],
     output_path: &Path,
     on_progress: Option<&ProgressCallback>,
@@ -273,6 +278,87 @@ fn merge_segments_with_ffmpeg(
 
     octx.write_trailer()?;
     std::fs::remove_file(&concat_ts).ok();
+
+    if let Some(cb) = on_progress {
+        cb(DownloadProgress::Merging {
+            completed: 100,
+            total: 100,
+        });
+    }
+
+    Ok(())
+}
+
+fn concat_segments_to_ts(
+    segment_paths: &[PathBuf],
+    concat_ts: &Path,
+    on_progress: Option<&ProgressCallback>,
+) -> Result<(), HlsError> {
+    if segment_paths.is_empty() {
+        return Err(HlsError::Parse("No segments to merge".into()));
+    }
+
+    let mut out = StdBufWriter::new(std::fs::File::create(concat_ts)?);
+    let n = segment_paths.len().max(1);
+    for (i, path) in segment_paths.iter().enumerate() {
+        let mut inp = BufReader::new(std::fs::File::open(path)?);
+        copy(&mut inp, &mut out)?;
+        if let Some(cb) = on_progress {
+            cb(DownloadProgress::Merging {
+                completed: ((i + 1) * 50) / n,
+                total: 100,
+            });
+        }
+    }
+    out.flush()?;
+    Ok(())
+}
+
+fn transcode_segments_with_ffmpeg(
+    segment_paths: &[PathBuf],
+    output_path: &Path,
+    transcode: &TranscodeOptions,
+    on_progress: Option<&ProgressCallback>,
+) -> Result<(), HlsError> {
+    let concat_ts = output_path.with_extension("concat.ts");
+    concat_segments_to_ts(segment_paths, &concat_ts, on_progress)?;
+
+    let mut cmd = Command::new("ffmpeg");
+    cmd.arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-y")
+        .arg("-i")
+        .arg(&concat_ts);
+    for arg in &transcode.ffmpeg_output_args {
+        cmd.arg(arg);
+    }
+    cmd.arg(output_path);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    let output = cmd.output().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            HlsError::Parse(
+                "`ffmpeg` not found. Install FFmpeg and ensure it is on PATH to use transcode options."
+                    .to_string(),
+            )
+        } else {
+            HlsError::Parse(format!("Failed to spawn ffmpeg: {e}"))
+        }
+    })?;
+
+    std::fs::remove_file(&concat_ts).ok();
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let hint = stderr.trim();
+        let msg = if hint.is_empty() {
+            format!("ffmpeg exited with status {}", output.status)
+        } else {
+            format!("ffmpeg failed: {hint}")
+        };
+        return Err(HlsError::Parse(msg));
+    }
 
     if let Some(cb) = on_progress {
         cb(DownloadProgress::Merging {
@@ -392,6 +478,7 @@ pub async fn download_and_merge(
     use_aria2: bool,
     aria2_executable: Option<&str>,
     aria2_options: Aria2Options,
+    transcode_options: Option<TranscodeOptions>,
     on_progress: Option<ProgressCallback>,
 ) -> Result<PathBuf, HlsError> {
     validate_output_filename(output_filename)?;
@@ -414,8 +501,14 @@ pub async fn download_and_merge(
     let merge_paths = paths.clone();
     let output = output_path_buf.clone();
     let merge_progress_cloned = on_progress.clone();
-    tokio::task::spawn_blocking(move || {
-        merge_segments_with_ffmpeg(&merge_paths, &output, merge_progress_cloned.as_ref())
+    tokio::task::spawn_blocking(move || match transcode_options {
+        Some(transcode) => transcode_segments_with_ffmpeg(
+            &merge_paths,
+            &output,
+            &transcode,
+            merge_progress_cloned.as_ref(),
+        ),
+        None => merge_segments_with_ffmpeg(&merge_paths, &output, merge_progress_cloned.as_ref()),
     })
     .await
     .map_err(|e| HlsError::Parse(format!("Join error: {e}")))??;

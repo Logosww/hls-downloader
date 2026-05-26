@@ -1,68 +1,108 @@
 # Adapter API
 
-## WasmAdapter
+Adapter-specific fields are passed via `HlsDownloader` constructor `options` / `setOptions`, or per-call on `download()`. They are merged with per-call options taking precedence.
+
+::: info Transmux first, FFmpeg on demand
+Across adapters, **default downloads transmux/remux without FFmpeg**. FFmpeg is initialized only when a specific API needs it. The tables below list **when FFmpeg loads** for each adapter.
+:::
+
+## BrowserAdapter
 
 ```ts
-import { WasmAdapter } from '@hls-downloader/adapters/wasm'
+import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 ```
 
-The WASM adapter uses `@ffmpeg/ffmpeg` under the hood. It compiles and runs FFmpeg in WebAssembly, making it suitable for browser environments.
+Ordinary downloads use a **lightweight browser transmux path**. **`@ffmpeg/ffmpeg` is not loaded** unless one of the FFmpeg scenarios below applies.
 
-During initialization, the adapter automatically detects whether multi-threading is available by checking `crossOriginIsolated` and `SharedArrayBuffer`. If not available, it falls back to the single-threaded `@ffmpeg/core` build to prevent `init()` from hanging.
+### When FFmpeg loads
 
-For FFmpeg core assets, **ESM** vs **UMD** paths on the CDN are controlled only by `useESM` (`true` → `esm/`, omitted or `false` → `umd/`).
+| API | Loads FFmpeg? | Condition |
+|-----|---------------|-----------|
+| `parseHls()` | No | — |
+| `init()` | No | — |
+| `download()` | **No** (default) | Omit `transcode` and `globalOptions.transcode` → transmux only |
+| `download()` | **Yes** | `transcode` with a `preset` or explicit output codecs, or `globalOptions.transcode` |
+| `getPosterUrl()` | No | Uses segment-based extraction only |
+
+When FFmpeg is loaded, the adapter automatically detects whether multi-threading is available by checking `crossOriginIsolated` and `SharedArrayBuffer`. If not available, it falls back to the single-threaded `@ffmpeg/core` build.
+
+For FFmpeg core assets, **ESM** vs **UMD** paths on the CDN are controlled by `ffmpeg.useESM` (`true` → `esm/`, omitted or `false` → `umd/`).
+
+`WasmAdapter` remains available as a deprecated compatibility alias. Prefer `BrowserAdapter` in new code.
 
 ### `download()` result
 
-On success, resolves to `{ blobURL: string, totalSegments: number }`. `blobURL` is a browser `blob:` object URL for the merged file.
+| Field | Type |
+|-------|------|
+| `blobURL` | `string` |
+| `totalSegments` | `number` |
 
-### Additional Options
+### Adapter-specific options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `coreURL` | `string` | CDN URL | FFmpeg core JavaScript URL |
-| `wasmURL` | `string` | CDN URL | FFmpeg WASM binary URL |
-| `workerURL` | `string` | CDN URL | FFmpeg worker URL |
-| `useESM` | `boolean` | `false` | Use ESM (`true`) or UMD (`false` / omitted) FFmpeg assets from the CDN |
-| `disableMultiThread` | `boolean` | `false` | Disable multi-threading (skip worker) |
+| Field | Type |
+|-------|------|
+| `ffmpeg` | `object` |
 
-## RustAdapter
+#### `ffmpeg` object
+
+| Field | Type |
+|-------|------|
+| `coreURL` | `string` |
+| `wasmURL` | `string` |
+| `workerURL` | `string` |
+| `useESM` | `boolean` |
+| `disableMultiThread` | `boolean` |
+
+## NodeAdapter
 
 ```ts
-import { RustAdapter } from '@hls-downloader/adapters/rust'
+import { NodeAdapter } from '@hls-downloader/adapters/node'
 ```
 
-The Rust adapter loads a native `.node` N-API addon. It provides native performance for HLS parsing, segment downloading, and stream merging.
+Ordinary downloads use a **native transmux path**. **Native FFmpeg is not initialized** unless one of the FFmpeg scenarios below applies.
+
+`RustAdapter` remains available as a deprecated compatibility alias. Prefer `NodeAdapter` in new code.
+
+### When FFmpeg loads
+
+| API | Loads FFmpeg? | Condition |
+|-----|---------------|-----------|
+| `parseHls()` | No | — |
+| `init()` | No | — |
+| `download()` | **No** (default) | Omit `transcode` / `globalOptions.transcode` and `aria2.enabled` → transmux only |
+| `download()` | **Yes** | A `transcode` options object, `globalOptions.transcode`, **or** `aria2.enabled: true` |
+| `getPosterUrl()` | **Sometimes** | Only if lightweight segment extraction fails and an FFmpeg-based fallback is needed |
 
 ### `download()` result
 
-On success, resolves to `{ filePath: string, totalSegments: number }`. `filePath` is an **absolute path** to the merged file on the local filesystem.
+| Field | Type |
+|-------|------|
+| `filePath` | `string` |
+| `totalSegments` | `number` |
 
-### Additional Options
+### Adapter-specific options
 
-Pass these via `HlsDownloader` `options` / `setOptions` (they are merged into each `download()` call). Segment downloads use **reqwest** by default, or **aria2** (`aria2c` CLI with an input session file) when `aria2.enabled` is `true`.
+| Field | Type |
+|-------|------|
+| `aria2` | `object` |
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `aria2` | `object` | — | Optional. Enables and configures aria2 for segment downloads (see fields below). Omit to use the built-in HTTP stack. |
+Segment downloads use the built-in HTTP stack by default. Set `aria2.enabled` to `true` to use [aria2](https://aria2.github.io/) (`aria2c` CLI + session file).
 
-When `aria2.enabled` is `true`, [aria2](https://aria2.github.io/) must be installed. Custom request headers are written into aria2’s session file (`header=Name: value` per URI). If aria2 is missing or exits with an error, `download()` rejects with a clear error message.
+When `aria2.enabled` is `true`, aria2 must be installed. Custom request headers are written into aria2’s session file (`header=Name: value` per URI).
 
-Segment-level concurrency follows the **`downloadConcurrency`** argument on each `download()` (and the adapter’s `chunkDownloadConcurrency` default when omitted). Retries follow **`maxRetry`** (`--max-tries` for aria2).
+#### `aria2` object (`NodeAdapterAria2Options`)
 
-### `aria2` object (`RustAdapterAria2Options`)
+| Field | Type |
+|-------|------|
+| `enabled` | `boolean` |
+| `path` | `string` |
+| `maxConcurrentDownloads` | `number` |
+| `maxConnectionPerServer` | `number` |
+| `split` | `number` |
+| `minSplitSize` | `string` |
+| `extraArgs` | `string[]` |
 
-The public TypeScript alias matches the native **`NapiAria2Config`** shape passed through N-API.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `enabled` | `boolean` | Optional. When `true`, download segments with aria2. Default `false` if omitted. |
-| `path` | `string` | Optional. Path to the `aria2c` executable when it is not on `PATH` (only used when `enabled` is `true`). |
-| `maxConcurrentDownloads` | `number` | Optional. Maps to `--max-concurrent-downloads`. When omitted, `downloadConcurrency` is used |
-| `maxConnectionPerServer` | `number` | Optional. Maps to `--max-connection-per-server` |
-| `split` | `number` | Optional. Maps to `--split` |
-| `minSplitSize` | `string` | Optional. Maps to `--min-split-size` (e.g. `'1M'`) |
-| `extraArgs` | `string[]` | Optional. Extra CLI arguments appended after built-in flags (advanced) |
+When `maxConcurrentDownloads` is omitted, the effective concurrency follows `downloadConcurrency` on each `download()` call (or `globalOptions.download.concurrency`).
 
 ### Platform Support
 

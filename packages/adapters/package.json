@@ -1,6 +1,6 @@
 {
   "name": "@hls-downloader/adapters",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -20,6 +20,14 @@
       "import": "./dist/index.mjs",
       "types": "./dist/index.d.mts"
     },
+    "./browser": {
+      "import": "./dist/browser.mjs",
+      "types": "./dist/browser.d.mts"
+    },
+    "./node": {
+      "import": "./dist/node.mjs",
+      "types": "./dist/node.d.mts"
+    },
     "./wasm": {
       "import": "./dist/wasm.mjs",
       "types": "./dist/wasm.d.mts"
@@ -36,9 +44,9 @@
     "build:native": "node ../../scripts/napi-build-adapters-native.ts",
     "build:native:static": "node ../../scripts/napi-build-adapters-native.ts --static",
     "build:ts": "tsdown -c tsdown.config.ts",
-    "build:copy-native": "cp src/rust/native.js src/rust/native.d.ts dist/ && cp src/rust/native.*.node dist/ 2>/dev/null || true",
-    "build:copy-native-publish": "cp src/rust/native.js src/rust/native.d.ts dist/",
-    "build:barrel": "printf 'export * from \"@hls-downloader/shared\";\\nexport * from \"./wasm.mjs\";\\nexport * from \"./rust.mjs\";\\n' | tee dist/index.mjs > dist/index.d.mts",
+    "build:copy-native": "cp src/node/native.js src/node/native.d.ts dist/ && cp src/node/native.*.node dist/ 2>/dev/null || true",
+    "build:copy-native-publish": "cp src/node/native.js src/node/native.d.ts dist/",
+    "build:barrel": "printf 'export * from \"@hls-downloader/shared\";\\nexport * from \"./browser.mjs\";\\nexport * from \"./node.mjs\";\\n' | tee dist/index.mjs > dist/index.d.mts && printf 'export * from \"./browser.mjs\";\\n' > dist/wasm.mjs && printf 'export * from \"./browser.d.mts\";\\n' > dist/wasm.d.mts && printf 'export * from \"./node.mjs\";\\n' > dist/rust.mjs && printf 'export * from \"./node.d.mts\";\\n' > dist/rust.d.mts",
     "build": "pnpm run build:native && pnpm run build:ts && pnpm run build:copy-native && pnpm run build:barrel",
     "build:publish": "pnpm run build:native:static && pnpm run build:ts && pnpm run build:copy-native-publish && pnpm run build:barrel",
     "prepublishOnly": "pnpm run build:publish"
@@ -46,12 +54,14 @@
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@hls-downloader/core": "workspace:*",
-    "@hls-downloader/shared": "workspace:*"
+    "@hls-downloader/shared": "workspace:*",
+    "mediabunny": "^1.45.3"
   },
   "devDependencies": {
     "@ffmpeg/util": "^0.12.2",
     "@napi-rs/cli": "^3.5.1",
     "@types/m3u8-parser": "^7.2.6",
+    "@types/node": "^25.9.1",
     "m3u8-parser": "^7.2.0",
     "p-limit": "^7.3.0"
   }

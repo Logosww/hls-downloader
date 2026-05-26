@@ -9,14 +9,7 @@ fn main() {
     #[cfg(target_os = "windows")]
     if std::env::var_os("CARGO_FEATURE_STATIC_FFMPEG").is_some() {
         for lib in [
-            "strmiids",
-            "uuid",
-            "ole32",
-            "oleaut32",
-            "oledlg",
-            "shlwapi",
-            "gdi32",
-            "vfw32",
+            "strmiids", "uuid", "ole32", "oleaut32", "oledlg", "shlwapi", "gdi32", "vfw32",
             "mfuuid",
         ] {
             println!("cargo:rustc-link-lib={lib}");

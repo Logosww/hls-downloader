@@ -3,6 +3,9 @@ packages:
   - packages/app/*
   - docs
   - test
+allowBuilds:
+  esbuild: true
+  sharp: true
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
   - core-js

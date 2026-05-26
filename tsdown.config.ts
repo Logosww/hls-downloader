@@ -5,6 +5,8 @@ export default defineConfig({
     index: 'src/index.ts',
     core: 'src/core.ts',
     shared: 'src/shared.ts',
+    'adapters-browser': 'src/adapters-browser.ts',
+    'adapters-node': 'src/adapters-node.ts',
     'adapters-wasm': 'src/adapters-wasm.ts',
     'adapters-rust': 'src/adapters-rust.ts',
   },

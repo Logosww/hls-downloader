@@ -1,6 +1,3 @@
-/**
- * @deprecated Use `@logosw/hls-downloader/adapters/node` instead.
- */
 export {
   NodeAdapter,
   RustAdapter,

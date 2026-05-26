@@ -1,3 +1,3 @@
 export * from '@hls-downloader/shared';
-export * from './wasm';
-export * from './rust';
+export * from './browser/index.js';
+export * from './node/index.js';

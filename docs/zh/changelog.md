@@ -5,11 +5,24 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [2.0.0] - 2026-05-23
+
+### 新增
+
+- 新增推荐适配器名称：`BrowserAdapter` 与 `NodeAdapter`。
+- 新增显式 FFmpeg 触发选项：`transcode`、`videoCodec`、`audioCodec`、`format`、预设（`h264`、`hevc`、`vp9`）及结构化编码参数（`crf`、`videoBitrate`、`audioBitrate`、`speed`）。
+
+### 变更
+
+- **破坏性变更**：普通 HLS 下载默认走 transmux/remux 并保留源编码，不再预先进入 FFmpeg 链路。
+- **破坏性变更**：适配器 `init()` 变为轻量初始化；只有转码、封面提取或 FFmpeg-backed 路径才会加载 FFmpeg。
+- **已弃用**：`WasmAdapter` 与 `RustAdapter` 仍作为兼容别名保留；新代码请使用 `BrowserAdapter` 与 `NodeAdapter`。
+
 ## [1.2.0] - 2026-05-02
 
 ### 新增
 
-- **RustAdapter**: 支持通过 `aria2` 选项配置启用 [aria2](https://aria2.github.io/) 下载分片。
+- **NodeAdapter**: 支持通过 `aria2` 选项配置启用 [aria2](https://aria2.github.io/) 下载分片。
 
 ### 变更
 
@@ -20,21 +33,21 @@
 
 ### 新增
 
-- **RustAdapter**: 使用独立分发的平台二进制包以减少包体积。
-- **WasmAdapter**: 支持 `useESM` 配置以启用 esm 模块，解决 vite 下模块解析问题。
+- **NodeAdapter**: 使用独立分发的平台二进制包以减少包体积。
+- **BrowserAdapter**: 支持 `useESM` 配置以启用 esm 模块，解决 vite 下模块解析问题。
 
 ## [1.0.2] - 2026-04-08
 
 ### 新增
 
-- **WasmAdapter**：运行时自动检测跨域隔离状态——当 `crossOriginIsolated` 或 `SharedArrayBuffer` 不可用时，适配器静默降级到单线程 `@ffmpeg/core` 构建，而非无限挂起。
+- **BrowserAdapter**：运行时自动检测跨域隔离状态——当 `crossOriginIsolated` 或 `SharedArrayBuffer` 不可用时，适配器静默降级到单线程 `@ffmpeg/core` 构建，而非无限挂起。
 
 - **Universal**: 增加视频封面缓存支持。
 
 ### 修复
 
-- `WasmAdapter.init()` 不再因缺少 `SharedArrayBuffer` 支持导致多线程 FFmpeg 无法启动而挂起。
-- `WasmAdapter.getPosterUrl()` 正确获取视频封面。
+- `BrowserAdapter.init()` 不再因缺少 `SharedArrayBuffer` 支持导致多线程 FFmpeg 无法启动而挂起。
+- `BrowserAdapter.getPosterUrl()` 正确获取视频封面。
 
 ## [1.0.1] - 2026-03-26
 

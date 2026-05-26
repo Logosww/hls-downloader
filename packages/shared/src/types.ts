@@ -43,10 +43,51 @@ export type HlsDownloaderFetchOptions = {
   headers?: Record<string, string>;
 };
 
+export type HlsDownloaderGlobalDownloadOptions = Omit<HlsDownloaderFetchOptions, 'url'> & {
+  concurrency?: number;
+  maxRetry?: number;
+};
+
+/** Built-in transcode profiles. Explicit codec/format fields override the preset. */
+export type HlsDownloaderTranscodePreset = 'h264' | 'hevc' | 'vp9';
+
+/** libx264 / libx265 encoder speed preset (`-preset`). */
+export type HlsDownloaderEncoderSpeed =
+  | 'ultrafast'
+  | 'superfast'
+  | 'veryfast'
+  | 'faster'
+  | 'fast'
+  | 'medium'
+  | 'slow'
+  | 'slower'
+  | 'veryslow';
+
+export type HlsDownloaderTranscodeOptions = {
+  /** Shorthand encoding profile. Omit `transcode` entirely for default transmux/remux. */
+  preset?: HlsDownloaderTranscodePreset;
+  videoCodec?: string;
+  audioCodec?: string;
+  /** Output container format passed to FFmpeg `-f`. */
+  format?: string;
+  /** Constant rate factor for libx264 / libx265 / libvpx-vp9. Ignored when video is copied. */
+  crf?: number;
+  videoBitrate?: string | number;
+  audioBitrate?: string | number;
+  /** libx264 / libx265 `-preset`. Ignored when video is copied or not x264/x265. */
+  speed?: HlsDownloaderEncoderSpeed;
+};
+
+/** Browser FFmpeg.wasm currently only supports H.264 via preset (no fine-grained options). */
+export type HlsDownloaderBrowserTranscodeOptions = {
+  preset: 'h264';
+};
+
 export type HlsDownloaderDownloadOptions = {
   filename?: string;
   maxRetry?: number;
   downloadConcurrency?: number;
+  transcode?: HlsDownloaderTranscodeOptions;
 };
 
 export interface HlsDownloaderAdapterInternal<

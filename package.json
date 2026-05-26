@@ -1,6 +1,6 @@
 {
   "name": "@logosw/hls-downloader",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -33,6 +33,14 @@
     "./shared": {
       "types": "./dist/shared.d.ts",
       "import": "./dist/shared.js"
+    },
+    "./adapters/browser": {
+      "types": "./dist/adapters-browser.d.ts",
+      "import": "./dist/adapters-browser.js"
+    },
+    "./adapters/node": {
+      "types": "./dist/adapters-node.d.ts",
+      "import": "./dist/adapters-node.js"
     },
     "./adapters/wasm": {
       "types": "./dist/adapters-wasm.d.ts",
@@ -75,9 +83,9 @@
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "oxfmt": "^0.41.0",
-    "oxlint": "^1.62.0",
-    "tsdown": "^0.21.10",
-    "turbo": "^2.9.6"
+    "oxlint": "^1.66.0",
+    "tsdown": "^0.22.0",
+    "turbo": "^2.9.14"
   },
   "peerDependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15"
@@ -90,5 +98,5 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@11.3.0"
 }

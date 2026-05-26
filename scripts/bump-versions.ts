@@ -31,10 +31,10 @@ const PACKAGES: { name: string; relPath: string }[] = [
   { name: '@hls-downloader/core', relPath: 'packages/core/package.json' },
   { name: '@hls-downloader/shared', relPath: 'packages/shared/package.json' },
   { name: '@hls-downloader/adapters', relPath: 'packages/adapters/package.json' },
-  { name: '@hls-downloader/rust-native', relPath: 'packages/adapters/src/rust/package.json' },
+  { name: '@hls-downloader/rust-native', relPath: 'packages/adapters/src/node/package.json' },
 ];
 
-const RUST_NATIVE_REL = 'packages/adapters/src/rust/package.json';
+const RUST_NATIVE_REL = 'packages/adapters/src/node/package.json';
 
 /** Changesets 仅覆盖 workspace 内的可发布子包（不含根包、不含嵌套的 rust-native）。 */
 const CHANGESET_PACKAGES = PACKAGES.filter(

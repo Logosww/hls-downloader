@@ -9,10 +9,10 @@ Pass an `onEvent` callback in the `HlsDownloader` constructor:
 ```ts
 import { HlsDownloader } from '@hls-downloader/core'
 import { HlsDownloaderEvent } from '@hls-downloader/shared'
-import { WasmAdapter } from '@hls-downloader/adapters/wasm'
+import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 
 const downloader = new HlsDownloader({
-  adapter: WasmAdapter,
+  adapter: BrowserAdapter,
   onEvent: (event, payload) => {
     switch (event) {
       case HlsDownloaderEvent.DOWNLOADING_SEGMENTS:

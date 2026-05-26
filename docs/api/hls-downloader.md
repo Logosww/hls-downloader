@@ -2,6 +2,14 @@
 
 The main facade class for downloading HLS streams. Imported from `@hls-downloader/core`.
 
+::: info Default download path (transmux)
+**Ordinary `download()` calls use a lightweight transmux/remux path and do not load or run FFmpeg.** Segments are merged while keeping the source codecs (e.g. into MP4).
+
+FFmpeg is loaded **only on demand** when a code path actually needs it — see [Adapter API](./adapters.md) for adapter-specific triggers. `init()` and `parseHls()` never load FFmpeg.
+
+To use FFmpeg for transcoding, pass a `transcode` options object with a `preset` or explicit output codecs on `download()` (or set `globalOptions.transcode`). Omit `transcode` for the default transmux/remux path.
+:::
+
 ## Constructor
 
 ```ts
@@ -14,8 +22,8 @@ new HlsDownloader({
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `adapter` | `WasmAdapter \| RustAdapter` | The adapter to use |
-| `options` | `object` | Default fetch options (e.g. `headers`) plus adapter-specific options. Merged with each `parseHls` / `download` call |
+| `adapter` | `BrowserAdapter \| NodeAdapter` | The adapter to use |
+| `options` | `GlobalOptions<T>` | Default options (see below). Merged into each `parseHls` / `download` / `getPosterUrl` call |
 | `onEvent` | `(event, payload?) => void` | Event callback for tracking progress and errors |
 
 ## Properties
@@ -28,6 +36,34 @@ get isInit(): boolean
 
 Whether the adapter has been initialized. Returns `true` after `init()` resolves.
 
+### `globalOptions`
+
+```ts
+get globalOptions(): GlobalOptions<T> | null
+```
+
+The current default options, or `null` if none were set.
+
+## GlobalOptions
+
+Exported from `@hls-downloader/core` as `GlobalOptions<T>`. The shape depends on the adapter type `T`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `download` | `HlsDownloaderGlobalDownloadOptions` | Default fetch / download settings (excluding per-call `url`) |
+| `transcode` | `HlsDownloaderTranscodeOptions` | Default transcode settings |
+| *(adapter-specific)* | — | See [Adapter API](./adapters.md) |
+
+### `download` object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `headers` | `Record<string, string>` | Default request headers |
+| `concurrency` | `number` | Default concurrent segment downloads |
+| `maxRetry` | `number` | Default max retry attempts per segment |
+
+Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
+
 ## Methods
 
 ### `init()`
@@ -36,15 +72,15 @@ Whether the adapter has been initialized. Returns `true` after `init()` resolves
 async init(): Promise<void>
 ```
 
-Initialize the adapter. For the WASM adapter this loads FFmpeg; for the Rust adapter it prepares the native module. Must be called before `download()`. Calling `download()` automatically triggers `init()` if not yet initialized.
+Initialize lightweight adapter state. **Does not load FFmpeg.** Calling `download()` automatically triggers `init()` if not yet initialized.
 
 ### `setOptions()`
 
 ```ts
-setOptions(options): void
+setOptions(options: GlobalOptions<T>): void
 ```
 
-Update the default options (per-call `url` is not stored here). Accepts the same shape as the constructor `options`. Options set here are merged with each `parseHls` / `download` call.
+Replace the default options. Accepts the same shape as the constructor `options`.
 
 ### `parseHls()`
 
@@ -52,21 +88,32 @@ Update the default options (per-call `url` is not stored here). Accepts the same
 async parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult>
 ```
 
-Parse an HLS playlist without downloading segments. Returns a `ParseHlsResult`:
+Parse an HLS playlist without downloading segments. Merges `options` with `globalOptions.download` (headers only).
+
+Returns a `ParseHlsResult`:
 
 - `{ type: 'playlist', data: Playlist[] }` — master playlist with variant streams
 - `{ type: 'segment', data: Segment[] }` — media playlist with segments
 - `{ type: 'error', message: string }` — parse error
 
+| Option | Type | Description |
+|--------|------|-------------|
+| `url` | `string` | HLS playlist URL |
+| `headers` | `Record<string, string>` | Request headers |
+
 ### `download()`
 
 ```ts
 async download(
-  options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions
+  options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions & Partial<AdapterOptions>
 ): Promise<DownloadResult>
 ```
 
-Parse, download all segments, and merge them into a single file. On success, **`WasmAdapter`** resolves to `{ blobURL, totalSegments }`; **`RustAdapter`** resolves to `{ filePath, totalSegments }`. On failure, the promise rejects.
+Parse, download all segments, and merge them into a single file. On success, **`BrowserAdapter`** resolves to `{ blobURL, totalSegments }`; **`NodeAdapter`** resolves to `{ filePath, totalSegments }`. On failure, the promise rejects.
+
+**By default (no `transcode`)**, adapters use the lightweight transmux path — **FFmpeg is not loaded**. Passing a `transcode` object with a `preset` or explicit output codecs switches to the FFmpeg path.
+
+Merges per-call options with `globalOptions` (per-call wins).
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -75,6 +122,21 @@ Parse, download all segments, and merge them into a single file. On success, **`
 | `filename` | `string` | Output filename |
 | `maxRetry` | `number` | Max retry attempts per segment |
 | `downloadConcurrency` | `number` | Concurrent segment downloads |
+| `transcode` | `HlsDownloaderTranscodeOptions` | **Transcode with FFmpeg.** Omit for default transmux/remux (no FFmpeg) |
+| *(adapter-specific)* | — | See [Adapter API](./adapters.md) |
+
+When `transcode` is set on **BrowserAdapter**, only `{ preset: 'h264' }` is supported. On **NodeAdapter**, all fields below apply:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `preset` | `'h264' \| 'hevc' \| 'vp9'` | Shorthand encoding profile |
+| `videoCodec` | `string` | Overrides preset video codec |
+| `audioCodec` | `string` | Overrides preset audio codec |
+| `format` | `string` | Output container (`-f`) |
+| `crf` | `number` | Quality (x264/x265/vp9) |
+| `videoBitrate` | `string \| number` | Video bitrate |
+| `audioBitrate` | `string \| number` | Audio bitrate |
+| `speed` | `HlsDownloaderEncoderSpeed` | x264/x265 encoder preset |
 
 ### `getPosterUrl()`
 
@@ -84,5 +146,11 @@ async getPosterUrl(
 ): Promise<string | undefined>
 ```
 
-Attempt to extract a poster/thumbnail image URL from the stream. Returns the URL string if found, otherwise `undefined`.
+Attempt to extract a poster/thumbnail image URL from the stream. Merges `options` with `globalOptions.download` (headers only). Returns the URL string if found, otherwise `undefined`.
 
+**Does not load FFmpeg on `BrowserAdapter`.** On `NodeAdapter`, FFmpeg may load only if lightweight extraction fails — see [Adapter API](./adapters.md).
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `url` | `string` | HLS playlist URL |
+| `headers` | `Record<string, string>` | Request headers |
