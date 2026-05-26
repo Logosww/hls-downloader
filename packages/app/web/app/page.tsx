@@ -147,7 +147,15 @@ export default function HomePage() {
     }
   };
 
-  const onConfirmDownload = async ({ quality, title }: { quality: string; title?: string }) => {
+  const onConfirmDownload = async ({
+    quality,
+    title,
+    transcodePreset,
+  }: {
+    quality: string;
+    title?: string;
+    transcodePreset: 'none' | 'h264';
+  }) => {
     if (!metadata?.playlist?.length) {
       toast.error('未找到可下载的视频流');
       return;
@@ -160,6 +168,7 @@ export default function HomePage() {
     }
     const filename = ((title || '').trim() || 'output').replace(/\.[^/.]+$/, '');
     const outputTitle = `${filename}.mp4`;
+    const transcode = transcodePreset === 'h264' ? { preset: transcodePreset } : undefined;
     const taskId = Date.now().toString();
     currentDownloadId.current = taskId;
     setDownloadList((tasks) => {
@@ -179,6 +188,7 @@ export default function HomePage() {
         url: selectedPlaylist.uri,
         headers: Object.keys(headers).length ? headers : undefined,
         filename,
+        transcode,
       });
       if (!result?.blobURL) {
         throw new Error('下载失败');

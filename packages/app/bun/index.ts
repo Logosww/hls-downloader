@@ -1,7 +1,12 @@
 import { Elysia, t } from 'elysia';
 import { NodeAdapter } from '@hls-downloader/adapters/node';
 import { HlsDownloader } from '@hls-downloader/core';
-import { getDownloadOutputFilename, HlsDownloaderEvent } from '@hls-downloader/shared';
+import {
+  getDownloadOutputFilename,
+  getTranscodeMimeType,
+  HlsDownloaderEvent,
+  type HlsDownloaderTranscodeOptions,
+} from '@hls-downloader/shared';
 import { randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 
@@ -14,6 +19,7 @@ interface DownloadTask {
   status: TaskStatus;
   url: string;
   filename: string;
+  transcode?: HlsDownloaderTranscodeOptions;
   filePath?: string;
   totalSegments?: number;
   error?: string;
@@ -119,7 +125,12 @@ async function processDownload(task: DownloadTask, headers?: Record<string, stri
     task.status = 'downloading';
     emitTaskEvent(task.id, 'status', taskToResponse(task));
 
-    const downloadOption = { url: task.url, headers, filename: task.filename };
+    const downloadOption = {
+      url: task.url,
+      headers,
+      filename: task.filename,
+      transcode: task.transcode,
+    };
     const result = await downloader.download(downloadOption);
 
     if (!result) throw new Error('Download returned empty result');
@@ -222,6 +233,7 @@ const app = new Elysia()
         status: 'pending',
         url: body.url,
         filename: body.filename ?? 'output',
+        transcode: body.transcode,
         createdAt: Date.now(),
       };
 
@@ -236,6 +248,32 @@ const app = new Elysia()
         url: t.String(),
         headers: t.Optional(t.Record(t.String(), t.String())),
         filename: t.Optional(t.String()),
+        transcode: t.Optional(
+          t.Object({
+            preset: t.Optional(
+              t.Union([t.Literal('h264'), t.Literal('hevc'), t.Literal('vp9')]),
+            ),
+            videoCodec: t.Optional(t.String()),
+            audioCodec: t.Optional(t.String()),
+            format: t.Optional(t.String()),
+            crf: t.Optional(t.Number()),
+            videoBitrate: t.Optional(t.Union([t.String(), t.Number()])),
+            audioBitrate: t.Optional(t.Union([t.String(), t.Number()])),
+            speed: t.Optional(
+              t.Union([
+                t.Literal('ultrafast'),
+                t.Literal('superfast'),
+                t.Literal('veryfast'),
+                t.Literal('faster'),
+                t.Literal('fast'),
+                t.Literal('medium'),
+                t.Literal('slow'),
+                t.Literal('slower'),
+                t.Literal('veryslow'),
+              ]),
+            ),
+          }),
+        ),
       }),
     },
   )
@@ -283,9 +321,9 @@ const app = new Elysia()
 
     return new Response(file, {
       headers: {
-        'Content-Type': 'video/mp4',
+        'Content-Type': task.transcode ? getTranscodeMimeType(task.transcode) : 'video/mp4',
         'Content-Length': String(file.size),
-        'Content-Disposition': `attachment; filename="${getDownloadOutputFilename(task.filename)}"`,
+        'Content-Disposition': `attachment; filename="${getDownloadOutputFilename(task.filename, task.transcode)}"`,
       },
     });
   })

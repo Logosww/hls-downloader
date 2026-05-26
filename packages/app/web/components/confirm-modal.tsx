@@ -22,8 +22,15 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Field, FieldContent, FieldLabel, FieldTitle } from '@/components/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Loader2Icon } from 'lucide-react';
 
 import type { Playlist } from '@hls-downloader/adapters';
@@ -41,6 +48,7 @@ export interface IConfirmModalProps {
 const formSchema = z.object({
   quality: z.string(),
   title: z.string(),
+  transcodePreset: z.enum(['none', 'h264']),
 });
 
 export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfirmModalProps) => {
@@ -49,7 +57,11 @@ export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    values: { title: filename || '', quality: playlist?.[0]?.name ?? '' },
+    values: {
+      title: filename || '',
+      quality: playlist?.[0]?.name ?? '',
+      transcodePreset: 'none',
+    },
   });
 
   const handleConfirm = async (values: z.infer<typeof formSchema>) => {
@@ -69,72 +81,111 @@ export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfi
 
   return (
     <AlertDialog open={open}>
-      <AlertDialogContent className="sm:max-w-[425px]">
+      <AlertDialogContent className="gap-3 sm:max-w-[460px]">
         <AlertDialogHeader>
           <AlertDialogTitle>确认下载</AlertDialogTitle>
-          <AlertDialogDescription>
-            获取到 HLS 视频资源预览如下，是否下载该视频资源
-          </AlertDialogDescription>
+          <AlertDialogDescription>确认视频信息并选择下载设置</AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="rounded-xl overflow-hidden">
+        <div className="overflow-hidden rounded-xl">
           {isLoading ? (
-            <Skeleton className="w-full h-[125px]" />
+            <Skeleton className="h-40 w-full" />
           ) : (
-            previewSrc && <img className="object-cover w-full" src={previewSrc} alt="poster" />
+            previewSrc && (
+              <img className="h-40 w-full object-cover" src={previewSrc} alt="poster" />
+            )
           )}
         </div>
         <Form {...form}>
-          <form id="confirm-modal-form" onSubmit={form.handleSubmit(handleConfirm)}>
-            <FormField
-              name="title"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="mb-3">
-                  <FormLabel>文件标题</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="text" placeholder="output" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {playlist && playlist.length > 0 && (
+          <form
+            id="confirm-modal-form"
+            className="flex flex-col gap-2"
+            onSubmit={form.handleSubmit(handleConfirm)}
+          >
+            <div className="grid gap-2 sm:grid-cols-2">
               <FormField
-                name="quality"
+                name="title"
                 control={form.control}
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>视频质量</FormLabel>
+                  <FormItem className="gap-1">
+                    <FormLabel className="text-xs">文件标题</FormLabel>
                     <FormControl>
-                      <RadioGroup {...field}>
-                        {playlist.map(({ name, bandwidth }) => (
-                          <FieldLabel key={bandwidth} htmlFor={name}>
-                            <Field orientation="horizontal">
-                              <FieldContent>
-                                <FieldTitle>{name}</FieldTitle>
-                              </FieldContent>
-                              <RadioGroupItem value={name} id={name} />
-                            </Field>
-                          </FieldLabel>
-                        ))}
-                      </RadioGroup>
+                      <Input {...field} className="h-8" type="text" placeholder="output" />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
-            )}
+              {playlist && playlist.length > 0 && (
+                <FormField
+                  name="quality"
+                  control={form.control}
+                  render={({ field }) => (
+                    <FormItem className="gap-1">
+                      <FormLabel className="text-xs">视频质量</FormLabel>
+                      <FormControl>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="w-full" size="sm">
+                            <SelectValue placeholder="选择视频质量" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {playlist.map(({ name, bandwidth }) => (
+                                <SelectItem key={`${name}-${bandwidth}`} value={name}>
+                                  {name}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
+            <FormField
+              name="transcodePreset"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem className="gap-1">
+                  <FormLabel className="text-xs">转码预设</FormLabel>
+                  <FormControl>
+                    <ToggleGroup
+                      type="single"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      value={field.value}
+                      onValueChange={(value) => value && field.onChange(value)}
+                    >
+                      <ToggleGroupItem className="flex-1" value="none">
+                        默认
+                      </ToggleGroupItem>
+                      <ToggleGroupItem className="flex-1" value="h264">
+                        H.264
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  </FormControl>
+                </FormItem>
+              )}
+            />
           </form>
           <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer" onClick={() => onOpenChange?.(false)}>
+            <AlertDialogCancel
+              className="cursor-pointer"
+              size="sm"
+              onClick={() => onOpenChange?.(false)}
+            >
               取消
             </AlertDialogCancel>
             <AlertDialogAction
               form="confirm-modal-form"
               className="cursor-pointer"
+              size="sm"
               type="submit"
               disabled={isSubmitting}
             >
-              {isSubmitting && <Loader2Icon className="animate-spin" />}
+              {isSubmitting && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
               确定
             </AlertDialogAction>
           </AlertDialogFooter>
