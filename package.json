@@ -90,6 +90,9 @@
       "optional": true
     }
   },
+  "devEngines": {
+    "packageManager": "pnpm@11.10.0"
+  },
   "engines": {
     "node": ">=20"
   }
