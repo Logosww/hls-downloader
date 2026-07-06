@@ -35,15 +35,18 @@ runs:
       with:
         node-version: '24'
 
-    - name: Install pnpm (Intel macOS)
+    - name: Install pnpm and runtime (Intel macOS)
       if: runner.os == 'macOS' && runner.arch == 'X64'
       shell: bash
-      run: npm install -g "pnpm@${{ inputs.version }}"
-
-    - name: Setup runtime (Intel macOS)
-      if: runner.os == 'macOS' && runner.arch == 'X64'
-      shell: bash
-      run: pnpm runtime set -g "${{ inputs.runtime }}"
+      run: |
+        npm install -g "pnpm@${{ inputs.version }}"
+        pnpm setup
+        PNPM_HOME="${HOME}/Library/pnpm"
+        echo "PNPM_HOME=${PNPM_HOME}" >> "$GITHUB_ENV"
+        echo "${PNPM_HOME}/bin:${PNPM_HOME}:${PATH}" >> "$GITHUB_PATH"
+        export PNPM_HOME
+        export PATH="${PNPM_HOME}/bin:${PNPM_HOME}:${PATH}"
+        pnpm runtime set -g "${{ inputs.runtime }}"
 
     - name: Install dependencies (Intel macOS)
       if: (runner.os == 'macOS' && runner.arch == 'X64') && inputs.install == 'true'
