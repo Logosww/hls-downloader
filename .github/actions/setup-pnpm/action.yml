@@ -1,5 +1,5 @@
 name: Setup pnpm with runtime
-description: Install pnpm and JS runtime; npm fallback on Intel macOS (@pnpm/exe SEA bug)
+description: Install pnpm and JS runtime; npm + setup-node fallback on Intel macOS (@pnpm/exe SEA bug)
 
 inputs:
   version:
@@ -35,7 +35,7 @@ runs:
       with:
         node-version: '24'
 
-    - name: Install pnpm and runtime (Intel macOS)
+    - name: Install pnpm (Intel macOS)
       if: runner.os == 'macOS' && runner.arch == 'X64'
       shell: bash
       run: |
@@ -44,9 +44,6 @@ runs:
         PNPM_HOME="${HOME}/Library/pnpm"
         echo "PNPM_HOME=${PNPM_HOME}" >> "$GITHUB_ENV"
         echo "${PNPM_HOME}/bin:${PNPM_HOME}:${PATH}" >> "$GITHUB_PATH"
-        export PNPM_HOME
-        export PATH="${PNPM_HOME}/bin:${PNPM_HOME}:${PATH}"
-        pnpm runtime set -g "${{ inputs.runtime }}"
 
     - name: Install dependencies (Intel macOS)
       if: (runner.os == 'macOS' && runner.arch == 'X64') && inputs.install == 'true'
