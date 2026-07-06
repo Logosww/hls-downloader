@@ -91,7 +91,11 @@
     }
   },
   "devEngines": {
-    "packageManager": "pnpm@11.10.0"
+    "packageManager": {
+      "name": "pnpm",
+      "version": ">=11.0.0",
+      "onFail": "warn"
+    }
   },
   "engines": {
     "node": ">=20"
