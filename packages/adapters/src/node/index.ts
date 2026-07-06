@@ -22,19 +22,18 @@ import {
   downloadAndMerge,
   extractPoster,
   transmuxHlsNative,
+  transmuxHlsStreamingNative,
+  createCancelToken,
+  cancelJob,
   type NapiParseHlsResult,
   type NapiAria2Config,
 } from './native.js';
 import { extractPosterFromSegmentUrl } from './poster';
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export type NodeAdapterAria2Options = NapiAria2Config;
-/**
- * @deprecated Use `NodeAdapterAria2Options` instead.
- */
-export type RustAdapterAria2Options = NodeAdapterAria2Options;
 type AdditionalOptions = {
   aria2?: NodeAdapterAria2Options;
 };
@@ -86,6 +85,7 @@ function mergeDownloadOptions(
       adapter.chunkDownloadConcurrency,
     transcode,
     aria2: callOptions.aria2 ?? globalOptions?.aria2,
+    signal: callOptions.signal,
   };
 }
 
@@ -199,12 +199,18 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   options,
 ): Promise<DownloadResult> {
   const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
-  const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode } =
+  const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode, signal } =
     mergeDownloadOptions(this, globalOptions, options);
 
   this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
 
-  const { segments } = await resolveToSegments(this, { ...options, url, headers });
+  if (signal?.aborted) {
+    const err = new Error('Download aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
+  const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
   this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
 
   const workDir = join(process.cwd(), randomUUID());
@@ -215,33 +221,39 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   const shouldUseFfmpeg = !!transcodeArgs || aria2?.enabled;
 
   if (!shouldUseFfmpeg) {
-    const filePath = await downloadAndTransmux({
-      segments,
-      workDir,
-      filename,
-      headers,
-      downloadConcurrency,
-      maxRetry,
-      onProgress: (completed) => {
-        this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
-          total: segments.length,
-          completed,
-        });
-      },
-      onMuxProgress: (completed) => {
-        this.onEvent?.(HlsDownloaderEvent.STICHING_SEGMENTS, {
-          total: segments.length,
-          completed,
-        });
-      },
-    });
+    const { jobId, cleanup } = await setupCancelToken(signal);
+    try {
+      const filePath = await downloadAndTransmux({
+        resolvedUrl,
+        workDir,
+        filename,
+        headers,
+        downloadConcurrency,
+        maxRetry,
+        cancelJobId: jobId,
+        onProgress: (completed, total) => {
+          this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+            total,
+            completed,
+          });
+        },
+        onMuxProgress: (completed, total) => {
+          this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+            total,
+            completed,
+          });
+        },
+      });
 
-    this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+      this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
-    return {
-      filePath,
-      totalSegments: segments.length,
-    };
+      return {
+        filePath,
+        totalSegments: segments.length,
+      };
+    } finally {
+      cleanup();
+    }
   }
 
   ensureFfmpegLoaded(this);
@@ -259,7 +271,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
       if (phase === 'downloading') {
         self.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, { total, completed });
       } else if (phase === 'merging') {
-        self.onEvent?.(HlsDownloaderEvent.STICHING_SEGMENTS, { total, completed });
+        self.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, { total, completed });
       }
     },
   );
@@ -273,40 +285,136 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
 };
 
 type DownloadAndTransmuxOptions = {
-  segments: Segment[];
+  resolvedUrl: string;
   workDir: string;
   filename: string;
   headers?: Record<string, string>;
   downloadConcurrency: number;
   maxRetry: number;
-  onProgress: (completed: number) => void;
-  onMuxProgress: (completed: number) => void;
+  cancelJobId?: string | null;
+  onProgress: (completed: number, total: number) => void;
+  onMuxProgress: (completed: number, total: number) => void;
 };
 
+/**
+ * 为一次下载任务创建取消令牌。若 signal 已中止则立即抛出 AbortError；
+ * 否则注册 abort 监听器，触发时调用 cancelJob 通知 Rust 端。
+ * 返回 cleanup 函数用于在任务结束（成功或失败）后移除监听器并清理注册表。
+ */
+async function setupCancelToken(
+  signal?: AbortSignal,
+): Promise<{ jobId: string | null; cleanup: () => void }> {
+  if (!signal) return { jobId: null, cleanup: () => {} };
+
+  if (signal.aborted) {
+    const err = new Error('Download aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
+  const jobId = await createCancelToken();
+  const onAbort = () => {
+    cancelJob(jobId).catch(() => {});
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+
+  return {
+    jobId,
+    cleanup: () => {
+      signal.removeEventListener('abort', onAbort);
+      cancelJob(jobId).catch(() => {});
+    },
+  };
+}
+
 async function downloadAndTransmux({
-  segments,
+  resolvedUrl,
   workDir,
   filename,
   headers,
   downloadConcurrency,
   maxRetry,
+  cancelJobId,
   onProgress,
   onMuxProgress,
 }: DownloadAndTransmuxOptions) {
-  const napiSegments = segments.map((s) => ({ uri: s.uri, duration: s.duration ?? 0 }));
-  const buffer = await transmuxHlsNative(
-    napiSegments,
+  // hls-transmux 的 StreamingMp4 路径下，下载与 mux 是流式交织进行的，
+  // 单一 on_progress 同时反映下载与 mux 进度。这里把进度映射到
+  // DOWNLOADING_SEGMENTS 事件；末端完成时由 onMuxProgress 触发一次
+  // STITCHING_SEGMENTS 满 progress，保持原两阶段事件语义。
+  const filePath = await transmuxHlsNative(
+    resolvedUrl,
+    workDir,
+    filename,
     headers ?? null,
     downloadConcurrency,
     maxRetry,
+    cancelJobId ?? null,
     onProgress,
   );
-  onMuxProgress(segments.length);
-
-  const filePath = join(workDir, filename);
-  await writeFile(filePath, buffer);
+  onMuxProgress(1, 1);
   return filePath;
 }
+
+const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async function (
+  this,
+  options,
+  onChunk,
+) {
+  const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
+  const { url, headers, downloadConcurrency, maxRetry, signal } = mergeDownloadOptions(
+    this,
+    globalOptions,
+    options,
+  );
+
+  this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
+
+  if (signal?.aborted) {
+    const err = new Error('Download aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
+  // 流式路径只需 resolvedUrl（media playlist URL），不需要 segments
+  const { resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
+  this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
+
+  // totalSegments：从 segments 长度取，传给上层进度 UI
+  const result = await parseHls.call(this, { url: resolvedUrl, headers });
+  const totalSegments = result.type === 'segment' ? result.data.length : 0;
+
+  const { jobId, cleanup } = await setupCancelToken(signal);
+  try {
+    await transmuxHlsStreamingNative(
+      resolvedUrl,
+      headers ?? null,
+      downloadConcurrency,
+      maxRetry,
+      jobId,
+      // ThreadsafeFunction 默认 CalleeHandled=true，callback 签名为 (err, value)
+      (err: Error | null, bytes: Buffer) => {
+        if (err) return;
+        onChunk(new Uint8Array(bytes));
+      },
+      (err: Error | null, completed: number, total: number) => {
+        if (err) return;
+        this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, { total, completed });
+      },
+    );
+  } finally {
+    cleanup();
+  }
+
+  // 末端触发 STITCHING_SEGMENTS + READY_FOR_DOWNLOAD，保持事件语义一致
+  this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+    total: totalSegments,
+    completed: totalSegments,
+  });
+  this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+
+  return { totalSegments };
+};
 
 const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   name: 'NodeAdapter',
@@ -316,18 +424,9 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   parseHls,
   getPosterUrl,
   download,
+  downloadToStream,
 }) as HlsDownloaderNodeAdapter;
 
 export const NodeAdapter: HlsDownloaderNodeAdapter = nodeAdapter;
-
-/**
- * @deprecated Use `NodeAdapter` instead.
- */
-export const RustAdapter: HlsDownloaderNodeAdapter = nodeAdapter;
-
-/**
- * @deprecated Use `HlsDownloaderNodeAdapter` instead.
- */
-export type HlsDownloaderRustAdapter = HlsDownloaderNodeAdapter;
 
 export default NodeAdapter;

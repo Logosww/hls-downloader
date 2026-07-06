@@ -40,7 +40,7 @@ enum HlsDownloaderEvent {
   SOURCE_PARSED = 'source-parsed',
   DOWNLOADING = 'downloading',
   DOWNLOADING_SEGMENTS = 'downloading-segments',
-  STICHING_SEGMENTS = 'stiching-segments',
+  STITCHING_SEGMENTS = 'stitching-segments',
   READY_FOR_DOWNLOAD = 'ready-for-download',
   ERROR = 'error',
 }
@@ -52,6 +52,7 @@ enum HlsDownloaderEvent {
 type HlsDownloaderFetchOptions = {
   url: string
   headers?: Record<string, string>
+  signal?: AbortSignal
 }
 ```
 
@@ -118,10 +119,21 @@ type HlsDownloaderDownloadOptions = {
   maxRetry?: number
   downloadConcurrency?: number
   transcode?: HlsDownloaderTranscodeOptions
+  signal?: AbortSignal
 }
 ```
 
-Per-call options for `download()`. `filename` is a plain filename without extension; the final extension is resolved internally from the output container (`mp4` by default, preset/format-aware when `transcode` is set).
+Per-call options for `download()`. `filename` is a plain filename without extension; the final extension is resolved internally from the output container (`mp4` by default, preset/format-aware when `transcode` is set). Pass `signal` (an `AbortSignal`) to cooperatively cancel an in-progress download; the download promise rejects with an `AbortError`.
+
+## HlsDownloaderStreamResult
+
+```ts
+type HlsDownloaderStreamResult = {
+  totalSegments: number
+}
+```
+
+Resolution value of `HlsDownloader.downloadToStream()`. The library itself does not write to disk — fMP4 bytes are pushed via the `onChunk` callback; callers decide whether to persist (e.g. via `ReadableStream.tee()`), so only the segment count is returned. Both `BrowserAdapter` and `NodeAdapter` support this method.
 
 ## GlobalOptions
 

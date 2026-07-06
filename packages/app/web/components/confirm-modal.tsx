@@ -8,6 +8,7 @@ import {
   AlertDialogTitle,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
@@ -44,6 +45,7 @@ export interface IConfirmModalProps {
   };
   onOpenChange?: (open: boolean) => void;
   onConfirm?: (form: z.infer<typeof formSchema>) => Promise<void>;
+  onStreamPreview?: (form: z.infer<typeof formSchema>) => void;
 }
 const formSchema = z.object({
   quality: z.string(),
@@ -51,7 +53,13 @@ const formSchema = z.object({
   transcodePreset: z.enum(['none', 'h264']),
 });
 
-export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfirmModalProps) => {
+export const ConfirmModal = ({
+  open,
+  metadata,
+  onOpenChange,
+  onConfirm,
+  onStreamPreview,
+}: IConfirmModalProps) => {
   const { filename, previewSrc, playlist } = metadata || {};
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,6 +76,11 @@ export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfi
     setIsSubmitting(true);
     await onConfirm?.(values);
     setIsSubmitting(false);
+    onOpenChange?.(false);
+  };
+
+  const handleStreamPreview = async (values: z.infer<typeof formSchema>) => {
+    onStreamPreview?.(values);
     onOpenChange?.(false);
   };
 
@@ -90,9 +103,7 @@ export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfi
           {isLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : (
-            previewSrc && (
-              <img className="h-40 w-full object-cover" src={previewSrc} alt="poster" />
-            )
+            previewSrc && <img className="h-40 w-full object-cover" src={previewSrc} alt="poster" />
           )}
         </div>
         <Form {...form}>
@@ -178,6 +189,16 @@ export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfi
             >
               取消
             </AlertDialogCancel>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={isSubmitting}
+              onClick={form.handleSubmit(handleStreamPreview)}
+            >
+              {isSubmitting && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
+              直接播放
+            </Button>
             <AlertDialogAction
               form="confirm-modal-form"
               className="cursor-pointer"
@@ -186,7 +207,7 @@ export const ConfirmModal = ({ open, metadata, onOpenChange, onConfirm }: IConfi
               disabled={isSubmitting}
             >
               {isSubmitting && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
-              确定
+              下载
             </AlertDialogAction>
           </AlertDialogFooter>
         </Form>

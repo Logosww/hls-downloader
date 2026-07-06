@@ -7,8 +7,6 @@ export default defineConfig({
     shared: 'src/shared.ts',
     'adapters-browser': 'src/adapters-browser.ts',
     'adapters-node': 'src/adapters-node.ts',
-    'adapters-wasm': 'src/adapters-wasm.ts',
-    'adapters-rust': 'src/adapters-rust.ts',
   },
   format: 'esm',
   platform: 'neutral',

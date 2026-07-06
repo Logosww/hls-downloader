@@ -12,11 +12,11 @@ static-ffmpeg = ["ffmpeg-next/static"]
 ffmpeg-next = { version = "8.1.0" }
 reqwest = { version = "0.12", features = ["rustls-tls", "stream"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 m3u8-rs = "6"
 tempfile = "3"
 base64 = "0.22"
 futures = "0.3"
 thiserror = "2"
 url = "2"
-mpeg2ts-reader = "0.18"
-muxide = "0.2"
+hls-transmux = { version = "0.1" }

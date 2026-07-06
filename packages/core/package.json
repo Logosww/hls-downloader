@@ -26,7 +26,7 @@
     "@hls-downloader/shared": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^24.10.11"
+    "@types/node": "^26.1.0"
   },
   "engines": {
     "node": ">=20"

@@ -1,9 +1,0 @@
-/**
- * @deprecated Use `@logosw/hls-downloader/adapters/browser` instead.
- */
-export {
-  BrowserAdapter,
-  WasmAdapter,
-  type HlsDownloaderBrowserAdapter,
-  type HlsDownloaderWasmAdapter,
-} from '@hls-downloader/adapters/browser';

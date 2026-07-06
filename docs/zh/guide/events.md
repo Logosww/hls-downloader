@@ -18,7 +18,7 @@ const downloader = new HlsDownloader({
       case HlsDownloaderEvent.DOWNLOADING_SEGMENTS:
         console.log(`下载中: ${payload?.completed}/${payload?.total}`)
         break
-      case HlsDownloaderEvent.STICHING_SEGMENTS:
+      case HlsDownloaderEvent.STITCHING_SEGMENTS:
         console.log(`合并中: ${payload?.completed}/${payload?.total}`)
         break
       case HlsDownloaderEvent.ERROR:
@@ -39,13 +39,13 @@ const downloader = new HlsDownloader({
 | `SOURCE_PARSED` | — | HLS 源已解析 |
 | `DOWNLOADING` | — | 下载进行中 |
 | `DOWNLOADING_SEGMENTS` | `{ total, completed }` | 分片下载进度 |
-| `STICHING_SEGMENTS` | `{ total, completed }` | 分片合并进度 |
+| `STITCHING_SEGMENTS` | `{ total, completed }` | 分片合并进度 |
 | `READY_FOR_DOWNLOAD` | — | 合并文件已就绪 |
 | `ERROR` | — | 发生错误 |
 
 ## 进度追踪
 
-`DOWNLOADING_SEGMENTS` 和 `STICHING_SEGMENTS` 事件提供包含 `total` 和 `completed` 字段的进度载荷：
+`DOWNLOADING_SEGMENTS` 和 `STITCHING_SEGMENTS` 事件提供包含 `total` 和 `completed` 字段的进度载荷：
 
 ```ts
 type ProgressPayload = {

@@ -324,7 +324,7 @@ describe('shared API e2e', () => {
       SOURCE_PARSED: 'source-parsed',
       DOWNLOADING: 'downloading',
       DOWNLOADING_SEGMENTS: 'downloading-segments',
-      STICHING_SEGMENTS: 'stiching-segments',
+      STITCHING_SEGMENTS: 'stitching-segments',
       READY_FOR_DOWNLOAD: 'ready-for-download',
       ERROR: 'error',
     });

@@ -17,9 +17,9 @@ pnpm add @hls-downloader/core @hls-downloader/shared
 pnpm add @hls-downloader/adapters
 ```
 
-`@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时均需能解析到 `@hls-downloader/adapters` 中的 browser/node 实现（`/wasm`、`/rust` 为兼容别名）。
+`@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时均需能解析到 `@hls-downloader/adapters` 中的 browser/node 实现。
 
-**运行环境**：Node.js **≥ 20**。Rust 适配器在 Node 下会加载**原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **WASM** 子路径，不要把 Node 原生模块打进前端。
+**运行环境**：Node.js **≥ 20**。Node 适配器在 Node 下会加载**原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **browser** 子路径，不要把 Node 原生模块打进前端。
 
 ::: info 默认下载路径（Transmux）
 **普通 `download()` 不会加载 FFmpeg。** 分片经轻量 transmux/remux 合并并保留源编码。仅在需要 FFmpeg 合并/转码时，于 `download()` 传入 `transcode`（或设置 `globalOptions.transcode`）。各适配器的 FFmpeg 触发条件见[适配器](/zh/guide/adapters)。
@@ -40,7 +40,7 @@ const downloader = new HlsDownloader({
   onEvent: (event, progress) => {
     if (
       event === HlsDownloaderEvent.DOWNLOADING_SEGMENTS ||
-      event === HlsDownloaderEvent.STICHING_SEGMENTS
+      event === HlsDownloaderEvent.STITCHING_SEGMENTS
     ) {
       console.log(progress?.completed, '/', progress?.total)
     }
@@ -68,6 +68,23 @@ const result = await downloader.download({
 
 if (result) {
   console.log(result.totalSegments)
+}
+
+// 使用 AbortController 协作式取消 — 两种适配器均支持
+const controller = new AbortController()
+setTimeout(() => controller.abort(), 5000) // 例如用户点击了取消
+try {
+  await downloader.download({
+    url: 'https://example.com/stream.m3u8',
+    filename: 'output',
+    signal: controller.signal,
+  })
+} catch (err) {
+  if (err.name === 'AbortError') {
+    console.log('下载已中止')
+  } else {
+    throw err
+  }
 }
 
 // 尝试从流中取封面图 URL
@@ -98,10 +115,10 @@ await downloader.init()
 
 | 包 / 入口 | 用途 |
 |-----------|------|
-| `@logosw/hls-downloader` | 聚合入口：默认导出 `HlsDownloader`，并再导出 `shared`、WASM/Rust 适配器等 |
+| `@logosw/hls-downloader` | 聚合入口：默认导出 `HlsDownloader`，并再导出 `shared`、Browser/Node 适配器等 |
 | `@logosw/hls-downloader/core` | 同 `@hls-downloader/core` |
 | `@logosw/hls-downloader/shared` | 同 `@hls-downloader/shared` |
-| `@logosw/hls-downloader/adapters`、`.../browser`、`.../node` | 同 `@hls-downloader/adapters` 及子路径（`.../wasm`、`.../rust` 为兼容别名） |
+| `@logosw/hls-downloader/adapters`、`.../browser`、`.../node` | 同 `@hls-downloader/adapters` 及子路径 |
 | `@hls-downloader/core` | `HlsDownloader` 类 |
 | `@hls-downloader/shared` | 类型、`HlsDownloaderEvent`、`createAdapter` 等 |
 | `@hls-downloader/adapters/browser` | 浏览器适配器 `BrowserAdapter` |

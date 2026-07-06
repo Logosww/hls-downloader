@@ -28,8 +28,6 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 
 加载 FFmpeg 核心资源时，CDN 上 **ESM** 与 **UMD** 路径由 `ffmpeg.useESM` 决定（`true` → `esm/`，省略或 `false` → `umd/`）。
 
-`WasmAdapter` 仍作为兼容别名保留，但已 deprecated。新代码请优先使用 `BrowserAdapter`。
-
 ### `download()` 返回值
 
 | 字段 | 类型 |
@@ -60,8 +58,6 @@ import { NodeAdapter } from '@hls-downloader/adapters/node'
 ```
 
 普通下载走**原生 transmux 路径**。**不会初始化原生 FFmpeg**，除非满足下方 FFmpeg 场景。
-
-`RustAdapter` 仍作为兼容别名保留，但已 deprecated。新代码请优先使用 `NodeAdapter`。
 
 ### 何时加载 FFmpeg
 

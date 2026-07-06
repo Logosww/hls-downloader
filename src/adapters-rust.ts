@@ -1,9 +1,0 @@
-/**
- * @deprecated Use `@logosw/hls-downloader/adapters/node` instead.
- */
-export {
-  NodeAdapter,
-  RustAdapter,
-  type HlsDownloaderNodeAdapter,
-  type HlsDownloaderRustAdapter,
-} from '@hls-downloader/adapters/node';

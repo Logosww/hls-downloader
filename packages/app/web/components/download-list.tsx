@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, DownloadCloudIcon } from 'lucide-react';
+import { CheckCircle, DownloadCloudIcon, XIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
@@ -14,22 +14,24 @@ export interface IDownloadListItem {
   title: string;
   previewSrc: string;
   percentage: number;
-  status: 'downloading' | 'paused' | 'completed' | 'failed' | 'saved';
+  status: 'downloading' | 'paused' | 'completed' | 'failed' | 'saved' | 'cancelled';
   blobURL?: string;
 }
 
 interface IDownloadListItemProps {
   item: IDownloadListItem;
   onSave?: (id: string) => void;
+  onCancel?: (id: string) => void;
 }
 
 interface IDownloadListProps {
   items: IDownloadListItem[];
   floatButton?: boolean;
   onSave?: (id: string) => void;
+  onCancel?: (id: string) => void;
 }
 
-const DownloadListItem = ({ item, onSave }: IDownloadListItemProps) => {
+const DownloadListItem = ({ item, onSave, onCancel }: IDownloadListItemProps) => {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2 min-w-0">
@@ -47,18 +49,28 @@ const DownloadListItem = ({ item, onSave }: IDownloadListItemProps) => {
                 ? '已完成'
                 : item.status === 'failed'
                   ? '失败'
-                  : item.status === 'paused'
-                    ? '已暂停'
-                    : '下载中'}
+                  : item.status === 'cancelled'
+                    ? '已取消'
+                    : item.status === 'paused'
+                      ? '已暂停'
+                      : '下载中'}
           </div>
         </div>
       </div>
-      {(item.status === 'downloading' || item.status === 'paused') && (
+      {item.status === 'downloading' && (
         <div className="w-40 flex items-center gap-2">
           <Progress value={item.percentage} />
           <span className="text-xs text-muted-foreground tabular-nums">
             {Math.floor(item.percentage)}%
           </span>
+          <Button
+            size="icon-sm"
+            variant="destructive"
+            type="button"
+            onClick={() => onCancel?.(item.id)}
+          >
+            <XIcon />
+          </Button>
         </div>
       )}
       {(item.status === 'saved' || (item.status === 'completed' && item.blobURL)) && (
@@ -76,7 +88,7 @@ const DownloadListItem = ({ item, onSave }: IDownloadListItemProps) => {
   );
 };
 
-export const DownloadList = ({ items, floatButton, onSave }: IDownloadListProps) => {
+export const DownloadList = ({ items, floatButton, onSave, onCancel }: IDownloadListProps) => {
   if (!floatButton)
     return (
       <Card>
@@ -88,7 +100,7 @@ export const DownloadList = ({ items, floatButton, onSave }: IDownloadListProps)
             {items.length ? (
               items.map((item, index) => (
                 <Fragment key={item.id}>
-                  <DownloadListItem item={item} onSave={onSave} />
+                  <DownloadListItem item={item} onSave={onSave} onCancel={onCancel} />
                   {index !== items.length - 1 && <Separator className="my-2" />}
                 </Fragment>
               ))
@@ -125,7 +137,7 @@ export const DownloadList = ({ items, floatButton, onSave }: IDownloadListProps)
           {items.length ? (
             items.map((item, index) => (
               <Fragment key={item.id}>
-                <DownloadListItem item={item} onSave={onSave} />
+                <DownloadListItem item={item} onSave={onSave} onCancel={onCancel} />
                 {index !== items.length - 1 && <Separator className="my-2" />}
               </Fragment>
             ))

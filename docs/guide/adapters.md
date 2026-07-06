@@ -13,7 +13,7 @@ FFmpeg is loaded **on demand** only when a specific API requires it. **`init()` 
 See each adapter section below for **when FFmpeg loads**.
 :::
 
-## WASM Adapter (Browser)
+## BrowserAdapter (Browser)
 
 ```ts
 import { BrowserAdapter } from '@hls-downloader/adapters/browser'
@@ -44,10 +44,6 @@ The multi-threaded FFmpeg build (`@ffmpeg/core-mt`) relies on `SharedArrayBuffer
 When FFmpeg is needed, the adapter **automatically detects** whether the runtime supports multi-threading by checking `globalThis.crossOriginIsolated` and `SharedArrayBuffer` availability. If the environment does not meet the requirements, it **silently falls back** to the single-threaded build (`@ffmpeg/core`).
 
 You can also force single-threaded mode via `ffmpeg.disableMultiThread`.
-
-::: tip
-`WasmAdapter` is still exported for compatibility, but it is deprecated. Prefer `BrowserAdapter` in new code.
-:::
 
 ::: tip
 If you're using Next.js or a similar framework, set the headers in your server config (e.g. `next.config.ts`) to enable cross-origin isolation and unlock multi-threaded performance:
@@ -106,7 +102,7 @@ const downloader = new HlsDownloader({
 })
 ```
 
-## Rust Adapter (Node.js)
+## NodeAdapter (Node.js)
 
 ```ts
 import { NodeAdapter } from '@hls-downloader/adapters/node'
@@ -124,8 +120,6 @@ The Rust adapter loads a native `.node` addon built with N-API. **Default downlo
 | `download()` | Yes | `transcode` object, `globalOptions.transcode`, or **`aria2.enabled: true`** |
 | `getPosterUrl()` | Sometimes | Lightweight extraction failed → FFmpeg fallback |
 | `parseHls()` / `init()` | No | — |
-
-`RustAdapter` is still exported for compatibility, but it is deprecated. Prefer `NodeAdapter` in new code.
 
 ### Requirements
 
@@ -174,5 +168,5 @@ const result = await downloader.download({
 ```
 
 ::: warning
-Do not bundle the Rust adapter (native `.node` addon) into browser code. For browser bundles, only import the WASM subpath.
+Do not bundle the Node adapter (native `.node` addon) into browser code. For browser bundles, only import the browser subpath.
 :::

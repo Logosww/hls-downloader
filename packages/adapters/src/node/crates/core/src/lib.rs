@@ -1,13 +1,15 @@
+pub mod cancel;
 pub mod download;
 pub mod hls;
 pub mod poster;
 pub mod transmux;
 
+pub use cancel::JobCancelToken;
 pub use download::{
     download_and_merge, download_segments_to_dir, Aria2Options, DownloadProgress, MergeProgress,
     TranscodeOptions,
 };
-pub use transmux::transmux_segments_to_mp4_buffer;
+pub use transmux::{transmux_hls_to_stream, transmux_segments_to_mp4_file};
 pub use hls::{parse_hls, ParseHlsResult, Playlist, Segment};
 pub use poster::extract_poster;
 

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] - 2026-07-05
+
+### Added
+
+- Entirely refactor `NodeAdapter` transmux implementation for better performance and stability, and brings more efficient concurrent segments downloading.
+- `NodeAdapter` now introduces `downloadToStream` method to support live streaming while downloading HLS.
+- `BrowserAdapter` now supports `downloadToStream` — streams fragmented MP4 bytes via `onChunk`, suitable for real-time MSE playback in browsers.
+- Both `BrowserAdapter` and `NodeAdapter` now accept `signal?: AbortSignal` in `download()` and `downloadToStream()` options for cooperative cancellation. Triggering abort rejects the download promise with an `AbortError`.
+
+### Fixed
+
+- Correct `STICHING_SEGMENTS` typo to `STITCHING_SEGMENTS` (both the enum name and its string value `'stitching-segments'`).
+
+### Changed
+
+- Remove development-time `fakeDelay` helper from `BrowserAdapter`.
+
+### Removed
+
+- **Breaking**: Remove the deprecated `WasmAdapter` and `RustAdapter` aliases, the `HlsDownloaderWasmAdapter` / `HlsDownloaderRustAdapter` / `RustAdapterAria2Options` type aliases, the `@hls-downloader/adapters/wasm` and `@hls-downloader/adapters/rust` subpaths, and the `adapters-wasm` / `adapters-rust` umbrella entrypoints. Use `BrowserAdapter` / `NodeAdapter` (and the `browser` / `node` subpaths) everywhere.
+
 ## [2.0.0] - 2026-05-26
 
 ### Added

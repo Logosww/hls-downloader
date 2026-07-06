@@ -45,6 +45,7 @@ pnpm-debug.log*
 
 # rust
 target/
+packages/adapters/src/node/.cargo
 
 # vitepress
 docs/.vitepress/cache

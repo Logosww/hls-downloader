@@ -19,4 +19,3 @@ export const promiseWithLimit = async <T>(
   return results;
 };
 
-export const fakeDelay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
