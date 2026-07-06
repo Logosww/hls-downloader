@@ -1,0 +1,51 @@
+name: Setup pnpm with runtime
+description: Install pnpm and JS runtime; npm fallback on Intel macOS (@pnpm/exe SEA bug)
+
+inputs:
+  version:
+    description: pnpm version
+    required: false
+    default: latest
+  runtime:
+    description: JS runtime spec (node@24, etc.)
+    required: false
+    default: node@24
+  cache:
+    description: Cache pnpm store
+    required: false
+    default: 'true'
+  install:
+    description: Run pnpm install after setup
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/setup@v1
+      if: runner.os != 'macOS' || runner.arch != 'X64'
+      with:
+        version: ${{ inputs.version }}
+        runtime: ${{ inputs.runtime }}
+        cache: ${{ inputs.cache }}
+        install: ${{ inputs.install }}
+
+    - uses: actions/setup-node@v4
+      if: runner.os == 'macOS' && runner.arch == 'X64'
+      with:
+        node-version: '24'
+
+    - name: Install pnpm (Intel macOS)
+      if: runner.os == 'macOS' && runner.arch == 'X64'
+      shell: bash
+      run: npm install -g "pnpm@${{ inputs.version }}"
+
+    - name: Setup runtime (Intel macOS)
+      if: runner.os == 'macOS' && runner.arch == 'X64'
+      shell: bash
+      run: pnpm runtime set -g "${{ inputs.runtime }}"
+
+    - name: Install dependencies (Intel macOS)
+      if: (runner.os == 'macOS' && runner.arch == 'X64') && inputs.install == 'true'
+      shell: bash
+      run: pnpm install --no-runtime

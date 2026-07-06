@@ -26,12 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/setup@v1
+      - uses: ./.github/actions/setup-pnpm
         with:
           version: ${{ env.PNPM_VERSION }}
           runtime: ${{ env.JS_RUNTIME }}
-          cache: true
-          install: false
+          cache: 'true'
+          install: 'false'
 
       - run: pnpm install --frozen-lockfile
 
