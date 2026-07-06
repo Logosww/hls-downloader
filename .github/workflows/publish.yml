@@ -60,12 +60,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/setup@v1
+      - uses: ./.github/actions/setup-pnpm
         with:
           version: ${{ env.PNPM_VERSION }}
           runtime: ${{ env.JS_RUNTIME }}
-          cache: true
-          install: false
+          cache: 'true'
+          install: 'false'
 
       - name: Install vcpkg host dependencies (Linux)
         if: runner.os == 'Linux'
@@ -203,12 +203,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/setup@v1
+      - uses: ./.github/actions/setup-pnpm
         with:
           version: ${{ env.PNPM_VERSION }}
           runtime: ${{ env.JS_RUNTIME }}
-          cache: true
-          install: false
+          cache: 'true'
+          install: 'false'
 
       - uses: actions/setup-node@v4
         with:
@@ -264,12 +264,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/setup@v1
+      - uses: ./.github/actions/setup-pnpm
         with:
           version: ${{ env.PNPM_VERSION }}
           runtime: ${{ env.JS_RUNTIME }}
-          cache: true
-          install: false
+          cache: 'true'
+          install: 'false'
 
       - uses: actions/setup-node@v4
         with:
