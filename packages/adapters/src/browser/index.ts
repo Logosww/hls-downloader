@@ -20,9 +20,9 @@ import {
 } from '@hls-downloader/shared';
 import { FFMessageLoadConfig, FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
-import { transmuxHlsToMp4Buffer } from './mediabunny';
+import { transmuxHlsToMp4Buffer, transmuxHlsToMp4Stream } from './mediabunny';
 import { extractPosterFromSegmentUrl } from './poster';
-import { fakeDelay, promiseWithLimit } from './utils';
+import { promiseWithLimit } from './utils';
 
 /**
  * @internal
@@ -70,6 +70,7 @@ function mergeFetchOptions(
   return {
     headers: globalOptions?.download?.headers,
     ...callOptions,
+    signal: callOptions.signal,
   };
 }
 
@@ -97,6 +98,7 @@ function mergeDownloadOptions(
       adapter.chunkDownloadConcurrency,
     transcode: mergedTranscode,
     ffmpeg: callOptions.ffmpeg ?? globalOptions?.ffmpeg,
+    signal: callOptions.signal,
   };
 }
 
@@ -161,7 +163,7 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   this: HlsDownloaderBrowserAdapter,
   options,
 ) {
-  const { url: hlsUrl, headers } = mergeFetchOptions(
+  const { url: hlsUrl, headers, signal } = mergeFetchOptions(
     getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options),
     options,
   );
@@ -169,7 +171,7 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   try {
     let url = new URL(hlsUrl);
 
-    let response = await fetch(url.href, { headers, mode: 'cors' });
+    let response = await fetch(url.href, { headers, mode: 'cors', signal });
     if (!response.ok) throw new Error(await response.text());
     let manifest = await response.text();
 
@@ -277,6 +279,7 @@ const getPosterUrl: HlsDownloaderBrowserAdapter['getPosterUrl'] = async function
   const poster = await extractPosterFromSegmentUrl({
     segmentUrl: segments[index]!.uri,
     headers: fetchOptions.headers,
+    signal: fetchOptions.signal,
   });
   posterCache[fetchOptions.url] = poster;
   return poster;
@@ -287,10 +290,16 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
   options,
 ) {
   const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
-  const { url, headers, filename, maxRetry, downloadConcurrency, transcode, ffmpeg: ffmpegLoadOptions } =
+  const { url, headers, filename, maxRetry, downloadConcurrency, transcode, ffmpeg: ffmpegLoadOptions, signal } =
     mergeDownloadOptions(this, globalOptions, options);
 
   this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
+
+  if (signal?.aborted) {
+    const err = new Error('Download aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
 
   const { segments } = await resolveToSegments(this, { ...options, url, headers });
   const segmentWithIndex = segments.map((s, i) => ({
@@ -298,7 +307,6 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
     index: i,
   }));
   this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
-  await fakeDelay(1500);
 
   const shouldUseFfmpeg = needsBrowserFfmpegTranscode(transcode);
 
@@ -309,6 +317,7 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
       headers,
       maxRetry,
       downloadConcurrency,
+      signal,
       onProgress: (completed) => {
         this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
           total: segments.length,
@@ -316,7 +325,7 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
         });
       },
       onMuxProgress: (completed) => {
-        this.onEvent?.(HlsDownloaderEvent.STICHING_SEGMENTS, {
+        this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
           total: segments.length,
           completed,
         });
@@ -349,6 +358,7 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
         headers,
         fileIndex: segment.index,
         maxRetry,
+        signal,
       });
 
       this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
@@ -365,7 +375,7 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
   );
 
   ffmpeg.on('progress', ({ progress }) => {
-    this.onEvent?.(HlsDownloaderEvent.STICHING_SEGMENTS, {
+    this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
       total: 100,
       completed: Math.floor(progress * 100),
     });
@@ -395,13 +405,19 @@ type DownloadFileOptions = {
   url: string;
   fileIndex: number;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 };
 
-const downloadSegmentBytes = async ({ url, headers }: Omit<DownloadFileOptions, 'fileIndex'>) => {
+const downloadSegmentBytes = async ({
+  url,
+  headers,
+  signal,
+}: Omit<DownloadFileOptions, 'fileIndex'>) => {
   const response = await fetch(url, {
     method: 'GET',
     headers: headers,
     mode: 'cors',
+    signal,
   });
 
   if (!response.ok) {
@@ -412,12 +428,12 @@ const downloadSegmentBytes = async ({ url, headers }: Omit<DownloadFileOptions, 
   return new Uint8Array(buffer);
 };
 
-const downloadAndWriteFile = async ({ url, fileIndex, headers }: DownloadFileOptions) => {
+const downloadAndWriteFile = async ({ url, fileIndex, headers, signal }: DownloadFileOptions) => {
   if (!ffmpeg?.loaded) {
     throw new Error('FFmpeg is not initialized');
   }
 
-  const unit8Array = await downloadSegmentBytes({ url, headers });
+  const unit8Array = await downloadSegmentBytes({ url, headers, signal });
 
   const filePath = `${fileIndex}.ts`;
 
@@ -437,7 +453,12 @@ const downloadAndWriteFileWithRetry = async ({
   while (retry < maxRetry) {
     try {
       return await downloadAndWriteFile(options);
-    } catch {
+    } catch (err) {
+      if (options.signal?.aborted) {
+        const abortErr = new Error('Download aborted');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
       retry++;
       if (retry >= maxRetry) {
         throw new Error(`Failed to download ${options.url} after ${maxRetry} attempts`);
@@ -452,6 +473,7 @@ type DownloadAndTransmuxOptions = {
   headers?: Record<string, string>;
   maxRetry: number;
   downloadConcurrency: number;
+  signal?: AbortSignal;
   onProgress: (completed: number) => void;
   onMuxProgress: (completed: number) => void;
 };
@@ -460,6 +482,7 @@ const downloadAndTransmux = async ({
   url,
   segments,
   headers,
+  signal,
   onProgress,
   onMuxProgress,
 }: DownloadAndTransmuxOptions) => {
@@ -468,6 +491,7 @@ const downloadAndTransmux = async ({
     headers,
     segmentUrls: segments.map((segment) => segment.uri),
     onSegmentLoaded: onProgress,
+    signal,
   });
   onMuxProgress(segments.length);
 
@@ -485,7 +509,12 @@ const downloadSegmentBytesWithRetry = async ({
   while (retry < maxRetry) {
     try {
       return await downloadSegmentBytes(options);
-    } catch {
+    } catch (err) {
+      if (options.signal?.aborted) {
+        const abortErr = new Error('Download aborted');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
       retry++;
       if (retry >= maxRetry) {
         throw new Error(`Failed to download ${options.url} after ${maxRetry} attempts`);
@@ -496,6 +525,57 @@ const downloadSegmentBytesWithRetry = async ({
   throw new Error(`Failed to download ${options.url}`);
 };
 
+const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async function (
+  this,
+  options,
+  onChunk,
+) {
+  const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
+  const { url, headers, signal } = mergeDownloadOptions(this, globalOptions, options);
+
+  this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
+
+  if (signal?.aborted) {
+    const err = new Error('Download aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
+  const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
+  this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
+
+  const stream = await transmuxHlsToMp4Stream({
+    url: resolvedUrl,
+    headers,
+    segmentUrls: segments.map((s) => s.uri),
+    onSegmentLoaded: (completed) => {
+      this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+        total: segments.length,
+        completed,
+      });
+    },
+    signal,
+  });
+
+  const reader = stream.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      onChunk(value);
+      this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+        total: segments.length,
+        completed: segments.length,
+      });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+  return { totalSegments: segments.length };
+};
+
 const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   name: 'BrowserAdapter',
   chunkDownloadConcurrency: 10,
@@ -504,18 +584,9 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   parseHls,
   getPosterUrl,
   download,
+  downloadToStream,
 }) as HlsDownloaderBrowserAdapter;
 
 export const BrowserAdapter: HlsDownloaderBrowserAdapter = browserAdapter;
-
-/**
- * @deprecated Use `BrowserAdapter` instead.
- */
-export const WasmAdapter: HlsDownloaderBrowserAdapter = browserAdapter;
-
-/**
- * @deprecated Use `HlsDownloaderBrowserAdapter` instead.
- */
-export type HlsDownloaderWasmAdapter = HlsDownloaderBrowserAdapter;
 
 export default BrowserAdapter;

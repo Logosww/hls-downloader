@@ -11,6 +11,8 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  PNPM_VERSION: latest
+  JS_RUNTIME: node@24
 
 permissions:
   contents: read
@@ -24,37 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
-      - name: Check Node.js (≥24.12.0)
-        id: node_check
-        shell: bash
-        run: |
-          set -euo pipefail
-          export MIN="24.12.0"
-          if ! command -v node &>/dev/null; then
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          export VER="$(node -p "process.version.slice(1).split('-')[0].split('+')[0]")"
-          if node -e "const cur=process.env.VER.split('.').map(s=>parseInt(s,10));const min=process.env.MIN.split('.').map(Number);const ge=cur[0]>min[0]||(cur[0]===min[0]&&cur[1]>min[1])||(cur[0]===min[0]&&cur[1]===min[1]&&(cur[2]||0)>=(min[2]||0));process.exit(ge?0:1);"; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-            echo "version=$VER" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: actions/setup-node@v4
-        if: steps.node_check.outputs.ok != 'true'
+      - uses: pnpm/setup@v1
         with:
-          node-version: '24'
-          cache: pnpm
-
-      - uses: actions/setup-node@v4
-        if: steps.node_check.outputs.ok == 'true'
-        with:
-          node-version: ${{ steps.node_check.outputs.version }}
-          cache: pnpm
+          version: ${{ env.PNPM_VERSION }}
+          runtime: ${{ env.JS_RUNTIME }}
+          cache: true
+          install: false
 
       - run: pnpm install --frozen-lockfile
 

@@ -17,9 +17,9 @@ pnpm add @hls-downloader/core @hls-downloader/shared
 pnpm add @hls-downloader/adapters
 ```
 
-The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the wasm/rust implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
+The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the browser/node implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
 
-**Runtime**: Node.js **≥ 20**. The Rust adapter loads a **native `.node` addon** on Node — use a build that matches your platform and Node ABI. For browser bundles, only include the **WASM** subpath; do not bundle the Node native addon into frontend code.
+**Runtime**: Node.js **≥ 20**. The Node adapter loads a **native `.node` addon** on Node — use a build that matches your platform and Node ABI. For browser bundles, only include the **browser** subpath; do not bundle the Node native addon into frontend code.
 
 ::: info Default download path (transmux)
 **Ordinary `download()` does not load FFmpeg.** Segments are merged via a lightweight transmux/remux path while keeping source codecs. Pass `transcode` on `download()` (or set `globalOptions.transcode`) only when you need FFmpeg-based merging or transcoding. See [Adapters](/guide/adapters) for per-adapter FFmpeg triggers.
@@ -40,7 +40,7 @@ const downloader = new HlsDownloader({
   onEvent: (event, progress) => {
     if (
       event === HlsDownloaderEvent.DOWNLOADING_SEGMENTS ||
-      event === HlsDownloaderEvent.STICHING_SEGMENTS
+      event === HlsDownloaderEvent.STITCHING_SEGMENTS
     ) {
       console.log(progress?.completed, '/', progress?.total)
     }
@@ -68,6 +68,23 @@ const result = await downloader.download({
 
 if (result) {
   console.log(result.totalSegments)
+}
+
+// Cooperative cancellation with AbortController — works on both adapters
+const controller = new AbortController()
+setTimeout(() => controller.abort(), 5000) // e.g. user clicked cancel
+try {
+  await downloader.download({
+    url: 'https://example.com/stream.m3u8',
+    filename: 'output',
+    signal: controller.signal,
+  })
+} catch (err) {
+  if (err.name === 'AbortError') {
+    console.log('download aborted')
+  } else {
+    throw err
+  }
 }
 
 // Try to get a poster image URL from the stream
@@ -98,10 +115,10 @@ await downloader.init()
 
 | Package / Entry | Role |
 |-----------------|------|
-| `@logosw/hls-downloader` | Umbrella: default export `HlsDownloader`, re-exports `shared`, WASM/Rust adapters |
+| `@logosw/hls-downloader` | Umbrella: default export `HlsDownloader`, re-exports `shared`, Browser/Node adapters |
 | `@logosw/hls-downloader/core` | Same as `@hls-downloader/core` |
 | `@logosw/hls-downloader/shared` | Same as `@hls-downloader/shared` |
-| `@logosw/hls-downloader/adapters`, `.../browser`, `.../node` | Same as `@hls-downloader/adapters` and subpaths (`.../wasm`, `.../rust` are deprecated aliases) |
+| `@logosw/hls-downloader/adapters`, `.../browser`, `.../node` | Same as `@hls-downloader/adapters` and subpaths |
 | `@hls-downloader/core` | `HlsDownloader` class |
 | `@hls-downloader/shared` | Types, `HlsDownloaderEvent`, `createAdapter`, etc. |
 | `@hls-downloader/adapters/browser` | Browser adapter `BrowserAdapter` |

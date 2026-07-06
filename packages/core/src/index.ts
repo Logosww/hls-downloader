@@ -12,6 +12,7 @@ import type {
   HlsDownloaderGlobalDownloadOptions,
   HlsDownloaderFetchOptions,
   HlsDownloaderDownloadOptions,
+  HlsDownloaderStreamResult,
   HlsDownloaderTranscodeOptions,
 } from '@hls-downloader/shared';
 
@@ -112,6 +113,16 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   }
   async getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined> {
     return await this.#adapter.getPosterUrl(injectContext(options, this.#context));
+  }
+  async downloadToStream(
+    options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
+    onChunk: (bytes: Uint8Array) => void,
+  ): Promise<HlsDownloaderStreamResult> {
+    await this.init();
+    return await this.#adapter.downloadToStream(
+      injectContext(options, this.#context),
+      onChunk,
+    );
   }
 }
 

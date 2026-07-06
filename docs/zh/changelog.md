@@ -5,6 +5,17 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [3.0.0] - 2026-07-05
+
+### Added
+
+- 彻底重构 `NodeAdapter` transmux 实现以获得更好的性能与稳定性，同时带来效率更高的并发下载分片能力。
+- `NodeAdpater` 现在新增 `downloadToStream` 方法以实现 HLS 边下载边推流。
+
+### 移除
+
+- **破坏性变更**：彻底移除已弃用的 `WasmAdapter` 与 `RustAdapter` 别名、`HlsDownloaderWasmAdapter` / `HlsDownloaderRustAdapter` / `RustAdapterAria2Options` 类型别名、`@hls-downloader/adapters/wasm` 与 `@hls-downloader/adapters/rust` 子路径，以及聚合包 `adapters-wasm` / `adapters-rust` 入口。请统一使用 `BrowserAdapter` / `NodeAdapter`（及 `browser` / `node` 子路径）。
+
 ## [2.0.0] - 2026-05-26
 
 ### 新增

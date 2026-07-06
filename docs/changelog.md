@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] - 2026-07-05
+
+### Added
+
+- Entirely refactor `NodeAdapter` transmux implementation for better performance and stability, and brings more efficient concurrent segments downloading.
+- `NodeAdpater` now introduces `downloadToStream` method to support live streaming while downloading HLS.
+
+### Removed
+
+- **Breaking**: Remove the deprecated `WasmAdapter` and `RustAdapter` aliases, the `HlsDownloaderWasmAdapter` / `HlsDownloaderRustAdapter` / `RustAdapterAria2Options` type aliases, the `@hls-downloader/adapters/wasm` and `@hls-downloader/adapters/rust` subpaths, and the `adapters-wasm` / `adapters-rust` umbrella entrypoints. Use `BrowserAdapter` / `NodeAdapter` (and the `browser` / `node` subpaths) everywhere.
+
 ## [2.0.0] - 2026-05-26
 
 ### Added

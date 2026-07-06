@@ -28,8 +28,6 @@ When FFmpeg is loaded, the adapter automatically detects whether multi-threading
 
 For FFmpeg core assets, **ESM** vs **UMD** paths on the CDN are controlled by `ffmpeg.useESM` (`true` → `esm/`, omitted or `false` → `umd/`).
 
-`WasmAdapter` remains available as a deprecated compatibility alias. Prefer `BrowserAdapter` in new code.
-
 ### `download()` result
 
 | Field | Type |
@@ -60,8 +58,6 @@ import { NodeAdapter } from '@hls-downloader/adapters/node'
 ```
 
 Ordinary downloads use a **native transmux path**. **Native FFmpeg is not initialized** unless one of the FFmpeg scenarios below applies.
-
-`RustAdapter` remains available as a deprecated compatibility alias. Prefer `NodeAdapter` in new code.
 
 ### When FFmpeg loads
 

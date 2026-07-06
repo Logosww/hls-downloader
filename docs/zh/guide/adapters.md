@@ -13,7 +13,7 @@ FFmpeg **仅在按需**、且具体 API 需要时才加载。**`init()` 与 `par
 各适配器**何时加载 FFmpeg** 见下方分节。
 :::
 
-## WASM 适配器（浏览器）
+## BrowserAdapter（浏览器）
 
 ```ts
 import { BrowserAdapter } from '@hls-downloader/adapters/browser'
@@ -44,10 +44,6 @@ import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser'
 当需要 FFmpeg 时，适配器会**自动检测**运行时是否支持多线程（通过检查 `globalThis.crossOriginIsolated` 和 `SharedArrayBuffer` 的可用性）。如果环境不满足条件，将**静默降级**到单线程构建（`@ffmpeg/core`）。
 
 你也可以通过 `ffmpeg.disableMultiThread` 手动强制使用单线程模式。
-
-::: tip
-`WasmAdapter` 仍作为兼容导出保留，但已 deprecated。新代码请优先使用 `BrowserAdapter`。
-:::
 
 ::: tip
 如果你使用 Next.js 或类似框架，可在服务端配置中（如 `next.config.ts`）设置响应头以启用跨域隔离，从而解锁多线程性能：
@@ -106,7 +102,7 @@ const downloader = new HlsDownloader({
 })
 ```
 
-## Rust 适配器（Node.js）
+## NodeAdapter（Node.js）
 
 ```ts
 import { NodeAdapter } from '@hls-downloader/adapters/node'
@@ -124,8 +120,6 @@ Rust 适配器加载通过 N-API 构建的原生 `.node` 模块。**默认下载
 | `download()` | 是 | `transcode` 对象、`globalOptions.transcode`，或 **`aria2.enabled: true`** |
 | `getPosterUrl()` | 视情况 | 轻量提取失败 → FFmpeg 回退 |
 | `parseHls()` / `init()` | 否 | — |
-
-`RustAdapter` 仍作为兼容导出保留，但已 deprecated。新代码请优先使用 `NodeAdapter`。
 
 ### 要求
 
@@ -174,5 +168,5 @@ const result = await downloader.download({
 ```
 
 ::: warning
-不要将 Rust 适配器（原生 `.node` 模块）打包进浏览器代码。浏览器打包时请只导入 WASM 子路径。
+不要将 Node 适配器（原生 `.node` 模块）打包进浏览器代码。浏览器打包时请只导入 browser 子路径。
 :::

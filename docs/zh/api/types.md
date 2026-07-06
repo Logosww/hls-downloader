@@ -40,7 +40,7 @@ enum HlsDownloaderEvent {
   SOURCE_PARSED = 'source-parsed',
   DOWNLOADING = 'downloading',
   DOWNLOADING_SEGMENTS = 'downloading-segments',
-  STICHING_SEGMENTS = 'stiching-segments',
+  STITCHING_SEGMENTS = 'stitching-segments',
   READY_FOR_DOWNLOAD = 'ready-for-download',
   ERROR = 'error',
 }
@@ -52,6 +52,7 @@ enum HlsDownloaderEvent {
 type HlsDownloaderFetchOptions = {
   url: string
   headers?: Record<string, string>
+  signal?: AbortSignal
 }
 ```
 
@@ -118,10 +119,21 @@ type HlsDownloaderDownloadOptions = {
   maxRetry?: number
   downloadConcurrency?: number
   transcode?: HlsDownloaderTranscodeOptions
+  signal?: AbortSignal
 }
 ```
 
-`download()` 单次调用选项。`filename` 是不含扩展名的单纯文件名；最终扩展名由内部根据输出容器解析（默认 `mp4`，设置 `transcode` 时感知 preset/format）。
+`download()` 单次调用选项。`filename` 是不含扩展名的单纯文件名；最终扩展名由内部根据输出容器解析（默认 `mp4`，设置 `transcode` 时感知 preset/format）。传入 `signal`（`AbortSignal`）可协作式取消正在进行的下载；取消时下载 Promise 会以 `AbortError` 拒绝。
+
+## HlsDownloaderStreamResult
+
+```ts
+type HlsDownloaderStreamResult = {
+  totalSegments: number
+}
+```
+
+`HlsDownloader.downloadToStream()` 的返回值。库本身不落盘——fMP4 字节通过 `onChunk` 回调推送；是否落盘由调用方决定（如用 `ReadableStream.tee()` 分叉一路写文件），因此只返回分片总数。`BrowserAdapter` 与 `NodeAdapter` 均支持此方法。
 
 ## GlobalOptions
 

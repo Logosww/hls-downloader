@@ -31,7 +31,7 @@ pnpm add @hls-downloader/core @hls-downloader/shared
 pnpm add @hls-downloader/adapters   # 再通过子路径导入 browser 或 node，见下文
 ```
 
-`@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时（聚合包或独立安装）均需能解析到 `@hls-downloader/adapters` 中的 browser/node 实现（`/wasm`、`/rust` 为兼容别名）。
+`@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时（聚合包或独立安装）均需能解析到 `@hls-downloader/adapters` 中的 browser/node 实现。
 
 **运行环境**：Node.js **≥ 20**（与 `core` 及聚合包根 `engines` 一致）。Node 适配器在 Node 下会加载 **原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **browser** 子路径，不要把 Node 原生模块打进前端。
 
@@ -51,7 +51,7 @@ const downloader = new HlsDownloader({
   onEvent: (event, progress) => {
     if (
       event === HlsDownloaderEvent.DOWNLOADING_SEGMENTS ||
-      event === HlsDownloaderEvent.STICHING_SEGMENTS
+      event === HlsDownloaderEvent.STITCHING_SEGMENTS
     ) {
       console.log(progress?.completed, '/', progress?.total);
     }
@@ -93,6 +93,53 @@ const downloader = new HlsDownloader({ adapter: NodeAdapter, onEvent: ... });
 await downloader.init();
 ```
 
+### 边下边推流（BrowserAdapter 与 NodeAdapter）
+
+`downloadToStream()` 在 segment 还没全部下完时就开始把 fMP4 字节通过 `onChunk` 推送出来——适合 HTTP 服务把流转发给浏览器 MSE 播放器，或在浏览器内直接喂给 MSE 实时播放。**库本身不落盘**，是否落盘由调用方决定（如用 `ReadableStream.tee()` 分叉一路写文件即可同时拥有「实时流 + 事后可下载文件」）。背压自然形成。
+
+```ts
+import { createServer } from 'node:http';
+import { HlsDownloader } from '@hls-downloader/core';
+import { NodeAdapter } from '@hls-downloader/adapters/node';
+
+const downloader = new HlsDownloader({ adapter: NodeAdapter });
+
+// 场景：HTTP 服务把 fMP4 字节流转发给浏览器（边下边播）
+// 同时通过 ReadableStream.tee() 分叉一路写文件，task 完成后 /file 可访问
+const server = createServer(async (req, res) => {
+  if (req.url !== '/stream.mp4') {
+    res.writeHead(404);
+    return res.end('not found');
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'video/mp4',          // fMP4，浏览器 MSE 可解析
+    'Cache-Control': 'no-cache',
+    // 注意：不设 Content-Length（流式，长度未知）
+  });
+
+  await downloader.downloadToStream(
+    {
+      url: 'https://example.com/stream.m3u8',
+      headers: { Authorization: 'Bearer ...' },
+      downloadConcurrency: 8,
+    },
+    (bytes) => {
+        res.write(bytes);  // 每个 chunk 直接写入 HTTP response body
+    },
+  );
+  res.end();
+});
+
+server.listen(3000);
+```
+
+要点：
+- 输出为 **fragmented MP4**（首段 `ftyp`+`moov`，每段 `styp`+`moof`+`mdat`），浏览器 MSE 可直接消费
+- 第一个 segment 处理完即开始推送，不等全部下完
+- 库本身不落盘；调用方可通过 `ReadableStream.tee()` 分叉一路写文件实现「边推流 + 边落盘」
+- `download()` 文件路径完全不受影响，作为非流式 fallback
+
 ### `HlsDownloader` API 摘要
 
 
@@ -104,7 +151,8 @@ await downloader.init();
 | `globalOptions`                                                           | 当前默认选项，未设置时为 `null`                                                              |
 | `setOptions(options)`                                                     | 更新默认选项                                                                               |
 | `parseHls({ url, headers? })`                                             | 返回 `ParseHlsResult`：主列表 `playlist`、媒体列表 `segment` 或 `error`                         |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, ... })` | 下载并合并；`filename` 不含扩展名，扩展名由内部按容器生成。默认走 transmux/remux，显式 `transcode` 时进入 FFmpeg 路径。**BrowserAdapter** → `{ blobURL, totalSegments }`，**NodeAdapter** → `{ filePath, totalSegments }` |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, signal?, ... })` | 下载并合并；`filename` 不含扩展名，扩展名由内部按容器生成。默认走 transmux/remux，显式 `transcode` 时进入 FFmpeg 路径。`signal` 用于协作式取消（中止时抛 `AbortError`）。**BrowserAdapter** → `{ blobURL, totalSegments }`，**NodeAdapter** → `{ filePath, totalSegments }` |
+| `downloadToStream({ url, headers?, ..., signal? }, onChunk)`                       | **BrowserAdapter 与 NodeAdapter。** 边下边推流：解析 HLS → Rust transmux → fMP4 字节通过 `onChunk` 实时推送，适合浏览器 MSE 实时播放或 HTTP 服务转发。库本身不落盘，调用方可用 `ReadableStream.tee()` 分叉一路写文件。第一个分片处理完即开始输出，无需等待全部下载。`signal` 用于协作式取消。返回 `{ totalSegments }` |
 | `getPosterUrl({ url, headers? })`                                         | 返回封面 URL 字符串，若无则 `undefined`                                                        |
 
 `GlobalOptions.download` 字段：`headers`、`concurrency`、`maxRetry`。单次 `download({ downloadConcurrency })` 覆盖 `download.concurrency`。
@@ -112,7 +160,7 @@ await downloader.init();
 
 ### 事件 `HlsDownloaderEvent`
 
-包括但不限于：`FFMPEG_LOADING` / `FFMPEG_LOADED`、`STARTING_DOWNLOAD`、`SOURCE_PARSED`、`DOWNLOADING`、`DOWNLOADING_SEGMENTS`、`STICHING_SEGMENTS`（后两者回调中带 `{ total, completed }`）、`READY_FOR_DOWNLOAD`、`ERROR`。在 `onEvent` 中按需监听即可。
+包括但不限于：`FFMPEG_LOADING` / `FFMPEG_LOADED`、`STARTING_DOWNLOAD`、`SOURCE_PARSED`、`DOWNLOADING`、`DOWNLOADING_SEGMENTS`、`STITCHING_SEGMENTS`（后两者回调中带 `{ total, completed }`）、`READY_FOR_DOWNLOAD`、`ERROR`。在 `onEvent` 中按需监听即可。
 
 ### BrowserAdapter 专有选项
 
@@ -129,10 +177,6 @@ await downloader.init();
 | `aria2` | `object` |
 
 `aria2` 字段见文档 [Adapter API](docs/api/adapters.md)。
-
-### 2.0 命名兼容
-
-`BrowserAdapter` / `NodeAdapter` 是推荐名称。旧的 `WasmAdapter` / `RustAdapter` 仍可导入，但已标记为 deprecated，后续版本可能移除。
 
 ### 类型与扩展
 
@@ -168,7 +212,7 @@ pnpm add @hls-downloader/core @hls-downloader/shared
 pnpm add @hls-downloader/adapters
 ```
 
-The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the browser/node implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`; `/wasm` and `/rust` are deprecated aliases).
+The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the browser/node implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
 
 **Runtime**: Node.js **≥ 20** (matches `engines` on `core` and the root package). The Node adapter loads a **native `.node` addon** on Node—use a build that matches your platform and Node ABI. For browser bundles, only include the **browser** subpath; do not bundle the Node native addon into frontend code.
 
@@ -177,10 +221,10 @@ The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-do
 
 | Package / entry                                   | Role                                                                                                                   |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `@logosw/hls-downloader`                       | Umbrella: default export `HlsDownloader`, re-exports `shared`, WASM/Rust adapters (same as installing scoped packages) |
+| `@logosw/hls-downloader`                       | Umbrella: default export `HlsDownloader`, re-exports `shared`, Browser/Node adapters (same as installing scoped packages) |
 | `@logosw/hls-downloader/core`                  | Same as `@hls-downloader/core`                                                                                         |
 | `@logosw/hls-downloader/shared`                | Same as `@hls-downloader/shared`                                                                                       |
-| `@logosw/hls-downloader/adapters`, `.../browser`, `.../node` | Same as `@hls-downloader/adapters` and subpaths (`.../wasm`, `.../rust` are deprecated aliases) |
+| `@logosw/hls-downloader/adapters`, `.../browser`, `.../node` | Same as `@hls-downloader/adapters` and subpaths |
 | `@hls-downloader/core`                            | `HlsDownloader` class                                                                                                  |
 | `@hls-downloader/shared`                          | Types, `HlsDownloaderEvent`, `createAdapter`, etc. (pulled in via core/adapters)                                       |
 | `@hls-downloader/adapters/browser`                   | Browser adapter `BrowserAdapter`                                                                                          |
@@ -203,7 +247,7 @@ const downloader = new HlsDownloader({
   onEvent: (event, progress) => {
     if (
       event === HlsDownloaderEvent.DOWNLOADING_SEGMENTS ||
-      event === HlsDownloaderEvent.STICHING_SEGMENTS
+      event === HlsDownloaderEvent.STITCHING_SEGMENTS
     ) {
       console.log(progress?.completed, '/', progress?.total);
     }
@@ -245,6 +289,54 @@ const downloader = new HlsDownloader({ adapter: NodeAdapter, onEvent: ... });
 await downloader.init();
 ```
 
+### Stream-as-you-go (BrowserAdapter & NodeAdapter)
+
+`downloadToStream()` starts pushing fMP4 bytes via `onChunk` before all segments are downloaded — perfect for HTTP servers forwarding the stream to a browser MSE player, or for in-browser MSE playback. **The library itself does not write to disk**; whether to persist is up to the caller (e.g. fork one branch to a file with `ReadableStream.tee()` to get both "live stream" and "downloadable file afterwards"). Backpressure is natural.
+
+```ts
+import { createServer } from 'node:http';
+import { HlsDownloader } from '@hls-downloader/core';
+import { NodeAdapter } from '@hls-downloader/adapters/node';
+
+const downloader = new HlsDownloader({ adapter: NodeAdapter });
+
+// Example: HTTP server pipes fMP4 bytes to a browser (streaming playback).
+// Optionally fork one branch to a file with ReadableStream.tee() so the
+// file is also available after the stream finishes.
+const server = createServer(async (req, res) => {
+  if (req.url !== '/stream.mp4') {
+    res.writeHead(404);
+    return res.end('not found');
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'video/mp4',          // fMP4 — browser MSE can parse
+    'Cache-Control': 'no-cache',
+    // Note: no Content-Length (streaming, length unknown)
+  });
+
+  await downloader.downloadToStream(
+    {
+      url: 'https://example.com/stream.m3u8',
+      headers: { Authorization: 'Bearer ...' },
+      downloadConcurrency: 8,
+    },
+    (bytes) => {
+      res.write(bytes);  // each chunk goes straight to the HTTP response body
+    },
+  );
+  res.end();
+});
+
+server.listen(3000);
+```
+
+Notes:
+- Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each segment: `styp`+`moof`+`mdat`) — directly consumable by browser MSE
+- First bytes arrive as soon as the first segment is processed, no waiting for all segments
+- The library does not write to disk; callers can fork a file-writing branch with `ReadableStream.tee()` for "stream + persist"
+- The `download()` file path is unaffected; it remains the non-streaming fallback
+
 ### `HlsDownloader` API overview
 
 
@@ -256,7 +348,8 @@ await downloader.init();
 | `globalOptions`                                                           | Current default options, or `null` if unset                                                                       |
 | `setOptions(options)`                                                     | Replace default options                                                                                           |
 | `parseHls({ url, headers? })`                                             | Returns `ParseHlsResult`: `playlist`, `segment`, or `error`                                                       |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, ... })` | Download and merge; `filename` excludes the extension, which is generated internally from the container. Default transmux/remux, explicit `transcode` uses FFmpeg. **BrowserAdapter** → `{ blobURL, totalSegments }`, **NodeAdapter** → `{ filePath, totalSegments }` |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, signal?, ... })` | Download and merge; `filename` excludes the extension, which is generated internally from the container. Default transmux/remux, explicit `transcode` uses FFmpeg. `signal` enables cooperative cancellation (rejects with `AbortError` when aborted). **BrowserAdapter** → `{ blobURL, totalSegments }`, **NodeAdapter** → `{ filePath, totalSegments }` |
+| `downloadToStream({ url, headers?, ..., signal? }, onChunk)`                        | **BrowserAdapter & NodeAdapter.** Stream-as-you-go: parse HLS → Rust transmux → fMP4 bytes pushed in real time via `onChunk`, suitable for in-browser MSE playback or HTTP server forwarding. The library does not write to disk; callers can fork a file-writing branch with `ReadableStream.tee()`. First bytes arrive as soon as the first segment is processed. `signal` enables cooperative cancellation. Returns `{ totalSegments }` |
 | `getPosterUrl({ url, headers? })`                                         | Poster URL string, or `undefined`                                                                                 |
 
 `GlobalOptions.download` fields: `headers`, `concurrency`, `maxRetry`. Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
@@ -264,7 +357,7 @@ await downloader.init();
 
 ### `HlsDownloaderEvent` values
 
-Includes (not limited to): `FFMPEG_LOADING` / `FFMPEG_LOADED`, `STARTING_DOWNLOAD`, `SOURCE_PARSED`, `DOWNLOADING`, `DOWNLOADING_SEGMENTS`, `STICHING_SEGMENTS` (the last two pass `{ total, completed }`), `READY_FOR_DOWNLOAD`, `ERROR`. Handle them in `onEvent` as needed.
+Includes (not limited to): `FFMPEG_LOADING` / `FFMPEG_LOADED`, `STARTING_DOWNLOAD`, `SOURCE_PARSED`, `DOWNLOADING`, `DOWNLOADING_SEGMENTS`, `STITCHING_SEGMENTS` (the last two pass `{ total, completed }`), `READY_FOR_DOWNLOAD`, `ERROR`. Handle them in `onEvent` as needed.
 
 ### BrowserAdapter options
 
@@ -281,10 +374,6 @@ Includes (not limited to): `FFMPEG_LOADING` / `FFMPEG_LOADED`, `STARTING_DOWNLOA
 | `aria2` | `object` |
 
 See [Adapter API](docs/api/adapters.md) for `aria2` fields.
-
-### 2.0 naming compatibility
-
-`BrowserAdapter` / `NodeAdapter` are the recommended names. The old `WasmAdapter` / `RustAdapter` exports still work, but are deprecated and may be removed in a future major version.
 
 ### Types and extensions
 

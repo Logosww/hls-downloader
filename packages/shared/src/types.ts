@@ -21,7 +21,7 @@ export enum HlsDownloaderEvent {
   SOURCE_PARSED = 'source-parsed',
   DOWNLOADING = 'downloading',
   DOWNLOADING_SEGMENTS = 'downloading-segments',
-  STICHING_SEGMENTS = 'stiching-segments',
+  STITCHING_SEGMENTS = 'stitching-segments',
   READY_FOR_DOWNLOAD = 'ready-for-download',
   ERROR = 'error',
 }
@@ -32,7 +32,7 @@ export type HlsDownloaderAdapter = {
     event: E,
     payload?: E extends
       | HlsDownloaderEvent.DOWNLOADING_SEGMENTS
-      | HlsDownloaderEvent.STICHING_SEGMENTS
+      | HlsDownloaderEvent.STITCHING_SEGMENTS
       ? { total: number; completed: number }
       : undefined,
   ) => void;
@@ -41,6 +41,7 @@ export type HlsDownloaderAdapter = {
 export type HlsDownloaderFetchOptions = {
   url: string;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 };
 
 export type HlsDownloaderGlobalDownloadOptions = Omit<HlsDownloaderFetchOptions, 'url'> & {
@@ -88,6 +89,11 @@ export type HlsDownloaderDownloadOptions = {
   maxRetry?: number;
   downloadConcurrency?: number;
   transcode?: HlsDownloaderTranscodeOptions;
+  signal?: AbortSignal;
+};
+
+export type HlsDownloaderStreamResult = {
+  totalSegments: number;
 };
 
 export interface HlsDownloaderAdapterInternal<
@@ -102,4 +108,8 @@ export interface HlsDownloaderAdapterInternal<
     options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions & Partial<AdditionalOptions>,
   ): Promise<DownloadResult>;
   getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined>;
+  downloadToStream(
+    options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
+    onChunk: (bytes: Uint8Array) => void,
+  ): Promise<HlsDownloaderStreamResult>;
 }

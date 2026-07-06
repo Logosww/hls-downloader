@@ -123,6 +123,7 @@ async download(
 | `maxRetry` | `number` | 每个分片的最大重试次数 |
 | `downloadConcurrency` | `number` | 分片并发下载数 |
 | `transcode` | `HlsDownloaderTranscodeOptions` | **FFmpeg 转码。** 省略时默认 transmux/remux（不加载 FFmpeg） |
+| `signal` | `AbortSignal` | 协作式取消。当信号中止时，下载 Promise 会被拒绝并抛出 `AbortError` |
 | *（适配器专有）* | — | 见[适配器 API](./adapters.md) |
 
 设置 `transcode` 时：**BrowserAdapter** 仅支持 `{ preset: 'h264' }`；**NodeAdapter** 支持下列全部字段：
@@ -137,6 +138,120 @@ async download(
 | `videoBitrate` | `string \| number` | 视频码率 |
 | `audioBitrate` | `string \| number` | 音频码率 |
 | `speed` | `HlsDownloaderEncoderSpeed` | x264/x265 编码速度 |
+
+#### 示例：使用 AbortController 中止下载
+
+```ts
+const controller = new AbortController();
+
+// 5 秒后中止（例如用户点击了取消）
+setTimeout(() => controller.abort(), 5000);
+
+try {
+  await downloader.download({
+    url: 'https://example.com/stream.m3u8',
+    filename: 'output',
+    signal: controller.signal,
+  });
+} catch (err) {
+  if (err.name === 'AbortError') {
+    console.log('下载已中止');
+  } else {
+    throw err;
+  }
+}
+```
+
+### `downloadToStream()`
+
+::: tip BrowserAdapter 与 NodeAdapter
+`downloadToStream()` 在 **`BrowserAdapter`** 与 **`NodeAdapter`** 上均已实现。在 `BrowserAdapter` 上，fMP4 字节通过 `onChunk` 推送，适合实时 MSE 播放（例如 `SourceBuffer.appendBuffer`）。
+:::
+
+```ts
+async downloadToStream(
+  options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
+  onChunk: (bytes: Uint8Array) => void,
+): Promise<HlsDownloaderStreamResult>
+```
+
+边下边推流：解析 HLS → Rust transmux → 通过 `onChunk` 实时推送 fMP4 字节。**库本身不落盘**——字节直接从原生 transmuxer 流向回调；是否落盘由调用方决定（如用 `ReadableStream.tee()` 分叉一路写文件，即可同时拥有「实时流 + 事后可下载文件」）。专为 HTTP 服务把流转发给浏览器 MSE 播放器、或在浏览器内直接喂给 MSE 实时播放的场景设计。
+
+第一个分片处理完即开始推送，**无需等待所有分片下载完成**。背压自然形成：若 `onChunk` 消费慢，原生 transmuxer 会 await，进而拖慢后续下载。
+
+输出为 **fragmented MP4**（首段 `ftyp`+`moov`，之后每段 `styp`+`moof`+`mdat`，末端可选 `mfra`）。浏览器 MSE 可直接消费。
+
+单次传入的选项与 `globalOptions` 合并，单次选项优先。
+
+| 选项 | 类型 | 描述 |
+|------|------|------|
+| `url` | `string` | HLS 播放列表地址 |
+| `headers` | `Record<string, string>` | 请求头 |
+| `filename` | `string` | 流式路径不写文件，此字段被忽略；为选项兼容性而保留 |
+| `maxRetry` | `number` | 当前在流式路径下不生效（内置 reqwest 无重试钩子） |
+| `downloadConcurrency` | `number` | 分片并发下载数 |
+| `signal` | `AbortSignal` | 协作式取消。当信号中止时，流式 Promise 会被拒绝并抛出 `AbortError` |
+
+返回 `{ totalSegments: number }`。
+
+#### 示例：HTTP 服务推流给浏览器（边推流 + 边落盘）
+
+```ts
+import { createServer } from 'node:http';
+import { writeFile } from 'node:fs/promises';
+import { HlsDownloader } from '@hls-downloader/core';
+import { NodeAdapter } from '@hls-downloader/adapters/node';
+
+const downloader = new HlsDownloader({ adapter: NodeAdapter });
+
+const server = createServer(async (req, res) => {
+  if (req.url !== '/stream.mp4') {
+    res.writeHead(404);
+    return res.end('not found');
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'video/mp4',   // fMP4，浏览器 MSE 可解析
+    'Cache-Control': 'no-cache',
+    // 不设 Content-Length —— 流式，长度未知
+  });
+
+  // 库本身不落盘：onChunk 拿到的字节同时写入 HTTP response 与文件
+  const fileChunks: Uint8Array[] = [];
+  await downloader.downloadToStream(
+    {
+      url: 'https://example.com/stream.m3u8',
+      headers: { Authorization: 'Bearer ...' },
+      downloadConcurrency: 8,
+    },
+    (bytes) => {
+      res.write(bytes);            // 边推流
+      fileChunks.push(bytes);     // 边缓冲（事后写文件）
+    },
+  );
+  res.end();
+
+  // 事后写文件（也可用 ReadableStream.tee() 在流过程中并行落盘）
+  await writeFile(
+    'output.mp4',
+    Buffer.concat(fileChunks.map((c) => Buffer.from(c))),
+  );
+});
+
+server.listen(3000);
+```
+
+::: tip 边推流 + 边落盘的推荐做法
+若希望流过程中并行落盘（而非事后写），可把 `onChunk` 包装成 `ReadableStream`，再用 `stream.tee()` 分叉：
+- branch 1 → HTTP response（实时播放）
+- branch 2 → `Bun.write(filePath, branch)` 或 `pipeline(branch, createWriteStream(filePath))`（后台落盘）
+
+`tee()` 内置背压与顺序保证，两个 branch 独立消费。task 完成后文件即可访问。
+:::
+
+::: tip 不支持 resume
+流式路径写入的是不可 seek 的 sink，因此不支持 resume。若中途失败，需从头开始。
+:::
 
 ### `getPosterUrl()`
 

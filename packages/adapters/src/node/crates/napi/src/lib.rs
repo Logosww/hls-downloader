@@ -1,15 +1,51 @@
 #![deny(clippy::all)]
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use dashmap::DashMap;
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 
 use hls_core::download::DownloadProgress;
 use hls_core::hls::ParseHlsResult;
+use hls_core::JobCancelToken;
+
+// ── Cancel token registry ─────────────────────────────────────────────
+// Maps job_id (returned to JS) → Arc<JobCancelToken> shared with the
+// hls-transmux pipeline. Lazily initialized to avoid static-constructor
+// panics when the .node addon is loaded but unused.
+
+static CANCEL_REGISTRY: OnceLock<DashMap<String, Arc<JobCancelToken>>> = OnceLock::new();
+
+fn registry() -> &'static DashMap<String, Arc<JobCancelToken>> {
+    CANCEL_REGISTRY.get_or_init(DashMap::new)
+}
+
+/// Creates a cancellation token and returns its job_id. The JS side passes
+/// this job_id to `transmux_hls_native` / `transmux_hls_streaming_native`,
+/// and calls `cancel_job(job_id)` when the user aborts.
+#[napi]
+pub fn create_cancel_token() -> Result<String> {
+    let job_id = uuid::Uuid::new_v4().to_string();
+    let token = Arc::new(JobCancelToken::new());
+    registry().insert(job_id.clone(), token);
+    Ok(job_id)
+}
+
+/// Triggers cancellation for the given job_id. Idempotent: returns Ok(())
+/// if the job_id doesn't exist (already completed/cleaned up).
+#[napi]
+pub fn cancel_job(job_id: String) -> Result<()> {
+    if let Some(entry) = registry().get(&job_id) {
+        entry.cancel();
+    }
+    // Remove the entry so future calls are no-ops
+    registry().remove(&job_id);
+    Ok(())
+}
 
 // ── NAPI-compatible types ──────────────────────────────────────────────
 
@@ -209,44 +245,127 @@ pub async fn extract_poster(
 }
 
 #[napi(
-    ts_args_type = "segments: NapiSegment[], headers: Record<string, string> | undefined | null, concurrency: number, maxRetry: number, onProgress: (loaded: number) => void"
+    ts_args_type = "playlistUrl: string, workDir: string, filename: string, headers: Record<string, string> | undefined | null, concurrency: number, maxRetry: number, cancelJobId: string | undefined | null, onProgress: (completed: number, total: number) => void"
 )]
 pub async fn transmux_hls_native(
-    segments: Vec<NapiSegment>,
+    playlist_url: String,
+    work_dir: String,
+    filename: String,
     headers: Option<HashMap<String, String>>,
     concurrency: u32,
     max_retry: u32,
-    on_progress: ThreadsafeFunction<u32>,
-) -> Result<Buffer> {
-    let core_segments: Vec<hls_core::Segment> = segments
-        .into_iter()
-        .map(|s| hls_core::Segment {
-            uri: s.uri,
-            duration: s.duration,
-        })
-        .collect();
+    cancel_job_id: Option<String>,
+    on_progress: ThreadsafeFunction<(u32, u32)>,
+) -> Result<String> {
+    let output_path = std::path::PathBuf::from(&work_dir).join(&filename);
 
-    let total = core_segments.len().max(1) as u32;
+    let cancel_token = cancel_job_id
+        .as_deref()
+        .and_then(|id| registry().get(id).map(|e| Arc::clone(&e)));
+
     let progress_cb: hls_core::download::ProgressCallback = Arc::new(move |p: DownloadProgress| {
-        if let DownloadProgress::Downloading { completed, .. } = p {
-            on_progress.call(
-                Ok(completed as u32),
-                ThreadsafeFunctionCallMode::NonBlocking,
-            );
-        } else if let DownloadProgress::Merging { .. } = p {
-            on_progress.call(Ok(total), ThreadsafeFunctionCallMode::NonBlocking);
-        }
+        let (completed, total) = match p {
+            DownloadProgress::Downloading { completed, total }
+            | DownloadProgress::Merging { completed, total } => (completed as u32, total as u32),
+        };
+        on_progress.call(
+            Ok((completed, total)),
+            ThreadsafeFunctionCallMode::NonBlocking,
+        );
     });
 
-    let bytes = hls_core::transmux_segments_to_mp4_buffer(
-        &core_segments,
+    let result = hls_core::transmux_segments_to_mp4_file(
+        &playlist_url,
+        &output_path,
         headers.as_ref(),
         concurrency as usize,
         max_retry as usize,
+        cancel_token,
         Some(progress_cb),
     )
-    .await
-    .map_err(to_napi_err)?;
+    .await;
 
-    Ok(Buffer::from(bytes))
+    // Clean up registry entry regardless of outcome
+    if let Some(id) = cancel_job_id {
+        registry().remove(&id);
+    }
+
+    result.map_err(to_napi_err)?;
+
+    Ok(output_path.to_string_lossy().to_string())
+}
+
+#[napi(
+    ts_args_type = "playlistUrl: string, headers: Record<string, string> | undefined | null, concurrency: number, maxRetry: number, cancelJobId: string | undefined | null, onChunk: (err: Error | null, bytes: Buffer) => void, onProgress: (err: Error | null, completed: number, total: number) => void"
+)]
+pub async fn transmux_hls_streaming_native(
+    playlist_url: String,
+    headers: Option<HashMap<String, String>>,
+    concurrency: u32,
+    max_retry: u32,
+    cancel_job_id: Option<String>,
+    on_chunk: ThreadsafeFunction<Buffer>,
+    on_progress: ThreadsafeFunction<(u32, u32)>,
+) -> Result<()> {
+    // 256KB duplex buffer：fragment 一般 100KB-1MB，缓冲足以吸收段间抖动。
+    // 满载时 writer.write_all 会 await，自然背压 crate 内部下载与 mux。
+    let (mut tx, mut rx) = tokio::io::duplex(256 * 1024);
+
+    // spawn pump 任务：从 rx 读字节推给 JS on_chunk。
+    // 不缓冲全量字节——tx 写满 duplex 时 crate 内部 write_all 阻塞，背压自然形成。
+    // to_vec() 复制一份独立 owned 的 Buffer，避免 buf 被 reuse 导致数据错乱。
+    // ThreadsafeFunction 默认 CalleeHandled=true，JS callback 签名为 (err, value)。
+    let pump = tokio::spawn(async move {
+        use tokio::io::AsyncReadExt;
+        let mut buf = vec![0u8; 64 * 1024];
+        loop {
+            match rx.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    let owned = buf[..n].to_vec();
+                    on_chunk.call(
+                        Ok(Buffer::from(owned)),
+                        ThreadsafeFunctionCallMode::NonBlocking,
+                    );
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let cancel_token = cancel_job_id
+        .as_deref()
+        .and_then(|id| registry().get(id).map(|e| Arc::clone(&e)));
+
+    let progress_cb: hls_core::download::ProgressCallback = Arc::new(move |p: DownloadProgress| {
+        let (completed, total) = match p {
+            DownloadProgress::Downloading { completed, total }
+            | DownloadProgress::Merging { completed, total } => (completed as u32, total as u32),
+        };
+        on_progress.call(Ok((completed, total)), ThreadsafeFunctionCallMode::NonBlocking);
+    });
+
+    let result = hls_core::transmux_hls_to_stream(
+        &playlist_url,
+        &mut tx,
+        headers.as_ref(),
+        concurrency as usize,
+        max_retry as usize,
+        cancel_token,
+        Some(progress_cb),
+    )
+    .await;
+
+    // drop(tx) 让 rx 读到 EOF（read 返回 0），pump 自然结束
+    drop(tx);
+    pump.await
+        .map_err(|e| Error::from_reason(format!("streaming pump join error: {e}")))?;
+
+    // Clean up registry entry regardless of outcome
+    if let Some(id) = cancel_job_id {
+        registry().remove(&id);
+    }
+
+    result.map_err(to_napi_err)?;
+    Ok(())
 }

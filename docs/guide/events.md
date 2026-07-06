@@ -18,7 +18,7 @@ const downloader = new HlsDownloader({
       case HlsDownloaderEvent.DOWNLOADING_SEGMENTS:
         console.log(`Downloading: ${payload?.completed}/${payload?.total}`)
         break
-      case HlsDownloaderEvent.STICHING_SEGMENTS:
+      case HlsDownloaderEvent.STITCHING_SEGMENTS:
         console.log(`Stitching: ${payload?.completed}/${payload?.total}`)
         break
       case HlsDownloaderEvent.ERROR:
@@ -39,13 +39,13 @@ const downloader = new HlsDownloader({
 | `SOURCE_PARSED` | — | HLS source has been parsed |
 | `DOWNLOADING` | — | Download is in progress |
 | `DOWNLOADING_SEGMENTS` | `{ total, completed }` | Segment download progress |
-| `STICHING_SEGMENTS` | `{ total, completed }` | Segment stitching/merging progress |
+| `STITCHING_SEGMENTS` | `{ total, completed }` | Segment stitching/merging progress |
 | `READY_FOR_DOWNLOAD` | — | Merged file is ready |
 | `ERROR` | — | An error occurred |
 
 ## Progress Tracking
 
-The `DOWNLOADING_SEGMENTS` and `STICHING_SEGMENTS` events provide a progress payload with `total` and `completed` fields:
+The `DOWNLOADING_SEGMENTS` and `STITCHING_SEGMENTS` events provide a progress payload with `total` and `completed` fields:
 
 ```ts
 type ProgressPayload = {

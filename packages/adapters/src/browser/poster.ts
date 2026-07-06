@@ -9,13 +9,15 @@ import {
 export type ExtractPosterFromSegmentOptions = {
   segmentUrl: string;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 };
 
 export async function extractPosterFromSegmentUrl({
   segmentUrl,
   headers,
+  signal,
 }: ExtractPosterFromSegmentOptions): Promise<string | undefined> {
-  const segmentBuffer = await fetchSegmentBuffer(segmentUrl, headers);
+  const segmentBuffer = await fetchSegmentBuffer(segmentUrl, headers, signal);
   if (!segmentBuffer) return undefined;
 
   const input = new Input({
@@ -55,12 +57,16 @@ async function resolvePosterTimestamp(
 async function fetchSegmentBuffer(
   url: string,
   headers?: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<ArrayBuffer | undefined> {
   try {
+    const combinedSignal = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+      : AbortSignal.timeout(15_000);
     const response = await fetch(url, {
       headers,
       mode: 'cors',
-      signal: AbortSignal.timeout(15_000),
+      signal: combinedSignal,
     });
     if (!response.ok) return undefined;
     return await response.arrayBuffer();
