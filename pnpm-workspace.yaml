@@ -13,3 +13,8 @@ onlyBuiltDependencies:
   - rolldown
   - sharp
   - unrs-resolver
+
+packageConfigs:
+  "@hls-downloader/docs":
+    overrides:
+      "vite": "^8.0.0"

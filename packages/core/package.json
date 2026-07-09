@@ -1,6 +1,6 @@
 {
   "name": "@hls-downloader/core",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -26,7 +26,7 @@
     "@hls-downloader/shared": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^26.1.0"
+    "@types/node": "^26.1.1"
   },
   "engines": {
     "node": ">=20"

@@ -1,5 +1,6 @@
 {
   "name": "@hls-downloader/docs",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,11 +11,5 @@
   "devDependencies": {
     "vitepress": "next",
     "vue": "latest"
-  },
-  "pnpm": {
-    "overrides": {
-      "vite": "npm:rolldown-vite@latest"
-    }
-  },
-  "version": "1.0.1"
+  }
 }
