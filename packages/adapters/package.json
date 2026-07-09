@@ -1,6 +1,6 @@
 {
   "name": "@hls-downloader/adapters",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -47,13 +47,13 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@hls-downloader/core": "workspace:*",
     "@hls-downloader/shared": "workspace:*",
-    "mediabunny": "^1.50.6"
+    "mediabunny": "^1.50.7"
   },
   "devDependencies": {
     "@ffmpeg/util": "^0.12.2",
     "@napi-rs/cli": "^3.7.2",
     "@types/m3u8-parser": "^7.2.6",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.1.1",
     "m3u8-parser": "^7.2.0",
     "p-limit": "^7.3.0"
   }
