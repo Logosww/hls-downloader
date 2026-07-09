@@ -5,6 +5,12 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [3.0.1] - 2026-07-09
+
+### Fixed
+
+- 修复 `NodeAdapter` 在某些场景下 transmux 会丢失部分 PES packets 导致解码异常问题。
+
 ## [3.0.0] - 2026-07-05
 
 ### Added
