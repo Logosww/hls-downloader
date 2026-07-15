@@ -1,15 +1,15 @@
-name: Setup pnpm with runtime
-description: Install pnpm and JS runtime; npm + setup-node fallback on Intel macOS (@pnpm/exe SEA bug)
+name: Setup pnpm
+description: Install Node via actions/setup-node, then pnpm via pnpm/action-setup@v6
 
 inputs:
   version:
     description: pnpm version
     required: false
     default: latest
-  runtime:
-    description: JS runtime spec (node@24, etc.)
+  node-version:
+    description: Node.js version for subsequent workflow steps
     required: false
-    default: node@24
+    default: '24'
   cache:
     description: Cache pnpm store
     required: false
@@ -22,30 +22,12 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: pnpm/setup@v1
-      if: runner.os != 'macOS' || runner.arch != 'X64'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - uses: pnpm/action-setup@v6
       with:
         version: ${{ inputs.version }}
-        runtime: ${{ inputs.runtime }}
         cache: ${{ inputs.cache }}
-        install: ${{ inputs.install }}
-
-    - uses: actions/setup-node@v4
-      if: runner.os == 'macOS' && runner.arch == 'X64'
-      with:
-        node-version: '24'
-
-    - name: Install pnpm (Intel macOS)
-      if: runner.os == 'macOS' && runner.arch == 'X64'
-      shell: bash
-      run: |
-        npm install -g "pnpm@${{ inputs.version }}"
-        pnpm setup
-        PNPM_HOME="${HOME}/Library/pnpm"
-        echo "PNPM_HOME=${PNPM_HOME}" >> "$GITHUB_ENV"
-        echo "${PNPM_HOME}/bin:${PNPM_HOME}:${PATH}" >> "$GITHUB_PATH"
-
-    - name: Install dependencies (Intel macOS)
-      if: (runner.os == 'macOS' && runner.arch == 'X64') && inputs.install == 'true'
-      shell: bash
-      run: pnpm install --no-runtime
+        run_install: ${{ inputs.install }}

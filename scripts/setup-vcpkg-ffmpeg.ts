@@ -3,7 +3,7 @@
  * 在 GitHub Actions 下写入 GITHUB_ENV：VCPKG_ROOT、PKG_CONFIG、PKG_CONFIG_PATH、PKG_CONFIG_ALL_STATIC。
  *
  * Usage: node scripts/setup-vcpkg-ffmpeg.ts <triplet>
- * Env: VCPKG_ROOT（可选，默认 os.homedir()/vcpkg）、VCPKG_TAG（可选；默认同 workflow，为含 FFmpeg 8.1 的 vcpkg commit）
+ * Env: VCPKG_ROOT（可选，默认 os.homedir()/vcpkg）、VCPKG_TAG（可选；默认同 workflow，为含 FFmpeg 8.1.2 的 vcpkg release tag）
  *
  * GitHub Actions：缓存路径不要用 `~`，应与 Node 的 homedir 一致（Linux/macOS 用 $HOME/vcpkg，
  * Windows 用 Join-Path $env:USERPROFILE vcpkg）；workflow 里在 cache 前先解析并写入 VCPKG_ROOT。
@@ -19,8 +19,8 @@ if (!triplet) {
   process.exit(1);
 }
 
-/** 含 ports/ffmpeg 8.1 及后续修复；官方 tag 在 2026.03.18 仍为 8.0.1，故用 commit 固定。 */
-const DEFAULT_VCPKG_REF = '03b9ab95fd5ea1425427ccde11d13e92aa91bf51';
+/** 含 ports/ffmpeg 8.1.2；优先用官方 release tag，避免跟踪 master。 */
+const DEFAULT_VCPKG_REF = '2026.06.24';
 const VCPKG_REMOTE = 'https://github.com/microsoft/vcpkg.git';
 const VCPKG_TAG = process.env.VCPKG_TAG ?? DEFAULT_VCPKG_REF;
 const root = process.env.VCPKG_ROOT ?? join(homedir(), 'vcpkg');

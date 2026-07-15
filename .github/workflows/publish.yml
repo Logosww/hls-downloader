@@ -19,11 +19,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   PNPM_VERSION: latest
-  JS_RUNTIME: node@24
-  # microsoft/vcpkg：ports/ffmpeg 8.1；见 scripts/setup-vcpkg-ffmpeg.ts
-  VCPKG_TAG: '03b9ab95fd5ea1425427ccde11d13e92aa91bf51'
+  # microsoft/vcpkg 2026.06.24：ports/ffmpeg 8.1.2
+  VCPKG_TAG: '2026.06.24'
   HLS_FFMPEG_STATIC: '1'
 
 jobs:
@@ -63,7 +61,6 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
         with:
           version: ${{ env.PNPM_VERSION }}
-          runtime: ${{ env.JS_RUNTIME }}
           cache: 'true'
           install: 'false'
 
@@ -206,7 +203,6 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
         with:
           version: ${{ env.PNPM_VERSION }}
-          runtime: ${{ env.JS_RUNTIME }}
           cache: 'true'
           install: 'false'
 
@@ -267,7 +263,6 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
         with:
           version: ${{ env.PNPM_VERSION }}
-          runtime: ${{ env.JS_RUNTIME }}
           cache: 'true'
           install: 'false'
 
