@@ -27,8 +27,6 @@ const BROWSER_TRANSCODE_FORBIDDEN_KEYS = [
   'audioCodec',
   'format',
   'crf',
-  'videoBitrate',
-  'audioBitrate',
   'speed',
 ] as const satisfies readonly (keyof HlsDownloaderTranscodeOptions)[];
 
@@ -41,11 +39,7 @@ function normalizeFormatExt(format?: string): string {
     return DEFAULT_DOWNLOAD_EXT;
   }
 
-  const normalized = format
-    .trim()
-    .toLowerCase()
-    .replace(/^\.+/, '')
-    .split(/[,\s]/)[0];
+  const normalized = format.trim().toLowerCase().replace(/^\.+/, '').split(/[,\s]/)[0];
 
   return (FORMAT_EXTENSIONS[normalized] ?? normalized) || DEFAULT_DOWNLOAD_EXT;
 }
@@ -72,11 +66,10 @@ export function needsFfmpegTranscode(
   return (!!video && video !== 'copy') || (!!audio && audio !== 'copy');
 }
 
-/** Whether BrowserAdapter should load FFmpeg (preset `h264` only). */
-export function needsBrowserFfmpegTranscode(
+export function needsBrowserTranscode(
   transcode?: HlsDownloaderBrowserTranscodeOptions,
 ): transcode is HlsDownloaderBrowserTranscodeOptions {
-  return transcode?.preset === 'h264';
+  return transcode !== undefined;
 }
 
 export function resolveTranscodeOptions(
@@ -121,7 +114,10 @@ export function getDownloadOutputExt(transcode?: HlsDownloaderTranscodeOptions):
   }
 
   const options = resolveTranscodeOptions(transcode);
-  if (!options.format && (options.videoCodec === 'libvpx-vp9' || options.audioCodec === 'libopus')) {
+  if (
+    !options.format &&
+    (options.videoCodec === 'libvpx-vp9' || options.audioCodec === 'libopus')
+  ) {
     return 'webm';
   }
 
@@ -135,10 +131,7 @@ export function getDownloadOutputFilename(
   return `${getDownloadFilenameBase(filename)}.${getDownloadOutputExt(transcode)}`;
 }
 
-function appendEncodingArgs(
-  args: string[],
-  options: HlsDownloaderTranscodeOptions,
-): void {
+function appendEncodingArgs(args: string[], options: HlsDownloaderTranscodeOptions): void {
   const { videoCodec, audioCodec, crf, videoBitrate, audioBitrate, speed } = options;
 
   if (videoCodec && videoCodec !== 'copy') {
@@ -160,10 +153,6 @@ function appendEncodingArgs(
   }
 }
 
-function appendBrowserOutputArgs(args: string[]): void {
-  args.push('-movflags', '+faststart');
-}
-
 export function getTranscodeDefaultFilename(transcode: HlsDownloaderTranscodeOptions): string {
   return getDownloadOutputFilename(undefined, transcode);
 }
@@ -174,38 +163,25 @@ export function getTranscodeMimeType(transcode: HlsDownloaderTranscodeOptions): 
 
 export function assertBrowserTranscodeOptions(
   transcode: HlsDownloaderBrowserTranscodeOptions,
-): HlsDownloaderTranscodeOptions {
-  if (transcode.preset !== 'h264') {
-    throw new TypeError('BrowserAdapter only supports transcode preset "h264".');
+): HlsDownloaderBrowserTranscodeOptions {
+  if (!['h264', 'hevc', 'vp9'].includes(transcode.preset)) {
+    throw new TypeError(`BrowserAdapter does not support transcode preset "${transcode.preset}".`);
   }
 
   for (const key of BROWSER_TRANSCODE_FORBIDDEN_KEYS) {
     if ((transcode as HlsDownloaderTranscodeOptions)[key] !== undefined) {
       throw new TypeError(
-        `BrowserAdapter transcode does not support "${key}". Use { preset: "h264" } only.`,
+        `BrowserAdapter transcode does not support "${key}". Use a preset with optional bitrate fields.`,
       );
     }
   }
 
-  return resolveTranscodeOptions({ preset: 'h264' });
+  return { ...transcode };
 }
 
-export type BuildFfmpegOutputArgsOptions = {
-  browser?: boolean;
-};
-
-/** Build FFmpeg output arguments from transcode options. */
-export function buildFfmpegOutputArgs(
-  transcode: HlsDownloaderTranscodeOptions,
-  buildOptions?: BuildFfmpegOutputArgsOptions,
-): string[] {
+export function buildFfmpegOutputArgs(transcode: HlsDownloaderTranscodeOptions): string[] {
   const options = resolveTranscodeOptions(transcode);
-  const args = [
-    '-c:v',
-    options.videoCodec ?? 'copy',
-    '-c:a',
-    options.audioCodec ?? 'copy',
-  ];
+  const args = ['-c:v', options.videoCodec ?? 'copy', '-c:a', options.audioCodec ?? 'copy'];
 
   if (options.format) {
     args.push('-f', options.format);
@@ -213,14 +189,5 @@ export function buildFfmpegOutputArgs(
 
   appendEncodingArgs(args, options);
 
-  if (buildOptions?.browser) {
-    appendBrowserOutputArgs(args);
-  }
-
   return args;
-}
-
-/** Fixed H.264 output args for BrowserAdapter. */
-export function buildBrowserFfmpegOutputArgs(): string[] {
-  return buildFfmpegOutputArgs({ preset: 'h264' }, { browser: true });
 }

@@ -33,8 +33,8 @@ const downloader = new HlsDownloader({
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `FFMPEG_LOADING` | — | FFmpeg core is being loaded (WASM only) |
-| `FFMPEG_LOADED` | — | FFmpeg core has been loaded (WASM only) |
+| `FFMPEG_LOADING` | — | Native FFmpeg core is being loaded (`NodeAdapter` only) |
+| `FFMPEG_LOADED` | — | Native FFmpeg core has been loaded (`NodeAdapter` only) |
 | `STARTING_DOWNLOAD` | — | Download process has started |
 | `SOURCE_PARSED` | — | HLS source has been parsed |
 | `DOWNLOADING` | — | Download is in progress |

@@ -93,23 +93,25 @@ type HlsDownloaderTranscodeOptions = {
 
 | `preset` | 视频 | 音频 | 容器 | BrowserAdapter |
 |----------|------|------|------|----------------|
-| `h264` | libx264 | aac | mp4 | 支持（仅 `{ preset: 'h264' }`） |
-| `hevc` | libx265 | aac | mp4 | 仅 Node |
-| `vp9` | libvpx-vp9 | libopus | webm | 仅 Node |
+| `h264` | libx264 | aac | mp4 | 支持，通过 WebCodecs |
+| `hevc` | libx265 | aac | mp4 | 浏览器支持对应编码器时可用 |
+| `vp9` | libvpx-vp9 | libopus | webm | 浏览器支持对应编码器时可用 |
 
-省略 `transcode` 即默认 transmux/remux（不加载 FFmpeg）。`needsFfmpegTranscode()` 在设置了 `preset`、`format` 或任一输出编码非 `copy` 时返回 `true`。
+省略 `transcode` 即默认 transmux/remux（不重编码）。对 NodeAdapter，`needsFfmpegTranscode()` 在设置了 `preset`、`format` 或任一输出编码非 `copy` 时返回 `true`。BrowserAdapter 在传入 `transcode` 时使用 `needsBrowserTranscode()`。
 
 ## HlsDownloaderBrowserTranscodeOptions
 
-浏览器 FFmpeg.wasm 仅支持 H.264 preset，不提供细粒度编码字段。
+浏览器转码使用 Mediabunny 与 WebCodecs。支持预设与码率控制，不支持显式 codec、format、CRF、speed 或分辨率字段。
 
 ```ts
 type HlsDownloaderBrowserTranscodeOptions = {
-  preset: 'h264'
+  preset: 'h264' | 'hevc' | 'vp9'
+  videoBitrate?: string | number
+  audioBitrate?: string | number
 }
 ```
 
-配合 `BrowserAdapter` / `GlobalOptions<typeof BrowserAdapter>` 使用。`hevc`、`vp9` 请用 `NodeAdapter`。
+配合 `BrowserAdapter` / `GlobalOptions<typeof BrowserAdapter>` 使用。运行时编码支持取决于当前浏览器。
 
 ## HlsDownloaderDownloadOptions
 

@@ -3,11 +3,9 @@
 用于下载 HLS 流的主门面类。从 `@hls-downloader/core` 导入。
 
 ::: info 默认下载路径（Transmux）
-**普通 `download()` 走轻量 transmux/remux 路径，不会加载或使用 FFmpeg。** 分片在保留源编码的前提下合并（例如输出 MP4）。
+**普通 `download()` 会保留源编码并 transmux 为 MP4。** BrowserAdapter 使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly；NodeAdapter 使用原生 Rust 路径。
 
-FFmpeg **仅在按需**、且某条代码路径确实需要时才会加载 — 各适配器的具体触发条件见[适配器 API](./adapters.md)。`init()` 与 `parseHls()` 均不会加载 FFmpeg。
-
-若需通过 FFmpeg 转码，请在 `download()` 上传入带 `preset`、显式输出编码或 `format` 的 `transcode` 选项（也可在 `globalOptions.transcode` 中设置）。省略 `transcode` 则走默认 transmux/remux 路径。
+重编码通过 `transcode` 显式启用 — 见[适配器 API](./adapters.md)。BrowserAdapter 使用 Mediabunny 与 WebCodecs；NodeAdapter 按需加载原生 FFmpeg。`init()` 与 `parseHls()` 均不会启动这些引擎。
 :::
 
 ## 构造函数
@@ -72,7 +70,7 @@ get globalOptions(): GlobalOptions<T> | null
 async init(): Promise<void>
 ```
 
-初始化轻量适配器状态，**不会加载 FFmpeg**。`download()` 会在未初始化时自动触发 `init()`。
+初始化轻量适配器状态。BrowserAdapter 与 NodeAdapter 仅在后续 API 需要时才启动其重量级引擎。`download()` 会在未初始化时自动触发 `init()`。
 
 ### `setOptions()`
 
@@ -111,7 +109,7 @@ async download(
 
 解析、下载全部分片并合并为单个文件。成功时：**`BrowserAdapter`** 解析为 `{ blobURL, totalSegments }`；**`NodeAdapter`** 解析为 `{ filePath, totalSegments }`。失败时 Promise 被拒绝。
 
-**默认（不传 `transcode`）** 各适配器走轻量 transmux 路径 — **不会加载 FFmpeg**。传入带 `preset`、显式输出编码或 `format` 的 `transcode` 对象后切换为 FFmpeg 路径。
+**默认（不传 `transcode`）** 各适配器走 transmux 路径并保留源编码。传入 `transcode` 后进入重编码：BrowserAdapter 使用 WebCodecs；NodeAdapter 使用 FFmpeg。
 
 单次传入的选项与 `globalOptions` 合并，单次选项优先。
 
@@ -122,11 +120,11 @@ async download(
 | `filename` | `string` | 不含扩展名的输出文件名。扩展名由内部根据输出容器解析（默认 `mp4`，`vp9` 为 `webm`，或取 `transcode.format`） |
 | `maxRetry` | `number` | 每个分片的最大重试次数 |
 | `downloadConcurrency` | `number` | 分片并发下载数 |
-| `transcode` | `HlsDownloaderTranscodeOptions` | **FFmpeg 转码。** 省略时默认 transmux/remux（不加载 FFmpeg） |
+| `transcode` | `HlsDownloaderTranscodeOptions` | BrowserAdapter 使用 WebCodecs 转码，NodeAdapter 使用 FFmpeg。省略时默认 transmux/remux |
 | `signal` | `AbortSignal` | 协作式取消。当信号中止时，下载 Promise 会被拒绝并抛出 `AbortError` |
 | *（适配器专有）* | — | 见[适配器 API](./adapters.md) |
 
-设置 `transcode` 时：**BrowserAdapter** 仅支持 `{ preset: 'h264' }`；**NodeAdapter** 支持下列全部字段：
+BrowserAdapter 支持 `preset`、`videoBitrate` 与 `audioBitrate`；NodeAdapter 支持下列全部字段：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -175,9 +173,7 @@ async downloadToStream(
 ): Promise<HlsDownloaderStreamResult>
 ```
 
-边下边推流：解析 HLS → Rust transmux → 通过 `onChunk` 实时推送 fMP4 字节。**库本身不落盘**——字节直接从原生 transmuxer 流向回调；是否落盘由调用方决定（如用 `ReadableStream.tee()` 分叉一路写文件，即可同时拥有「实时流 + 事后可下载文件」）。专为 HTTP 服务把流转发给浏览器 MSE 播放器、或在浏览器内直接喂给 MSE 实时播放的场景设计。
-
-第一个分片处理完即开始推送，**无需等待所有分片下载完成**。背压自然形成：若 `onChunk` 消费慢，原生 transmuxer 会 await，进而拖慢后续下载。
+解析 HLS，经 Rust transmux 后通过 `onChunk` 推送 fMP4 字节。**库本身不落盘。** BrowserAdapter 先以有界并发预取播放列表资源，再由 WASM writer 输出分块；NodeAdapter 可并发下载并同步推流。
 
 输出为 **fragmented MP4**（首段 `ftyp`+`moov`，之后每段 `styp`+`moof`+`mdat`，末端可选 `mfra`）。浏览器 MSE 可直接消费。
 

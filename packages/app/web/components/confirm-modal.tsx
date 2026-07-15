@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
@@ -34,7 +34,35 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Loader2Icon } from 'lucide-react';
 
+import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/adapters/browser';
 import type { Playlist } from '@hls-downloader/adapters';
+
+export const confirmFormSchema = z.object({
+  quality: z.string(),
+  title: z.string(),
+  transcodePreset: z.enum(['none', 'h264', 'hevc', 'vp9']),
+  videoBitrate: z.string().optional(),
+  audioBitrate: z.string().optional(),
+});
+
+export type ConfirmFormValues = z.infer<typeof confirmFormSchema>;
+
+export function buildBrowserTranscodeOptions(
+  values: ConfirmFormValues,
+): HlsDownloaderBrowserTranscodeOptions | undefined {
+  if (values.transcodePreset === 'none') {
+    return undefined;
+  }
+
+  const videoBitrate = values.videoBitrate?.trim();
+  const audioBitrate = values.audioBitrate?.trim();
+
+  return {
+    preset: values.transcodePreset,
+    ...(videoBitrate ? { videoBitrate } : {}),
+    ...(audioBitrate ? { audioBitrate } : {}),
+  };
+}
 
 export interface IConfirmModalProps {
   open?: boolean;
@@ -44,14 +72,9 @@ export interface IConfirmModalProps {
     playlist: Playlist[];
   };
   onOpenChange?: (open: boolean) => void;
-  onConfirm?: (form: z.infer<typeof formSchema>) => Promise<void>;
-  onStreamPreview?: (form: z.infer<typeof formSchema>) => void;
+  onConfirm?: (form: ConfirmFormValues) => Promise<void>;
+  onStreamPreview?: (form: ConfirmFormValues) => void;
 }
-const formSchema = z.object({
-  quality: z.string(),
-  title: z.string(),
-  transcodePreset: z.enum(['none', 'h264']),
-});
 
 export const ConfirmModal = ({
   open,
@@ -61,40 +84,40 @@ export const ConfirmModal = ({
   onStreamPreview,
 }: IConfirmModalProps) => {
   const { filename, previewSrc, playlist } = metadata || {};
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const isLoading = Boolean(open && !previewSrc);
+  const form = useForm<ConfirmFormValues>({
+    resolver: zodResolver(confirmFormSchema),
     values: {
       title: filename || '',
       quality: playlist?.[0]?.name ?? '',
       transcodePreset: 'none',
+      videoBitrate: '',
+      audioBitrate: '',
     },
   });
 
-  const handleConfirm = async (values: z.infer<typeof formSchema>) => {
+  const transcodePreset = form.watch('transcodePreset');
+  const showBitrateFields = transcodePreset !== 'none';
+
+  const handleConfirm = async (values: ConfirmFormValues) => {
     setIsSubmitting(true);
-    await onConfirm?.(values);
-    setIsSubmitting(false);
-    onOpenChange?.(false);
+    try {
+      await onConfirm?.(values);
+      onOpenChange?.(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleStreamPreview = async (values: z.infer<typeof formSchema>) => {
+  const handleStreamPreview = (values: ConfirmFormValues) => {
     onStreamPreview?.(values);
     onOpenChange?.(false);
   };
 
-  useEffect(() => {
-    if (open && previewSrc) {
-      setIsLoading(false);
-    } else {
-      setIsLoading(true);
-    }
-  }, [open, previewSrc]);
-
   return (
     <AlertDialog open={open}>
-      <AlertDialogContent className="gap-3 sm:max-w-[460px]">
+      <AlertDialogContent className="gap-3 sm:max-w-[520px]">
         <AlertDialogHeader>
           <AlertDialogTitle>确认下载</AlertDialogTitle>
           <AlertDialogDescription>确认视频信息并选择下载设置</AlertDialogDescription>
@@ -175,11 +198,59 @@ export const ConfirmModal = ({
                       <ToggleGroupItem className="flex-1" value="h264">
                         H.264
                       </ToggleGroupItem>
+                      <ToggleGroupItem className="flex-1" value="hevc">
+                        HEVC
+                      </ToggleGroupItem>
+                      <ToggleGroupItem className="flex-1" value="vp9">
+                        VP9
+                      </ToggleGroupItem>
                     </ToggleGroup>
                   </FormControl>
                 </FormItem>
               )}
             />
+            {showBitrateFields ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <FormField
+                  name="videoBitrate"
+                  control={form.control}
+                  render={({ field }) => (
+                    <FormItem className="gap-1">
+                      <FormLabel className="text-xs">视频码率（可选）</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="h-8"
+                          type="text"
+                          placeholder="如 4M"
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  name="audioBitrate"
+                  control={form.control}
+                  render={({ field }) => (
+                    <FormItem className="gap-1">
+                      <FormLabel className="text-xs">音频码率（可选）</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="h-8"
+                          type="text"
+                          placeholder="如 128k"
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            ) : null}
           </form>
           <AlertDialogFooter>
             <AlertDialogCancel

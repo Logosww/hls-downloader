@@ -16,7 +16,7 @@ export default defineConfig({
   ],
   title: 'HLS Downloader',
   description:
-    'A TypeScript library for parsing HLS (.m3u8) playlists and downloading/merging streams into playable files.',
+    'Parse HLS (.m3u8) playlists and download/merge streams into playable files. Default downloads transmux while keeping source codecs; opt into re-encoding with transcode.',
 
   locales: {
     root: {
@@ -55,7 +55,7 @@ export default defineConfig({
     zh: {
       label: '简体中文',
       lang: 'zh-CN',
-      description: '用于解析 HLS（.m3u8）并下载、合并为可播放文件的 TypeScript 库。',
+      description: '解析 HLS（.m3u8）播放列表，下载并合并为可播放文件。默认保留源编码并 transmux；需要重编码时再通过 transcode 显式启用。',
       themeConfig: {
         nav: [
           { text: '指南', link: '/zh/guide/getting-started' },

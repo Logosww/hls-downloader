@@ -2,8 +2,8 @@
 
 适配器专有字段通过 `HlsDownloader` 构造函数 `options` / `setOptions` 传入，或在单次 `download()` 调用中传入。与单次选项合并时，单次选项优先。
 
-::: info 默认 Transmux，FFmpeg 按需加载
-各适配器的**普通下载默认走 transmux/remux，不加载 FFmpeg**。仅当具体 API 需要时才会初始化 FFmpeg。下文表格列出**各适配器何时加载 FFmpeg**。
+::: info 默认 Transmux
+各适配器的**普通下载默认走 transmux/remux，不重编码**。BrowserAdapter 使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly 做 transmux，使用 Mediabunny WebCodecs 做 `transcode`；NodeAdapter 仅在需要时初始化原生 FFmpeg。
 :::
 
 ## BrowserAdapter
@@ -12,21 +12,11 @@
 import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 ```
 
-普通下载走**浏览器轻量 transmux 路径**。**不会加载 `@ffmpeg/ffmpeg`**，除非满足下方 FFmpeg 场景。
+普通下载使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly。`download()` 返回经典 fast-start MP4；`downloadToStream()` 输出 fragmented MP4 分块。
 
-### 何时加载 FFmpeg
+转码使用 Mediabunny 与 WebCodecs，不依赖 `@ffmpeg/ffmpeg`。BrowserAdapter 支持 `h264`、`hevc`、`vp9` 预设及可选的 `videoBitrate`、`audioBitrate`。当前浏览器不支持所需编码器配置时会明确报错。
 
-| API | 加载 FFmpeg？ | 条件 |
-|-----|-------------|------|
-| `parseHls()` | 否 | — |
-| `init()` | 否 | — |
-| `download()` | **否**（默认） | 省略 `transcode` 与 `globalOptions.transcode` → 仅 transmux |
-| `download()` | **是** | 带 `preset`、显式输出编码或 `format` 的 `transcode`，或 `globalOptions.transcode` |
-| `getPosterUrl()` | 否 | 仅基于分片的轻量提取 |
-
-加载 FFmpeg 时，适配器会自动检测 `crossOriginIsolated` 和 `SharedArrayBuffer` 是否可用来判断多线程支持。若不可用，则自动降级到单线程 `@ffmpeg/core` 构建。
-
-加载 FFmpeg 核心资源时，CDN 上 **ESM** 与 **UMD** 路径由 `ffmpeg.useESM` 决定（`true` → `esm/`，省略或 `false` → `umd/`）。
+参考 CPU 微基准（8 分片 fixture，Chrome 150 / macOS，3 次中位数）：transmux 相对 Mediabunny remux 约 **5.0×**；H.264 转码相对多线程 `ffmpeg.wasm` 约 **2.2×**。详见[适配器指南](/zh/guide/adapters#性能参考)。
 
 ### `download()` 返回值
 
@@ -34,22 +24,6 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 |------|------|
 | `blobURL` | `string` |
 | `totalSegments` | `number` |
-
-### 适配器专有选项
-
-| 字段 | 类型 |
-|------|------|
-| `ffmpeg` | `object` |
-
-#### `ffmpeg` 对象
-
-| 字段 | 类型 |
-|------|------|
-| `coreURL` | `string` |
-| `wasmURL` | `string` |
-| `workerURL` | `string` |
-| `useESM` | `boolean` |
-| `disableMultiThread` | `boolean` |
 
 ## NodeAdapter
 

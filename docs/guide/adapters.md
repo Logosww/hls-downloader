@@ -5,12 +5,10 @@ HLS Downloader uses an adapter pattern to support different runtimes. Choose the
 - **Browser** — `BrowserAdapter`
 - **Node.js** — `NodeAdapter` (Rust N-API native implementation)
 
-::: warning Transmux by default — FFmpeg only when needed
-**Ordinary `download()` uses a lightweight transmux/remux path and does not load FFmpeg.** Source codecs are preserved (e.g. remux to MP4).
+::: warning Transmux by default
+**Ordinary `download()` preserves source codecs and transmuxes to MP4.** BrowserAdapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly; NodeAdapter uses its native implementation.
 
-FFmpeg is loaded **on demand** only when a specific API requires it. **`init()` and `parseHls()` never load FFmpeg.** To transcode on download, pass `transcode` with a `preset`, explicit output codecs, or `format` (or set `globalOptions.transcode`).
-
-See each adapter section below for **when FFmpeg loads**.
+Browser transcoding uses Mediabunny and WebCodecs. Node transcoding loads native FFmpeg on demand.
 :::
 
 ## BrowserAdapter (Browser)
@@ -21,67 +19,20 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser'
 ```
 
-The browser adapter performs ordinary downloads with a **lightweight transmux path** — **no `@ffmpeg/ffmpeg`**.
+The browser adapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly for ordinary downloads. `download()` returns a classic fast-start MP4; `downloadToStream()` emits fragmented MP4 chunks suitable for MSE.
 
-### When FFmpeg loads (BrowserAdapter)
+When `transcode` is provided, Mediabunny uses WebCodecs — BrowserAdapter does not ship or load `ffmpeg.wasm`. Supported presets are `h264`, `hevc`, and `vp9`, with optional `videoBitrate` and `audioBitrate`. Codec support depends on `VideoEncoder.isConfigSupported()` and `AudioEncoder.isConfigSupported()` in the current browser.
 
-| API | FFmpeg | Trigger |
-|-----|--------|---------|
-| `download()` (default) | No | Omit `transcode` |
-| `download()` | Yes | `transcode` with a `preset`, explicit output codecs, or `format`, or `globalOptions.transcode` |
-| `getPosterUrl()` | No | Segment-based extraction only |
-| `parseHls()` / `init()` | No | — |
+The WASM module is loaded only when transmuxing starts. The shipped binary is about 575 KiB before HTTP compression (about 210 KiB transferred in the reference Next.js build). BrowserAdapter does not require cross-origin isolation or `SharedArrayBuffer`.
 
-When FFmpeg **is** loaded for transcoding, it is compiled to WebAssembly. **BrowserAdapter only accepts `{ preset: 'h264' }`** — use `NodeAdapter` for other presets or fine-grained options. See [Adapter API](../api/adapters.md) for `ffmpeg` options (`coreURL`, `useESM`, etc.).
+### Performance (reference)
 
-### Cross-Origin Isolation & Auto Fallback
+On the package 8-segment fixture (Chrome 150 / macOS, CPU path, median of 3 runs; transmux timing excludes network prefetch):
 
-The multi-threaded FFmpeg build (`@ffmpeg/core-mt`) relies on `SharedArrayBuffer`, which is only available when the page is **cross-origin isolated** — i.e. the server responds with both:
-
-- `Cross-Origin-Opener-Policy: same-origin`
-- `Cross-Origin-Embedder-Policy: credentialless` (or `require-corp`)
-
-When FFmpeg is needed, the adapter **automatically detects** whether the runtime supports multi-threading by checking `globalThis.crossOriginIsolated` and `SharedArrayBuffer` availability. If the environment does not meet the requirements, it **silently falls back** to the single-threaded build (`@ffmpeg/core`).
-
-You can also force single-threaded mode via `ffmpeg.disableMultiThread`.
-
-::: tip
-If you're using Next.js or a similar framework, set the headers in your server config (e.g. `next.config.ts`) to enable cross-origin isolation and unlock multi-threaded performance:
-
-```ts
-async headers() {
-  return [{
-    source: '/:path*',
-    headers: [
-      { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
-      { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-    ],
-  }]
-}
-```
-:::
-
-### ESM vs UMD FFmpeg assets
-
-By default the adapter loads the **UMD** build from the CDN. For bundlers such as **Vite** that resolve ESM better, set `ffmpeg.useESM: true` in `options`.
-
-### BrowserAdapter options
-
-Pass via `HlsDownloader` `options` / `setOptions`, or per-call on `download()`:
-
-| Field | Type |
-|-------|------|
-| `ffmpeg` | `object` |
-
-#### `ffmpeg`
-
-| Field | Type |
-|-------|------|
-| `coreURL` | `string` |
-| `wasmURL` | `string` |
-| `workerURL` | `string` |
-| `useESM` | `boolean` |
-| `disableMultiThread` | `boolean` |
+| Path | New engine | Baseline | Median wall | Speedup |
+|------|------------|----------|-------------|---------|
+| Transmux | `hls-transmux` WASM | Mediabunny remux | ~1.9 ms vs ~9.5 ms | ≈ **5.0×** |
+| Transcode (H.264) | Mediabunny WebCodecs | `ffmpeg.wasm` (multi-thread) | ~531 ms vs ~1164 ms | ≈ **2.2×** |
 
 ### Example
 
@@ -93,10 +44,9 @@ const downloader = new HlsDownloader({
       headers: { Authorization: 'Bearer ...' },
       concurrency: 5,
     },
-    ffmpeg: {
-      coreURL: '/ffmpeg/ffmpeg-core.js',
-      wasmURL: '/ffmpeg/ffmpeg-core.wasm',
-      disableMultiThread: true,
+    transcode: {
+      preset: 'h264',
+      videoBitrate: '4M',
     },
   },
 })
