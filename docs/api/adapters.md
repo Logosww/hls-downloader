@@ -2,8 +2,8 @@
 
 Adapter-specific fields are passed via `HlsDownloader` constructor `options` / `setOptions`, or per-call on `download()`. They are merged with per-call options taking precedence.
 
-::: info Transmux first, FFmpeg on demand
-Across adapters, **default downloads transmux/remux without FFmpeg**. FFmpeg is initialized only when a specific API needs it. The tables below list **when FFmpeg loads** for each adapter.
+::: info Transmux first
+Across adapters, **default downloads transmux/remux without re-encoding**. BrowserAdapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly for transmux and Mediabunny WebCodecs for `transcode`; NodeAdapter initializes native FFmpeg only when needed.
 :::
 
 ## BrowserAdapter
@@ -12,21 +12,11 @@ Across adapters, **default downloads transmux/remux without FFmpeg**. FFmpeg is 
 import { BrowserAdapter } from '@hls-downloader/adapters/browser'
 ```
 
-Ordinary downloads use a **lightweight browser transmux path**. **`@ffmpeg/ffmpeg` is not loaded** unless one of the FFmpeg scenarios below applies.
+Ordinary downloads use [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly. `download()` returns a classic fast-start MP4; `downloadToStream()` emits fragmented MP4 chunks.
 
-### When FFmpeg loads
+Transcoding uses Mediabunny and WebCodecs without `@ffmpeg/ffmpeg`. BrowserAdapter accepts the `h264`, `hevc`, and `vp9` presets with optional `videoBitrate` and `audioBitrate`. Unsupported browser encoder configurations reject with an explicit error.
 
-| API | Loads FFmpeg? | Condition |
-|-----|---------------|-----------|
-| `parseHls()` | No | — |
-| `init()` | No | — |
-| `download()` | **No** (default) | Omit `transcode` and `globalOptions.transcode` → transmux only |
-| `download()` | **Yes** | `transcode` with a `preset`, explicit output codecs, or `format`, or `globalOptions.transcode` |
-| `getPosterUrl()` | No | Uses segment-based extraction only |
-
-When FFmpeg is loaded, the adapter automatically detects whether multi-threading is available by checking `crossOriginIsolated` and `SharedArrayBuffer`. If not available, it falls back to the single-threaded `@ffmpeg/core` build.
-
-For FFmpeg core assets, **ESM** vs **UMD** paths on the CDN are controlled by `ffmpeg.useESM` (`true` → `esm/`, omitted or `false` → `umd/`).
+Reference CPU micro-benchmarks (8-segment fixture, Chrome 150 / macOS, median of 3): transmux ≈ **5.0×** vs Mediabunny remux; H.264 transcode ≈ **2.2×** vs multi-threaded `ffmpeg.wasm`. See [Adapters guide](/guide/adapters#performance-reference).
 
 ### `download()` result
 
@@ -34,22 +24,6 @@ For FFmpeg core assets, **ESM** vs **UMD** paths on the CDN are controlled by `f
 |-------|------|
 | `blobURL` | `string` |
 | `totalSegments` | `number` |
-
-### Adapter-specific options
-
-| Field | Type |
-|-------|------|
-| `ffmpeg` | `object` |
-
-#### `ffmpeg` object
-
-| Field | Type |
-|-------|------|
-| `coreURL` | `string` |
-| `wasmURL` | `string` |
-| `workerURL` | `string` |
-| `useESM` | `boolean` |
-| `disableMultiThread` | `boolean` |
 
 ## NodeAdapter
 

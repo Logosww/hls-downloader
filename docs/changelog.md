@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.1.0]
+
+### Changed
+
+- **Breaking**: BrowserAdapter now uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly for classic MP4 downloads and fragmented MP4 streaming instead of Mediabunny remuxing (~5.0× faster transmux vs Mediabunny remux on the reference CPU micro-bench).
+- **Breaking**: BrowserAdapter transcoding now uses Mediabunny WebCodecs, supports `h264`, `hevc`, and `vp9` presets with optional video/audio bitrates, and no longer accepts FFmpeg asset options or depends on `@ffmpeg/ffmpeg` (~2.2× faster H.264 vs multi-threaded `ffmpeg.wasm` on the reference CPU micro-bench).
+
 ## [3.0.1] - 2026-07-09
 
 ### Fixed

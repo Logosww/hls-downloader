@@ -4,7 +4,7 @@ layout: home
 hero:
   name: HLS Downloader
   text: TypeScript HLS 下载库
-  tagline: 解析 HLS（.m3u8）播放列表，下载并合并为可播放文件。默认走轻量 transmux — 仅在指定转码时按需加载 FFmpeg。
+  tagline: 解析 HLS（.m3u8）播放列表，下载并合并为可播放文件。
   actions:
     - theme: brand
       text: 快速开始
@@ -20,8 +20,8 @@ hero:
       link: https://github.com/Logosww/hls-downloader
 
 features:
-  - title: 默认轻量
-    details: 普通下载经 transmux/remux 合并，不加载 FFmpeg。需要 FFmpeg 合并或转码时，通过 transcode 显式启用。
+  - title: 高性能 · 轻量
+    details: 普通下载经 transmux/remux 合并并保留源编码。BrowserAdapter 使用 hls-transmux WebAssembly；NodeAdapter 使用原生 Rust 路径。
   - title: 双适配器
     details: 浏览器使用 BrowserAdapter，Node.js 使用 NodeAdapter（Rust N-API）— 统一的 API 接口。
   - title: TypeScript 优先

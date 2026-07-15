@@ -79,9 +79,10 @@ export type HlsDownloaderTranscodeOptions = {
   speed?: HlsDownloaderEncoderSpeed;
 };
 
-/** Browser FFmpeg.wasm currently only supports H.264 via preset (no fine-grained options). */
 export type HlsDownloaderBrowserTranscodeOptions = {
-  preset: 'h264';
+  preset: HlsDownloaderTranscodePreset;
+  videoBitrate?: string | number;
+  audioBitrate?: string | number;
 };
 
 export type HlsDownloaderDownloadOptions = {

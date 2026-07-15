@@ -3,11 +3,9 @@
 The main facade class for downloading HLS streams. Imported from `@hls-downloader/core`.
 
 ::: info Default download path (transmux)
-**Ordinary `download()` calls use a lightweight transmux/remux path and do not load or run FFmpeg.** Segments are merged while keeping the source codecs (e.g. into MP4).
+**Ordinary `download()` keeps source codecs and transmuxes to MP4.** BrowserAdapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly; NodeAdapter uses its native Rust path.
 
-FFmpeg is loaded **only on demand** when a code path actually needs it — see [Adapter API](./adapters.md) for adapter-specific triggers. `init()` and `parseHls()` never load FFmpeg.
-
-To use FFmpeg for transcoding, pass a `transcode` options object with a `preset`, explicit output codecs, or `format` on `download()` (or set `globalOptions.transcode`). Omit `transcode` for the default transmux/remux path.
+Re-encoding is opt-in via `transcode` — see [Adapter API](./adapters.md). BrowserAdapter uses Mediabunny and WebCodecs; NodeAdapter loads native FFmpeg on demand. `init()` and `parseHls()` never start those engines.
 :::
 
 ## Constructor
@@ -72,7 +70,7 @@ Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
 async init(): Promise<void>
 ```
 
-Initialize lightweight adapter state. **Does not load FFmpeg.** Calling `download()` automatically triggers `init()` if not yet initialized.
+Initialize lightweight adapter state. BrowserAdapter and NodeAdapter start their heavy engines only when a later API needs them. Calling `download()` automatically triggers `init()` if not yet initialized.
 
 ### `setOptions()`
 
@@ -111,7 +109,7 @@ async download(
 
 Parse, download all segments, and merge them into a single file. On success, **`BrowserAdapter`** resolves to `{ blobURL, totalSegments }`; **`NodeAdapter`** resolves to `{ filePath, totalSegments }`. On failure, the promise rejects.
 
-**By default (no `transcode`)**, adapters use the lightweight transmux path — **FFmpeg is not loaded**. Passing a `transcode` object with a `preset`, explicit output codecs, or `format` switches to the FFmpeg path.
+**By default (no `transcode`)**, adapters use the transmux path and keep source codecs. Passing `transcode` opts into re-encoding: BrowserAdapter uses WebCodecs; NodeAdapter uses FFmpeg.
 
 Merges per-call options with `globalOptions` (per-call wins).
 
@@ -122,11 +120,11 @@ Merges per-call options with `globalOptions` (per-call wins).
 | `filename` | `string` | Output filename without extension. The extension is resolved internally from the output container (`mp4` by default, `webm` for `vp9`, or `transcode.format`) |
 | `maxRetry` | `number` | Max retry attempts per segment |
 | `downloadConcurrency` | `number` | Concurrent segment downloads |
-| `transcode` | `HlsDownloaderTranscodeOptions` | **Transcode with FFmpeg.** Omit for default transmux/remux (no FFmpeg) |
+| `transcode` | `HlsDownloaderTranscodeOptions` | Transcode with WebCodecs in BrowserAdapter or FFmpeg in NodeAdapter. Omit for default transmux/remux |
 | `signal` | `AbortSignal` | Cooperative cancellation. When the signal aborts, the download promise rejects with an `AbortError` |
 | *(adapter-specific)* | — | See [Adapter API](./adapters.md) |
 
-When `transcode` is set on **BrowserAdapter**, only `{ preset: 'h264' }` is supported. On **NodeAdapter**, all fields below apply:
+BrowserAdapter supports `preset` plus `videoBitrate` and `audioBitrate`. NodeAdapter supports all fields below:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -175,9 +173,7 @@ async downloadToStream(
 ): Promise<HlsDownloaderStreamResult>
 ```
 
-Stream-as-you-go: parse HLS → Rust transmux → push fMP4 bytes via `onChunk` in real time. **The library itself does not write to disk** — bytes flow directly from the native transmuxer to the callback; whether to persist is up to the caller (e.g. fork one branch to a file with `ReadableStream.tee()` to get both "live stream" and "downloadable file afterwards"). Designed for HTTP servers forwarding the stream to a browser MSE player, or for in-browser MSE playback.
-
-The first chunk arrives as soon as the first segment is processed; you do **not** wait for all segments to be downloaded. Backpressure is natural: if `onChunk` is slow, the native transmuxer awaits, slowing further downloads.
+Parses HLS, transmuxes with Rust, and pushes fMP4 bytes through `onChunk`. **The library itself does not write to disk.** BrowserAdapter first prefetches playlist resources with bounded concurrency, then its WASM writer emits chunks; NodeAdapter downloads and emits concurrently.
 
 Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each subsequent segment: `styp`+`moof`+`mdat`, optional trailing `mfra`). Browser MSE can consume it directly.
 

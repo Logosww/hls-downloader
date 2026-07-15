@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HlsDownloader } from '@hls-downloader/core';
 import {
-  buildBrowserFfmpegOutputArgs,
+  assertBrowserTranscodeOptions,
   buildFfmpegOutputArgs,
   createAdapter,
   getDownloadFilenameBase,
@@ -14,7 +14,7 @@ import {
   HlsDownloaderEvent,
   injectContext,
   isRegisteredAdapter,
-  needsBrowserFfmpegTranscode,
+  needsBrowserTranscode,
   needsFfmpegTranscode,
   resolveTranscodeOptions,
   selectBestVariant,
@@ -106,7 +106,9 @@ function createMemoryAdapter() {
         headers: fetchOptions.headers ?? globalOptions.download?.headers,
         filename: fetchOptions.filename ?? 'output',
         maxRetry:
-          fetchOptions.maxRetry ?? globalOptions.download?.maxRetry ?? internal.segmentRetryAttempts,
+          fetchOptions.maxRetry ??
+          globalOptions.download?.maxRetry ??
+          internal.segmentRetryAttempts,
         downloadConcurrency:
           fetchOptions.downloadConcurrency ??
           globalOptions.download?.concurrency ??
@@ -230,10 +232,13 @@ describe('library API e2e', () => {
     const first = createMemoryAdapter();
     const second = createMemoryAdapter();
     const globalOptions = { token: 'secret' };
-    const contextOptions = injectContext({ url: 'https://cdn.example.test/video.m3u8' }, {
-      internal: first.internal,
-      getGlobalOptions: () => globalOptions,
-    });
+    const contextOptions = injectContext(
+      { url: 'https://cdn.example.test/video.m3u8' },
+      {
+        internal: first.internal,
+        getGlobalOptions: () => globalOptions,
+      },
+    );
 
     expect(getAdapterGlobalOptionsFromInternal(first.internal, contextOptions)).toBe(globalOptions);
     expect(getAdapterGlobalOptionsFromInternal(second.internal, contextOptions)).toBeNull();
@@ -249,7 +254,19 @@ describe('shared API e2e', () => {
     expect(needsFfmpegTranscode({ videoCodec: 'copy', audioCodec: 'copy' })).toBe(false);
     expect(needsFfmpegTranscode({ preset: 'h264' })).toBe(true);
     expect(needsFfmpegTranscode({ format: 'webm' })).toBe(true);
-    expect(needsBrowserFfmpegTranscode({ preset: 'h264' })).toBe(true);
+    expect(needsBrowserTranscode({ preset: 'h264' })).toBe(true);
+    expect(needsBrowserTranscode({ preset: 'vp9', videoBitrate: '4M' })).toBe(true);
+    expect(
+      assertBrowserTranscodeOptions({
+        preset: 'hevc',
+        videoBitrate: 4_000_000,
+        audioBitrate: '128k',
+      }),
+    ).toEqual({
+      preset: 'hevc',
+      videoBitrate: 4_000_000,
+      audioBitrate: '128k',
+    });
     expect(resolveTranscodeOptions({ preset: 'vp9', crf: 32 })).toEqual({
       preset: 'vp9',
       crf: 32,
@@ -264,9 +281,7 @@ describe('shared API e2e', () => {
     expect(
       getDownloadOutputFilename('video', { videoCodec: 'libvpx-vp9', audioCodec: 'libopus' }),
     ).toBe('video.webm');
-    expect(getDownloadOutputFilename('video', { preset: 'vp9', format: 'mp4' })).toBe(
-      'video.mp4',
-    );
+    expect(getDownloadOutputFilename('video', { preset: 'vp9', format: 'mp4' })).toBe('video.mp4');
     expect(getTranscodeDefaultFilename({ preset: 'vp9' })).toBe('output.webm');
     expect(getTranscodeMimeType({ preset: 'h264' })).toBe('video/mp4');
     expect(buildFfmpegOutputArgs({ preset: 'h264', crf: 23, speed: 'fast' })).toEqual([
@@ -280,16 +295,6 @@ describe('shared API e2e', () => {
       '23',
       '-preset',
       'fast',
-    ]);
-    expect(buildBrowserFfmpegOutputArgs()).toEqual([
-      '-c:v',
-      'libx264',
-      '-c:a',
-      'aac',
-      '-f',
-      'mp4',
-      '-movflags',
-      '+faststart',
     ]);
   });
 

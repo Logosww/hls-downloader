@@ -22,7 +22,7 @@ pnpm add @hls-downloader/adapters
 **运行环境**：Node.js **≥ 20**。Node 适配器在 Node 下会加载**原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **browser** 子路径，不要把 Node 原生模块打进前端。
 
 ::: info 默认下载路径（Transmux）
-**普通 `download()` 不会加载 FFmpeg。** 分片经轻量 transmux/remux 合并并保留源编码。仅在需要 FFmpeg 合并/转码时，于 `download()` 传入 `transcode`（或设置 `globalOptions.transcode`）。各适配器的 FFmpeg 触发条件见[适配器](/zh/guide/adapters)。
+**普通 `download()` 会保留源编码并 transmux 为 MP4。** BrowserAdapter 使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly；NodeAdapter 使用原生 Rust 路径。仅在需要重编码时，于 `download()` 传入 `transcode`（或设置 `globalOptions.transcode`）。各适配器引擎差异见[适配器](/zh/guide/adapters)。
 :::
 
 ## 基本用法
@@ -47,24 +47,24 @@ const downloader = new HlsDownloader({
   },
 })
 
-// init() 为轻量初始化，不加载 FFmpeg
+// init() 为轻量初始化；WASM / WebCodecs / 原生 FFmpeg 均按需启动
 await downloader.init()
 
-// 仅解析 playlist — 不下载分片，不加载 FFmpeg
+// 仅解析 playlist — 不下载分片，也不加载 transmux/transcode 引擎
 const parsed = await downloader.parseHls({
   url: 'https://example.com/master.m3u8',
   headers: { Authorization: 'Bearer ...' },
 })
 
-// 默认下载 — 仅 transmux，不加载 FFmpeg
+// 默认下载 — 仅 transmux
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
   headers: {},
   filename: 'output',
 })
 
-// 显式转码 — 会加载 FFmpeg（详见适配器文档）
-// await downloader.download({ url: '...', transcode: { preset: 'h264' } })
+// 显式重编码 — BrowserAdapter 使用 WebCodecs；NodeAdapter 使用 FFmpeg
+// await downloader.download({ url: '...', transcode: { preset: 'h264', videoBitrate: '4M' } })
 
 if (result) {
   console.log(result.totalSegments)

@@ -33,8 +33,8 @@ const downloader = new HlsDownloader({
 
 | 事件 | 载荷 | 描述 |
 |------|------|------|
-| `FFMPEG_LOADING` | — | FFmpeg 核心正在加载（仅 WASM） |
-| `FFMPEG_LOADED` | — | FFmpeg 核心已加载（仅 WASM） |
+| `FFMPEG_LOADING` | — | 原生 FFmpeg 核心正在加载（仅 `NodeAdapter`） |
+| `FFMPEG_LOADED` | — | 原生 FFmpeg 核心已加载（仅 `NodeAdapter`） |
 | `STARTING_DOWNLOAD` | — | 下载流程已开始 |
 | `SOURCE_PARSED` | — | HLS 源已解析 |
 | `DOWNLOADING` | — | 下载进行中 |

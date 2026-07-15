@@ -1,6 +1,6 @@
 {
   "name": "@hls-downloader/adapters",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -35,23 +35,23 @@
   "scripts": {
     "build:native": "node ../../scripts/napi-build-adapters-native.ts",
     "build:native:static": "node ../../scripts/napi-build-adapters-native.ts --static",
+    "build:wasm": "node ../../scripts/build-adapters-wasm.ts",
     "build:ts": "tsdown -c tsdown.config.ts",
     "build:copy-native": "cp src/node/native.js src/node/native.d.ts dist/ && cp src/node/native.*.node dist/ 2>/dev/null || true",
     "build:copy-native-publish": "cp src/node/native.js src/node/native.d.ts dist/",
+    "build:copy-wasm": "cp src/browser/generated/hls_transmux_browser_wasm_bg.wasm dist/",
     "build:barrel": "printf 'export * from \"@hls-downloader/shared\";\\nexport * from \"./browser.mjs\";\\nexport * from \"./node.mjs\";\\n' | tee dist/index.mjs > dist/index.d.mts",
-    "build": "pnpm run build:native && pnpm run build:ts && pnpm run build:copy-native && pnpm run build:barrel",
-    "build:publish": "pnpm run build:native:static && pnpm run build:ts && pnpm run build:copy-native-publish && pnpm run build:barrel",
+    "build": "pnpm run build:native && pnpm run build:wasm && pnpm run build:ts && pnpm run build:copy-native && pnpm run build:copy-wasm && pnpm run build:barrel",
+    "build:publish": "pnpm run build:native:static && pnpm run build:wasm && pnpm run build:ts && pnpm run build:copy-native-publish && pnpm run build:copy-wasm && pnpm run build:barrel",
     "prepublishOnly": "pnpm run build:publish"
   },
   "dependencies": {
-    "@ffmpeg/ffmpeg": "^0.12.15",
     "@hls-downloader/core": "workspace:*",
     "@hls-downloader/shared": "workspace:*",
-    "mediabunny": "^1.50.7"
+    "mediabunny": "^1.50.8"
   },
   "devDependencies": {
-    "@ffmpeg/util": "^0.12.2",
-    "@napi-rs/cli": "^3.7.2",
+    "@napi-rs/cli": "^3.7.3",
     "@types/m3u8-parser": "^7.2.6",
     "@types/node": "^26.1.1",
     "m3u8-parser": "^7.2.0",

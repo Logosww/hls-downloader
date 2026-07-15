@@ -333,6 +333,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen CLI
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
+        run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
 
       - uses: Swatinem/rust-cache@v2
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}

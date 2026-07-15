@@ -12,7 +12,7 @@ export default defineConfig({
   platform: 'neutral',
   minify: true,
   deps: {
-    neverBundle: [/^@hls-downloader\//, /^@ffmpeg\/ffmpeg/, /^node:/],
+    neverBundle: [/^@hls-downloader\//, /^node:/],
   },
   inputOptions: {
     resolve: {

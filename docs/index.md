@@ -4,7 +4,7 @@ layout: home
 hero:
   name: HLS Downloader
   text: TypeScript HLS Download Library
-  tagline: Parse HLS (.m3u8) playlists and download/merge streams into playable files. Default downloads use lightweight transmux — FFmpeg loads only when you opt in with transcode.
+  tagline: Parse HLS (.m3u8) playlists and download/merge streams into playable files.
   actions:
     - theme: brand
       text: Get Started
@@ -20,8 +20,8 @@ hero:
       link: https://github.com/Logosww/hls-downloader
 
 features:
-  - title: Lightweight by Default
-    details: Ordinary downloads transmux/remux without loading FFmpeg. Opt in with transcode when you need FFmpeg-based merging or encoding.
+  - title: Performant · Lightweight
+    details: Ordinary downloads transmux/remux while keeping source codecs. BrowserAdapter uses hls-transmux WebAssembly; NodeAdapter uses its native Rust path.
   - title: Dual Adapters
     details: BrowserAdapter for browsers and NodeAdapter (Rust N-API) for Node.js — one unified API.
   - title: TypeScript First

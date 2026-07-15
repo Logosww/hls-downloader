@@ -1,8 +1,5 @@
 import { defineConfig } from 'tsdown';
 
-const externalFFmpegBase = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist`;
-const externalFFmpegMtBase = `https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist`;
-
 const sharedDts = {
   compilerOptions: {
     rootDir: 'src',
@@ -18,13 +15,9 @@ export default defineConfig([
     platform: 'browser',
     minify: true,
     deps: {
-      alwaysBundle: ['m3u8-parser', '@ffmpeg/util', 'p-limit', 'mediabunny'],
+      alwaysBundle: ['m3u8-parser', 'p-limit', 'mediabunny'],
     },
     dts: sharedDts,
-    define: {
-      __FFmpeg_Base__: JSON.stringify(externalFFmpegBase),
-      __FFmpeg_Mt_Base__: JSON.stringify(externalFFmpegMtBase),
-    },
     inputOptions: {
       resolve: {
         mainFields: ['module', 'main'],

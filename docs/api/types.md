@@ -93,23 +93,25 @@ type HlsDownloaderTranscodeOptions = {
 
 | `preset` | Video | Audio | Container | BrowserAdapter |
 |----------|-------|-------|-----------|----------------|
-| `h264` | libx264 | aac | mp4 | Yes (`{ preset: 'h264' }` only) |
-| `hevc` | libx265 | aac | mp4 | Node only |
-| `vp9` | libvpx-vp9 | libopus | webm | Node only |
+| `h264` | libx264 | aac | mp4 | Yes, via WebCodecs |
+| `hevc` | libx265 | aac | mp4 | When supported by the browser |
+| `vp9` | libvpx-vp9 | libopus | webm | When supported by the browser |
 
-Omit `transcode` for default transmux/remux (no FFmpeg). `needsFfmpegTranscode()` returns true when a `preset` or `format` is set, or any output codec is not `copy`.
+Omit `transcode` for default transmux/remux (no re-encode). For NodeAdapter, `needsFfmpegTranscode()` returns true when a `preset` or `format` is set, or any output codec is not `copy`. BrowserAdapter uses `needsBrowserTranscode()` when `transcode` is provided.
 
 ## HlsDownloaderBrowserTranscodeOptions
 
-Browser FFmpeg.wasm only supports H.264 via preset — no fine-grained encoding fields.
+Browser transcoding uses Mediabunny and WebCodecs. It accepts presets and bitrate controls, but not explicit codec, format, CRF, speed, or resolution fields.
 
 ```ts
 type HlsDownloaderBrowserTranscodeOptions = {
-  preset: 'h264'
+  preset: 'h264' | 'hevc' | 'vp9'
+  videoBitrate?: string | number
+  audioBitrate?: string | number
 }
 ```
 
-Use with `BrowserAdapter` / `GlobalOptions<typeof BrowserAdapter>`. `hevc` and `vp9` require `NodeAdapter`.
+Use with `BrowserAdapter` / `GlobalOptions<typeof BrowserAdapter>`. Runtime codec availability depends on the current browser.
 
 ## HlsDownloaderDownloadOptions
 

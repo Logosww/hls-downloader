@@ -14,7 +14,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import z from 'zod';
 import { useEffect, useRef, useState } from 'react';
-import ConfirmModal, { IConfirmModalProps } from '@/components/confirm-modal';
+import ConfirmModal, {
+  buildBrowserTranscodeOptions,
+  type ConfirmFormValues,
+  type IConfirmModalProps,
+} from '@/components/confirm-modal';
 import { Platform, usePlatform } from '@/hooks';
 import { ModeToggle } from '@/components/mode-toggle';
 import HlsDownloader, { HlsDownloaderEvent } from '@hls-downloader/core';
@@ -181,15 +185,8 @@ export default function HomePage() {
     }
   };
 
-  const onConfirmDownload = async ({
-    quality,
-    title,
-    transcodePreset,
-  }: {
-    quality: string;
-    title?: string;
-    transcodePreset: 'none' | 'h264';
-  }) => {
+  const onConfirmDownload = async (values: ConfirmFormValues) => {
+    const { quality, title } = values;
     if (!metadata?.playlist?.length) {
       toast.error('未找到可下载的视频流');
       return;
@@ -201,8 +198,9 @@ export default function HomePage() {
       return;
     }
     const filename = ((title || '').trim() || 'output').replace(/\.[^/.]+$/, '');
-    const outputTitle = `${filename}.mp4`;
-    const transcode = transcodePreset === 'h264' ? { preset: transcodePreset } : undefined;
+    const transcode = buildBrowserTranscodeOptions(values);
+    const outputExt = transcode?.preset === 'vp9' ? 'webm' : 'mp4';
+    const outputTitle = `${filename}.${outputExt}`;
     const taskId = Date.now().toString();
     currentDownloadId.current = taskId;
 
@@ -273,9 +271,14 @@ export default function HomePage() {
     }
     try {
       const blob = await fetch(task.blobURL).then((response) => response.blob());
+      const isWebm = task.title.endsWith('.webm');
       const handle = await showSaveFilePicker({
         suggestedName: task.title,
-        types: [{ description: 'MP4 Video', accept: { 'video/mp4': ['.mp4'] } }],
+        types: [
+          isWebm
+            ? { description: 'WebM Video', accept: { 'video/webm': ['.webm'] } }
+            : { description: 'MP4 Video', accept: { 'video/mp4': ['.mp4'] } },
+        ],
       });
       const writable = await handle.createWritable();
       await writable.write(blob);
@@ -296,14 +299,7 @@ export default function HomePage() {
     controller?.abort();
   };
 
-  const onStreamPreview = ({
-    quality,
-    title,
-  }: {
-    quality: string;
-    title?: string;
-    transcodePreset: 'none' | 'h264';
-  }) => {
+  const onStreamPreview = ({ quality, title }: ConfirmFormValues) => {
     if (!metadata?.playlist?.length) {
       toast.error('未找到可下载的视频流');
       return;

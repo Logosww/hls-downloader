@@ -22,7 +22,7 @@ The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-do
 **Runtime**: Node.js **≥ 20**. The Node adapter loads a **native `.node` addon** on Node — use a build that matches your platform and Node ABI. For browser bundles, only include the **browser** subpath; do not bundle the Node native addon into frontend code.
 
 ::: info Default download path (transmux)
-**Ordinary `download()` does not load FFmpeg.** Segments are merged via a lightweight transmux/remux path while keeping source codecs. Pass `transcode` on `download()` (or set `globalOptions.transcode`) only when you need FFmpeg-based merging or transcoding. See [Adapters](/guide/adapters) for per-adapter FFmpeg triggers.
+**Ordinary `download()` keeps source codecs and transmuxes to MP4.** BrowserAdapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly; NodeAdapter uses its native Rust path. Pass `transcode` on `download()` (or set `globalOptions.transcode`) only when you need re-encoding. See [Adapters](/guide/adapters) for adapter-specific engines.
 :::
 
 ## Basic Usage
@@ -47,24 +47,24 @@ const downloader = new HlsDownloader({
   },
 })
 
-// init() is lightweight and does not load FFmpeg
+// init() is lightweight; WASM / WebCodecs / native FFmpeg start on demand
 await downloader.init()
 
-// Parse playlist only — no segments, no FFmpeg
+// Parse playlist only — no segments, no transmux/transcode engine load
 const parsed = await downloader.parseHls({
   url: 'https://example.com/master.m3u8',
   headers: { Authorization: 'Bearer ...' },
 })
 
-// Default download — transmux only, no FFmpeg
+// Default download — transmux only
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
   headers: {},
   filename: 'output',
 })
 
-// Explicit transcode — loads FFmpeg (see Adapter docs)
-// await downloader.download({ url: '...', transcode: { preset: 'h264' } })
+// Explicit re-encode — BrowserAdapter uses WebCodecs; NodeAdapter uses FFmpeg
+// await downloader.download({ url: '...', transcode: { preset: 'h264', videoBitrate: '4M' } })
 
 if (result) {
   console.log(result.totalSegments)

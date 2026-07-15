@@ -5,6 +5,13 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [3.1.0]
+
+### Changed
+
+- **破坏性变更**：BrowserAdapter 使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly 生成经典 MP4 下载与 fragmented MP4 流，不再使用 Mediabunny remux（参考 CPU 微基准下 transmux 约 **5.0×** 于 Mediabunny remux）。
+- **破坏性变更**：BrowserAdapter 转码改用 Mediabunny WebCodecs，支持 `h264`、`hevc`、`vp9` 预设及可选视频/音频码率，不再接受 FFmpeg 资源选项或依赖 `@ffmpeg/ffmpeg`（参考 CPU 微基准下 H.264 约 **2.2×** 于多线程 `ffmpeg.wasm`）。
+
 ## [3.0.1] - 2026-07-09
 
 ### Fixed
