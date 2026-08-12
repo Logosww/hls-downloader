@@ -5,6 +5,12 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [3.1.1] - 2026-08-12
+
+### Changed
+- BrowserAdapter `init` 方法现在默认动态加载 `hls-transmux` WebAssembly 模块。
+- 升级内置 `FFmpeg` to v9.0
+
 ## [3.1.0] - 2026-07-15
 
 ### Changed

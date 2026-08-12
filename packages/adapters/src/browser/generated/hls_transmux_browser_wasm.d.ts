@@ -1,8 +1,8 @@
 /* tslint:disable */
 /* eslint-disable */
 export function start(): void;
-export function transmux_preloaded_to_fmp4_stream(resources: any, on_chunk: Function): Promise<any>;
 export function transmux_preloaded_to_mp4_report(resources: any): Promise<any>;
+export function transmux_preloaded_to_fmp4_stream(resources: any, on_chunk: Function): Promise<any>;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -18,8 +18,8 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_6: WebAssembly.Table;
-  readonly closure51_externref_shim: (a: number, b: number, c: any) => void;
-  readonly closure70_externref_shim: (a: number, b: number, c: any, d: any) => void;
+  readonly closure43_externref_shim: (a: number, b: number, c: any) => void;
+  readonly closure67_externref_shim: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_start: () => void;
 }
 

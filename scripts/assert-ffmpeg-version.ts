@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
 
 const pkgConfigBin = process.env.PKG_CONFIG || 'pkg-config';
-const minMajor = Number(process.env.FFMPEG_LIBAVCODEC_MIN_MAJOR || '60');
-const maxMajor = Number(process.env.FFMPEG_LIBAVCODEC_MAX_MAJOR || '62');
+const minMajor = Number(process.env.FFMPEG_LIBAVCODEC_MIN_MAJOR || '63');
+const maxMajor = Number(process.env.FFMPEG_LIBAVCODEC_MAX_MAJOR || '63');
 
 function runCapture(command: string, args: string[]): string {
   const result = spawnSync(command, args, { encoding: 'utf8' });

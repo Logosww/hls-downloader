@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.1.1] - 2026-08-12
+
+### Changed
+
+- BrowserAdapter `init` method now dynamically loads `hls-transmux` WebAssembly module by default.
+- Bump builtin `FFmpeg` to v9.0
+
 ## [3.1.0] - 2026-07-15
 
 ### Changed

@@ -6,10 +6,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
-import { DownloadIcon, Loader2Icon, XIcon } from 'lucide-react';
+import { DownloadIcon, Loader2Icon } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import z from 'zod';
@@ -27,9 +26,12 @@ import DownloadList, { IDownloadListItem } from '@/components/download-list';
 import { toast } from 'sonner';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { HeadersModal } from '@/components/headers-modal';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useSearchParams } from 'next/navigation';
 
 export const dynamic = 'force-static';
+
+const DIALOG_EXIT_MS = 120;
 
 const formSchema = z.object({
   url: z
@@ -47,9 +49,12 @@ export default function HomePage() {
   const [headersModalOpen, setHeadersModalOpen] = useState(false);
   const [headers, setHeaders] = useState<Record<string, string>>({});
   const [metadata, setMetadata] = useState<IConfirmModalProps['metadata']>();
-  const [streamPreview, setStreamPreview] = useState<{ open: boolean; url: string; title: string }>(
-    { open: false, url: '', title: '' },
-  );
+  const [streamPreview, setStreamPreview] = useState<{
+    open: boolean;
+    url: string;
+    title: string;
+    loading: boolean;
+  }>({ open: false, url: '', title: '', loading: false });
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: { url: searchParams.get('url') ?? '' },
@@ -59,6 +64,7 @@ export default function HomePage() {
   const currentDownloadId = useRef<string>(void 0);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
   const streamAbortRef = useRef<AbortController | null>(null);
+  const streamOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -127,6 +133,16 @@ export default function HomePage() {
       },
     });
   }, []);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    void downloader.current?.init();
+  }, [modalOpen]);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    void downloader.current?.init();
+  }, [modalOpen]);
 
   const fetchPoster = async (url: string) => {
     try {
@@ -311,25 +327,37 @@ export default function HomePage() {
       return;
     }
     const filename = ((title || '').trim() || 'output').replace(/\.[^/.]+$/, '');
-    setStreamPreview({ open: true, url: selectedPlaylist.uri, title: filename });
+    if (streamOpenTimerRef.current) {
+      clearTimeout(streamOpenTimerRef.current);
+      streamOpenTimerRef.current = null;
+    }
+    setModalOpen(false);
+    void downloader.current?.init();
+    streamOpenTimerRef.current = setTimeout(() => {
+      streamOpenTimerRef.current = null;
+      setStreamPreview({
+        open: true,
+        url: selectedPlaylist.uri,
+        title: filename,
+        loading: true,
+      });
+    }, DIALOG_EXIT_MS);
   };
 
-  // MSE 流式预览：downloadToStream 推送 fMP4 字节 → SourceBuffer 实时播放
   useEffect(() => {
     if (!streamPreview.open || !streamPreview.url) return;
 
-    // Dialog 内容通过 Portal 挂载，video 元素可能需要一帧才可用
     const rafId = requestAnimationFrame(() => {
       const video = videoRef.current;
       if (!video) {
         toast.error('视频元素未就绪');
-        setStreamPreview({ open: false, url: '', title: '' });
+        setStreamPreview({ open: false, url: '', title: '', loading: false });
         return;
       }
 
       if (typeof MediaSource === 'undefined') {
         toast.error('当前浏览器不支持 MSE 流式预览');
-        setStreamPreview({ open: false, url: '', title: '' });
+        setStreamPreview({ open: false, url: '', title: '', loading: false });
         return;
       }
 
@@ -339,10 +367,15 @@ export default function HomePage() {
       const mediaSource = new MediaSource();
       const objectUrl = URL.createObjectURL(mediaSource);
 
+      const onLoadedData = () => {
+        setStreamPreview((prev) => (prev.open && prev.loading ? { ...prev, loading: false } : prev));
+      };
+
       const onError = (e: unknown) => {
         if (abortController.signal.aborted) return;
         const msg = e instanceof Error ? e.message : String(e);
         toast.error(`流式预览失败: ${msg}`);
+        setStreamPreview((prev) => (prev.open ? { ...prev, loading: false } : prev));
         if (mediaSource.readyState === 'open') {
           try {
             mediaSource.endOfStream('network');
@@ -354,8 +387,10 @@ export default function HomePage() {
         if (abortController.signal.aborted) return;
         const err = video.error;
         toast.error(`视频播放错误: ${err ? `code ${err.code}` : 'unknown'}`);
+        setStreamPreview((prev) => (prev.open ? { ...prev, loading: false } : prev));
       };
 
+      video.addEventListener('loadeddata', onLoadedData);
       video.addEventListener('error', onVideoError);
 
       const chunkQueue: Uint8Array[] = [];
@@ -366,19 +401,13 @@ export default function HomePage() {
         if (!sourceBuffer || sourceBuffer.updating || chunkQueue.length === 0) return;
         const chunk = chunkQueue.shift()!;
         try {
-          // 复制为 ArrayBuffer 以满足 SourceBuffer.appendBuffer 的 BufferSource 约束
-          const buffer = chunk.buffer.slice(
-            chunk.byteOffset,
-            chunk.byteOffset + chunk.byteLength,
-          ) as ArrayBuffer;
-          sourceBuffer.appendBuffer(buffer);
+          sourceBuffer.appendBuffer(chunk.slice());
         } catch (err) {
           onError(err);
         }
       };
 
       const onSourceOpen = async () => {
-        // fMP4 默认 codec（H.264 Baseline + AAC LC），多数 HLS 源可用
         const mimeType = 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"';
         if (!MediaSource.isTypeSupported(mimeType)) {
           toast.error('当前浏览器不支持该视频编码的流式预览');
@@ -417,7 +446,6 @@ export default function HomePage() {
           );
           if (result) {
             streamEnded = true;
-            // 若队列已空且 SourceBuffer 空闲，直接 endOfStream
             if (sourceBuffer && !sourceBuffer.updating && mediaSource.readyState === 'open') {
               try {
                 mediaSource.endOfStream();
@@ -431,12 +459,11 @@ export default function HomePage() {
       };
 
       mediaSource.addEventListener('sourceopen', onSourceOpen);
-      // 先添加监听器，再设置 src，避免错过 sourceopen 事件
       video.src = objectUrl;
 
-      // 保存清理函数
       cleanupRef.current = () => {
         abortController.abort();
+        video.removeEventListener('loadeddata', onLoadedData);
         video.removeEventListener('error', onVideoError);
         mediaSource.removeEventListener('sourceopen', onSourceOpen);
         if (mediaSource.readyState === 'open') {
@@ -457,8 +484,12 @@ export default function HomePage() {
   }, [streamPreview.open, streamPreview.url, headers]);
 
   const closeStreamPreview = () => {
+    if (streamOpenTimerRef.current) {
+      clearTimeout(streamOpenTimerRef.current);
+      streamOpenTimerRef.current = null;
+    }
     streamAbortRef.current?.abort();
-    setStreamPreview({ open: false, url: '', title: '' });
+    setStreamPreview({ open: false, url: '', title: '', loading: false });
   };
 
   return (
@@ -542,23 +573,29 @@ export default function HomePage() {
         onCancel={onCancelDownload}
       />
       <Dialog open={streamPreview.open} onOpenChange={(open) => !open && closeStreamPreview()}>
-        <DialogContent className="sm:max-w-2xl" showCloseButton={false}>
+        <DialogContent
+          className="sm:max-w-2xl"
+          overlayClassName="supports-backdrop-filter:backdrop-blur-none"
+        >
           <DialogHeader>
             <DialogTitle>预览 · {streamPreview.title}</DialogTitle>
           </DialogHeader>
-          <video
-            ref={videoRef}
-            className="w-full rounded-lg bg-black"
-            controls
-            autoPlay
-            playsInline
-          />
-          <DialogFooter>
-            <Button variant="destructive" size="sm" type="button" onClick={closeStreamPreview}>
-              <XIcon data-icon="inline-start" />
-              停止
-            </Button>
-          </DialogFooter>
+          <div className="relative isolate aspect-video w-full overflow-hidden rounded-lg">
+            <video
+              ref={videoRef}
+              className={
+                streamPreview.loading
+                  ? 'invisible size-full rounded-lg bg-black'
+                  : 'size-full rounded-lg bg-black'
+              }
+              controls={!streamPreview.loading}
+              autoPlay
+              playsInline
+            />
+            {streamPreview.loading ? (
+              <Skeleton className="absolute inset-0 z-10 size-full rounded-lg" />
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

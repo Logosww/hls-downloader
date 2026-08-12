@@ -112,7 +112,6 @@ export const ConfirmModal = ({
 
   const handleStreamPreview = (values: ConfirmFormValues) => {
     onStreamPreview?.(values);
-    onOpenChange?.(false);
   };
 
   return (

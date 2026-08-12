@@ -17,7 +17,7 @@ export type HlsWasmReport = {
 
 let initPromise: Promise<void> | undefined;
 
-async function ensureWasm(): Promise<void> {
+export async function ensureWasm(): Promise<void> {
   initPromise ??= init(new URL('./hls_transmux_browser_wasm_bg.wasm', import.meta.url)).then(
     () => undefined,
   );

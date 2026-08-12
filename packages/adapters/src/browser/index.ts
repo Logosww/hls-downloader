@@ -21,6 +21,7 @@ import { transcodeHls } from './mediabunny';
 import { extractPosterFromSegmentUrl } from './poster';
 import { promiseWithLimit } from './utils';
 import {
+  ensureWasm,
   transmuxPreloadedToFmp4Stream,
   transmuxPreloadedToMp4,
   type HlsWasmResources,
@@ -89,7 +90,9 @@ function mergeDownloadOptions(
 const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);
 const posterCache: Record<string, string | undefined> = Object.create(null);
 
-const init: HlsDownloaderBrowserAdapter['init'] = async function () {};
+const init: HlsDownloaderBrowserAdapter['init'] = async function () {
+  await ensureWasm();
+};
 
 const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   this: HlsDownloaderBrowserAdapter,
@@ -519,23 +522,28 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
     throw err;
   }
 
+  const wasmReady = ensureWasm();
+
   const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
   this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
 
-  const resources = await preloadHlsResources({
-    playlistUrl: resolvedUrl,
-    segments,
-    headers,
-    maxRetry,
-    downloadConcurrency,
-    signal,
-    onProgress: (completed) => {
-      this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
-        total: segments.length,
-        completed,
-      });
-    },
-  });
+  const [resources] = await Promise.all([
+    preloadHlsResources({
+      playlistUrl: resolvedUrl,
+      segments,
+      headers,
+      maxRetry,
+      downloadConcurrency,
+      signal,
+      onProgress: (completed) => {
+        this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+          total: segments.length,
+          completed,
+        });
+      },
+    }),
+    wasmReady,
+  ]);
 
   await transmuxPreloadedToFmp4Stream(resources, (chunk) => {
     if (signal?.aborted) {

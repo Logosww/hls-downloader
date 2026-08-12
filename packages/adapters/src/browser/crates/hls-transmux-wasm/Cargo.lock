@@ -65,9 +65,9 @@ dependencies = [
 
 [[package]]
 name = "hls-transmux"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "532380e627da597a2907c47679dec0f3a5d2500e0fdc97c593637f5f2c0f08ea"
+checksum = "97b8968f54f1e3f6f2503ce1323d4a110019fe4527b208b9167f430f85130e35"
 dependencies = [
  "tokio",
  "url",

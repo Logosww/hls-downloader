@@ -12,16 +12,16 @@ concurrency:
 
 env:
   PNPM_VERSION: latest
-  # microsoft/vcpkg 2026.06.24：ports/ffmpeg 8.1.2
-  VCPKG_TAG: '2026.06.24'
+  # microsoft/vcpkg commit 47ea963：ports/ffmpeg 9.0（FFmpeg 9.0 尚未进入任何 release tag）
+  VCPKG_TAG: '47ea963da8cf87c3637a85cf0c8a84320d0d33a2'
 
 jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
-      FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
+      FFMPEG_LIBAVCODEC_MIN_MAJOR: '63'
+      FFMPEG_LIBAVCODEC_MAX_MAJOR: '63'
       HLS_FFMPEG_STATIC: '1'
     steps:
       - uses: actions/checkout@v4
@@ -51,9 +51,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
-          key: vcpkg-ff81-Linux-x64-linux-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff90-Linux-x64-linux-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff81-Linux-x64-linux-
+            vcpkg-ff90-Linux-x64-linux-
 
       - name: Setup vcpkg + static FFmpeg (Linux x64)
         run: node scripts/setup-vcpkg-ffmpeg.ts x64-linux
@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
-          key: vcpkg-ff81-Linux-x64-linux-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff90-Linux-x64-linux-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config)
         run: |
@@ -95,8 +95,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     env:
-      FFMPEG_LIBAVCODEC_MIN_MAJOR: '60'
-      FFMPEG_LIBAVCODEC_MAX_MAJOR: '62'
+      FFMPEG_LIBAVCODEC_MIN_MAJOR: '63'
+      FFMPEG_LIBAVCODEC_MAX_MAJOR: '63'
       HLS_FFMPEG_STATIC: '1'
     strategy:
       fail-fast: false
@@ -197,9 +197,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff81-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff90-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff81-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff90-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
@@ -207,9 +207,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff81-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff90-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff81-Windows-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff90-Windows-${{ matrix.vcpkg_triplet }}-
 
       - name: Setup vcpkg + static FFmpeg (Unix)
         if: runner.os != 'Windows' && matrix.install_ffmpeg
@@ -224,14 +224,14 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff81-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff90-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && matrix.install_ffmpeg && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff81-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff90-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config, Unix)
         if: matrix.install_ffmpeg && runner.os != 'Windows'

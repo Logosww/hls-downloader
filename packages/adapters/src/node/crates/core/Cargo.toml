@@ -9,7 +9,7 @@ default = []
 static-ffmpeg = ["ffmpeg-next/static"]
 
 [dependencies]
-ffmpeg-next = { version = "8.1.0" }
+ffmpeg-next = { version = "9.0.0" }
 reqwest = { version = "0.12", features = ["rustls-tls", "stream"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
 tokio-util = { version = "0.7", features = ["rt"] }
@@ -19,4 +19,4 @@ base64 = "0.22"
 futures = "0.3"
 thiserror = "2"
 url = "2"
-hls-transmux = { version = "0.1" }
+hls-transmux = { version = "0.2.1" }

@@ -1,6 +1,6 @@
 {
   "name": "@hls-downloader/adapters",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -48,13 +48,13 @@
   "dependencies": {
     "@hls-downloader/core": "workspace:*",
     "@hls-downloader/shared": "workspace:*",
-    "mediabunny": "^1.50.8"
+    "mediabunny": "^1.53.0"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.7.3",
+    "@napi-rs/cli": "^3.8.5",
     "@types/m3u8-parser": "^7.2.6",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "m3u8-parser": "^7.2.0",
-    "p-limit": "^7.3.0"
+    "p-limit": "^7.3.1"
   }
 }
