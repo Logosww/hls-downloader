@@ -50,10 +50,20 @@ pub fn cancel_job(job_id: String) -> Result<()> {
 // ── NAPI-compatible types ──────────────────────────────────────────────
 
 #[napi(object)]
+pub struct NapiResolution {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[napi(object)]
 pub struct NapiPlaylist {
     pub name: String,
     pub bandwidth: u32,
     pub uri: String,
+    pub resolution: Option<NapiResolution>,
+    pub codecs: Option<String>,
+    pub frame_rate: Option<f64>,
+    pub is_audio_only: bool,
 }
 
 #[napi(object)]
@@ -138,6 +148,10 @@ pub async fn parse_hls_native(
                         name: p.name,
                         bandwidth: p.bandwidth as u32,
                         uri: p.uri,
+                        resolution: p.resolution.map(|(w, h)| NapiResolution { width: w, height: h }),
+                        codecs: p.codecs,
+                        frame_rate: p.frame_rate,
+                        is_audio_only: p.is_audio_only,
                     })
                     .collect(),
             ),
@@ -223,10 +237,24 @@ pub async fn download_and_merge(
         transcode_core,
         Some(progress_cb),
     )
-    .await
-    .map_err(to_napi_err)?;
+    .await;
 
-    Ok(result.to_string_lossy().to_string())
+    match result {
+        Ok(output_path) => {
+            // 移出输出文件到 work 父目录（通常是 process.cwd()），然后清理 workDir
+            let parent = work.parent().unwrap_or(&work);
+            let final_path = parent.join(&filename);
+            if final_path != output_path {
+                std::fs::rename(&output_path, &final_path)?;
+            }
+            let _ = std::fs::remove_dir_all(&work);
+            Ok(final_path.to_string_lossy().to_string())
+        }
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&work);
+            Err(to_napi_err(e))
+        }
+    }
 }
 
 #[napi]
@@ -257,7 +285,8 @@ pub async fn transmux_hls_native(
     cancel_job_id: Option<String>,
     on_progress: ThreadsafeFunction<(u32, u32)>,
 ) -> Result<String> {
-    let output_path = std::path::PathBuf::from(&work_dir).join(&filename);
+    let work = std::path::PathBuf::from(&work_dir);
+    let output_path = work.join(&filename);
 
     let cancel_token = cancel_job_id
         .as_deref()
@@ -290,9 +319,22 @@ pub async fn transmux_hls_native(
         registry().remove(&id);
     }
 
-    result.map_err(to_napi_err)?;
-
-    Ok(output_path.to_string_lossy().to_string())
+    match result {
+        Ok(_) => {
+            // 移出输出文件到 work 父目录（通常是 process.cwd()），然后清理 workDir
+            let parent = work.parent().unwrap_or(&work);
+            let final_path = parent.join(&filename);
+            if final_path != output_path {
+                std::fs::rename(&output_path, &final_path)?;
+            }
+            let _ = std::fs::remove_dir_all(&work);
+            Ok(final_path.to_string_lossy().to_string())
+        }
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&work);
+            Err(to_napi_err(e))
+        }
+    }
 }
 
 #[napi(

@@ -7,7 +7,36 @@ export type Playlist = {
   name: string;
   bandwidth: number;
   uri: string;
+  resolution?: { width: number; height: number };
+  codecs?: string;
+  frameRate?: number;
+  /** 无 RESOLUTION 且 codecs 仅含音频时为 true（用于过滤纯音频 variant）。 */
+  isAudioOnly?: boolean;
 };
+
+/**
+ * `selectBestVariant` 的选择偏好。所有字段可选，缺省时取最高分辨率 → 最高带宽。
+ * - `maxResolution`：候选 variant 像素数不超过此上限（width*height）。
+ * - `maxBandwidth`：候选 variant 带宽不超过此上限（bps）。
+ * - `preferredCodec`：优先匹配该 codec 前缀的 variant（如 `'avc1'`、`'hvc1'`）。
+ * - `preferredAudio`：优先匹配该音频 codec 前缀的 variant（如 `'mp4a'`、`'ec-3'`）。
+ * - `includeAudioOnly`：是否把纯音频 variant 纳入候选，默认 false。
+ */
+export type VariantSelectOptions = {
+  maxResolution?: { width: number; height: number };
+  maxBandwidth?: number;
+  preferredCodec?: string;
+  preferredAudio?: string;
+  includeAudioOnly?: boolean;
+};
+
+/**
+ * 可替换的 variant 选择策略。返回最合适的 variant，或 undefined 表示无候选。
+ */
+export type VariantSelector = (
+  playlists: Playlist[],
+  options?: VariantSelectOptions,
+) => Playlist | undefined;
 
 export type ParseHlsResult =
   | { type: 'playlist'; data: Playlist[]; message?: undefined }
@@ -91,6 +120,8 @@ export type HlsDownloaderDownloadOptions = {
   downloadConcurrency?: number;
   transcode?: HlsDownloaderTranscodeOptions;
   signal?: AbortSignal;
+  /** Master playlist variant 选择偏好；缺省时取最高分辨率 → 最高带宽。 */
+  variant?: VariantSelectOptions;
 };
 
 export type HlsDownloaderStreamResult = {
@@ -113,4 +144,6 @@ export interface HlsDownloaderAdapterInternal<
     options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
     onChunk: (bytes: Uint8Array) => void,
   ): Promise<HlsDownloaderStreamResult>;
+  /** 清空 adapter 内部的 parseHls / poster 缓存。可选实现。 */
+  clearCache?(): void;
 }

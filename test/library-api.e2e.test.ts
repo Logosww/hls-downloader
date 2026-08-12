@@ -13,6 +13,7 @@ import {
   getTranscodeMimeType,
   HlsDownloaderEvent,
   injectContext,
+  isAudioOnlyCodecs,
   isRegisteredAdapter,
   needsBrowserTranscode,
   needsFfmpegTranscode,
@@ -319,6 +320,120 @@ describe('shared API e2e', () => {
 
     expect(segmentResult.data[0]?.uri).toBe('segment.ts');
     expect(errorResult.message).toBe('failed');
+  });
+
+  it('filters audio-only variants and prefers higher resolution', () => {
+    // 高 bandwidth 纯音频 variant 不应被选中，应选低 bandwidth 的视频 variant
+    expect(
+      selectBestVariant([
+        {
+          name: 'audio',
+          bandwidth: 9999,
+          uri: 'audio.m3u8',
+          codecs: 'mp4a.40.2',
+          isAudioOnly: true,
+        },
+        {
+          name: '720p',
+          bandwidth: 1000,
+          uri: '720p.m3u8',
+          resolution: { width: 1280, height: 720 },
+          codecs: 'avc1.640028,mp4a.40.2',
+          isAudioOnly: false,
+        },
+      ]),
+    ).toEqual({
+      name: '720p',
+      bandwidth: 1000,
+      uri: '720p.m3u8',
+      resolution: { width: 1280, height: 720 },
+      codecs: 'avc1.640028,mp4a.40.2',
+      isAudioOnly: false,
+    });
+
+    // 同 resolution 按 bandwidth 更高者胜出
+    expect(
+      selectBestVariant([
+        {
+          name: '720p-low',
+          bandwidth: 1000,
+          uri: '720p-low.m3u8',
+          resolution: { width: 1280, height: 720 },
+        },
+        {
+          name: '720p-high',
+          bandwidth: 2000,
+          uri: '720p-high.m3u8',
+          resolution: { width: 1280, height: 720 },
+        },
+      ]),
+    ).toEqual({
+      name: '720p-high',
+      bandwidth: 2000,
+      uri: '720p-high.m3u8',
+      resolution: { width: 1280, height: 720 },
+    });
+
+    // 全部为纯音频时回退到最高 bandwidth
+    expect(
+      selectBestVariant([
+        { name: 'audio-low', bandwidth: 100, uri: 'a-low.m3u8', isAudioOnly: true },
+        { name: 'audio-high', bandwidth: 300, uri: 'a-high.m3u8', isAudioOnly: true },
+      ]),
+    ).toEqual({ name: 'audio-high', bandwidth: 300, uri: 'a-high.m3u8', isAudioOnly: true });
+
+    // isAudioOnlyCodecs helper
+    expect(isAudioOnlyCodecs('mp4a.40.2')).toBe(true);
+    expect(isAudioOnlyCodecs('ac-3')).toBe(true);
+    expect(isAudioOnlyCodecs('avc1.640028,mp4a.40.2')).toBe(false);
+    expect(isAudioOnlyCodecs(undefined)).toBe(false);
+  });
+
+  it('respects variant select options (maxResolution / maxBandwidth / preferredCodec)', () => {
+    const playlists = [
+      {
+        name: '1080p-avc',
+        bandwidth: 5000,
+        uri: '1080p-avc.m3u8',
+        resolution: { width: 1920, height: 1080 },
+        codecs: 'avc1.640028,mp4a.40.2',
+      },
+      {
+        name: '720p-avc',
+        bandwidth: 2800,
+        uri: '720p-avc.m3u8',
+        resolution: { width: 1280, height: 720 },
+        codecs: 'avc1.640020,mp4a.40.2',
+      },
+      {
+        name: '720p-hevc',
+        bandwidth: 2500,
+        uri: '720p-hevc.m3u8',
+        resolution: { width: 1280, height: 720 },
+        codecs: 'hvc1.1.6.L93.B0,mp4a.40.2',
+      },
+    ];
+
+    // maxResolution 限制在 720p：不应选 1080p
+    expect(
+      selectBestVariant(playlists, { maxResolution: { width: 1280, height: 720 } })!.name,
+    ).toBe('720p-avc');
+
+    // preferredCodec=hvc1：720p-hevc 优先（即便带宽略低）
+    expect(
+      selectBestVariant(playlists, {
+        maxResolution: { width: 1280, height: 720 },
+        preferredCodec: 'hvc1',
+      })!.name,
+    ).toBe('720p-hevc');
+
+    // maxBandwidth 限制：选不超过上限的最高分辨率
+    expect(
+      selectBestVariant(playlists, { maxBandwidth: 2600 })!.name,
+    ).toBe('720p-hevc');
+
+    // 无 options：最高分辨率（1080p）
+    expect(selectBestVariant(playlists)!.name).toBe('1080p-avc');
   });
 
   it('exports stable event names', () => {

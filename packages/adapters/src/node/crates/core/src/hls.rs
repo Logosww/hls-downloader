@@ -9,6 +9,10 @@ pub struct Playlist {
     pub name: String,
     pub bandwidth: u64,
     pub uri: String,
+    pub resolution: Option<(u32, u32)>,
+    pub codecs: Option<String>,
+    pub frame_rate: Option<f64>,
+    pub is_audio_only: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +40,29 @@ fn build_base_url(url: &Url) -> String {
     path_segments.push("{{URL}}");
     let path = path_segments.join("/");
     format!("{}{}", url.origin().ascii_serialization(), path)
+}
+
+/// 判断 codecs 列表是否仅含音频（无视频 codec）。无 codecs 信息时返回 false。
+fn is_audio_only_codecs(codecs: &Option<String>) -> bool {
+    match codecs {
+        Some(c) => {
+            let parts: Vec<&str> = c.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+            if parts.is_empty() {
+                return false;
+            }
+            parts.iter().all(|p| {
+                let p = p.to_lowercase();
+                p.starts_with("mp4a")
+                    || p.starts_with("ac-3")
+                    || p.starts_with("ec-3")
+                    || p.starts_with("opus")
+                    || p.starts_with("flac")
+                    || p.starts_with("alac")
+                    || p.starts_with("dts")
+            })
+        }
+        None => false,
+    }
 }
 
 pub async fn parse_hls(
@@ -80,10 +107,21 @@ pub async fn parse_hls(
                     } else {
                         format!("MAYBE_AUDIO:{}", v.bandwidth)
                     };
+                    let resolution = v
+                        .resolution
+                        .as_ref()
+                        .map(|r| (r.width as u32, r.height as u32));
+                    let frame_rate = v.frame_rate;
+                    let is_audio_only =
+                        v.resolution.is_none() && is_audio_only_codecs(&v.codecs);
                     Playlist {
                         name,
                         bandwidth: v.bandwidth,
                         uri: resolve_uri(&v.uri, &base),
+                        resolution,
+                        codecs: v.codecs.clone(),
+                        frame_rate,
+                        is_audio_only,
                     }
                 })
                 .collect();

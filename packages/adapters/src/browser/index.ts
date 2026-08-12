@@ -5,6 +5,9 @@ import {
   HlsDownloaderEvent,
   selectBestVariant,
   stripContext,
+  ParseHlsCache,
+  buildParseHlsCacheKey,
+  isAudioOnlyCodecs,
   type HlsDownloaderAdapterInternal,
   type HlsDownloaderDownloadOptions,
   type HlsDownloaderFetchOptions,
@@ -16,6 +19,7 @@ import {
   type ParseHlsResult,
   type Playlist,
   type Segment,
+  type VariantSelectOptions,
 } from '@hls-downloader/shared';
 import { transcodeHls } from './mediabunny';
 import { extractPosterFromSegmentUrl } from './poster';
@@ -87,7 +91,7 @@ function mergeDownloadOptions(
   };
 }
 
-const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);
+const parseResultCache = new ParseHlsCache();
 const posterCache: Record<string, string | undefined> = Object.create(null);
 
 const init: HlsDownloaderBrowserAdapter['init'] = async function () {
@@ -106,6 +110,10 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
     getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options),
     options,
   );
+
+  const cacheKey = buildParseHlsCacheKey(hlsUrl, headers);
+  const cached = parseResultCache.get(cacheKey);
+  if (cached) return cached;
 
   try {
     let url = new URL(hlsUrl);
@@ -134,6 +142,19 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
     if (parser.manifest.playlists?.length) {
       const groups = parser.manifest.playlists
         .map((g: any) => {
+          const codecs: string | undefined = g.attributes.CODECS;
+          const resolution = g.attributes.RESOLUTION
+            ? {
+                width: g.attributes.RESOLUTION.width as number,
+                height: g.attributes.RESOLUTION.height as number,
+              }
+            : undefined;
+          const frameRateRaw = g.attributes['FRAME-RATE'];
+          const frameRate =
+            frameRateRaw != null && !Number.isNaN(Number(frameRateRaw))
+              ? Number(frameRateRaw)
+              : undefined;
+          const isAudioOnly = !g.attributes.RESOLUTION && isAudioOnlyCodecs(codecs);
           return {
             name: g.attributes.NAME
               ? g.attributes.NAME
@@ -142,6 +163,10 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
                 : `MAYBE_AUDIO:${g.attributes.BANDWIDTH}`,
             bandwidth: g.attributes.BANDWIDTH,
             uri: g.uri.startsWith('http') ? g.uri : base.replace('{{URL}}', g.uri),
+            resolution,
+            codecs,
+            frameRate,
+            isAudioOnly,
           } as Playlist;
         })
         .filter((g: Playlist | null) => g);
@@ -150,7 +175,7 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
         type: 'playlist',
         data: groups,
       };
-      parseResultCache[hlsUrl] = result;
+      parseResultCache.set(cacheKey, result);
       return result;
     } else if (parser.manifest.segments?.length) {
       let segments = parser.manifest.segments;
@@ -163,17 +188,17 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
         type: 'segment',
         data: segments,
       };
-      parseResultCache[hlsUrl] = result;
+      parseResultCache.set(cacheKey, result);
       return result;
     }
 
     throw new Error('No playlists or segments found');
   } catch (error: any) {
+    // error 不缓存，下次调用重新走网络
     const result: ParseHlsResult = {
       type: 'error',
       message: error.message,
     };
-    parseResultCache[hlsUrl] = result;
     return result;
   }
 };
@@ -193,7 +218,8 @@ async function resolveToSegments(
   }
 
   if (result.type === 'playlist') {
-    const best = selectBestVariant(result.data as Playlist[]);
+    const variant = (options as { variant?: VariantSelectOptions }).variant;
+    const best = selectBestVariant(result.data as Playlist[], variant);
     if (!best) throw new Error('Empty master playlist: no variant available');
     return resolveToSegments(adapter, { ...options, url: best.uri });
   }
@@ -571,6 +597,7 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   getPosterUrl,
   download,
   downloadToStream,
+  clearCache: () => parseResultCache.clear(),
 }) as HlsDownloaderBrowserAdapter;
 
 export const BrowserAdapter: HlsDownloaderBrowserAdapter = browserAdapter;

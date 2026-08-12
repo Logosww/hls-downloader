@@ -4,6 +4,8 @@ import {
   HlsDownloaderEvent,
   selectBestVariant,
   stripContext,
+  ParseHlsCache,
+  buildParseHlsCacheKey,
   type HlsDownloaderAdapterInternal,
   type HlsDownloaderDownloadOptions,
   type HlsDownloaderFetchOptions,
@@ -15,6 +17,7 @@ import {
   type ParseHlsResult,
   type Playlist,
   type Segment,
+  type VariantSelectOptions,
 } from '@hls-downloader/shared';
 import {
   initFfmpeg,
@@ -30,7 +33,7 @@ import {
 } from './native.js';
 import { extractPosterFromSegmentUrl } from './poster';
 import { randomUUID } from 'node:crypto';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export type NodeAdapterAria2Options = NapiAria2Config;
@@ -90,7 +93,7 @@ function mergeDownloadOptions(
 }
 
 let ffmpegInitialized = false;
-const parseResultCache: Record<string, ParseHlsResult> = Object.create(null);
+const parseResultCache = new ParseHlsCache();
 const posterCache: Record<string, string | undefined> = Object.create(null);
 
 function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
@@ -102,6 +105,12 @@ function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
           name: p.name,
           bandwidth: p.bandwidth,
           uri: p.uri,
+          resolution: p.resolution
+            ? { width: p.resolution.width, height: p.resolution.height }
+            : undefined,
+          codecs: p.codecs,
+          frameRate: p.frameRate,
+          isAudioOnly: p.isAudioOnly,
         })),
       };
     case 'segment':
@@ -138,11 +147,14 @@ const parseHls: HlsDownloaderNodeAdapter['parseHls'] = async function (
     options,
   );
 
-  if (parseResultCache[url]) return parseResultCache[url];
+  const cacheKey = buildParseHlsCacheKey(url, headers);
+  const cached = parseResultCache.get(cacheKey);
+  if (cached) return cached;
 
   const napiResult = await parseHlsNative(url, headers);
   const result = toParseHlsResult(napiResult);
-  parseResultCache[url] = result;
+  // set 内部会跳过 error，不再缓存失败结果
+  parseResultCache.set(cacheKey, result);
   return result;
 };
 
@@ -161,7 +173,8 @@ async function resolveToSegments(
   }
 
   if (result.type === 'playlist') {
-    const best = selectBestVariant(result.data as Playlist[]);
+    const variant = (options as { variant?: VariantSelectOptions }).variant;
+    const best = selectBestVariant(result.data as Playlist[], variant);
     if (!best) throw new Error('Empty master playlist: no variant available');
     return resolveToSegments(adapter, { ...options, url: best.uri });
   }
@@ -220,68 +233,74 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   const transcodeArgs = needsFfmpegTranscode(transcode) ? buildFfmpegOutputArgs(transcode) : null;
   const shouldUseFfmpeg = !!transcodeArgs || aria2?.enabled;
 
-  if (!shouldUseFfmpeg) {
-    const { jobId, cleanup } = await setupCancelToken(signal);
-    try {
-      const filePath = await downloadAndTransmux({
-        resolvedUrl,
-        workDir,
-        filename,
-        headers,
-        downloadConcurrency,
-        maxRetry,
-        cancelJobId: jobId,
-        onProgress: (completed, total) => {
-          this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
-            total,
-            completed,
-          });
-        },
-        onMuxProgress: (completed, total) => {
-          this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
-            total,
-            completed,
-          });
-        },
-      });
+  try {
+    if (!shouldUseFfmpeg) {
+      const { jobId, cleanup } = await setupCancelToken(signal);
+      try {
+        const filePath = await downloadAndTransmux({
+          resolvedUrl,
+          workDir,
+          filename,
+          headers,
+          downloadConcurrency,
+          maxRetry,
+          cancelJobId: jobId,
+          onProgress: (completed, total) => {
+            this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+              total,
+              completed,
+            });
+          },
+          onMuxProgress: (completed, total) => {
+            this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+              total,
+              completed,
+            });
+          },
+        });
 
-      this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+        this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
-      return {
-        filePath,
-        totalSegments: segments.length,
-      };
-    } finally {
-      cleanup();
-    }
-  }
-
-  ensureFfmpegLoaded(this);
-  const self = this;
-  const filePath = await downloadAndMerge(
-    napiSegments,
-    workDir,
-    filename,
-    headers,
-    downloadConcurrency,
-    maxRetry,
-    aria2 ?? null,
-    transcodeArgs,
-    (phase: string, completed: number, total: number) => {
-      if (phase === 'downloading') {
-        self.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, { total, completed });
-      } else if (phase === 'merging') {
-        self.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, { total, completed });
+        return {
+          filePath,
+          totalSegments: segments.length,
+        };
+      } finally {
+        cleanup();
       }
-    },
-  );
+    }
 
-  this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+    ensureFfmpegLoaded(this);
+    const self = this;
+    const filePath = await downloadAndMerge(
+      napiSegments,
+      workDir,
+      filename,
+      headers,
+      downloadConcurrency,
+      maxRetry,
+      aria2 ?? null,
+      transcodeArgs,
+      (phase: string, completed: number, total: number) => {
+        if (phase === 'downloading') {
+          self.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, { total, completed });
+        } else if (phase === 'merging') {
+          self.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, { total, completed });
+        }
+      },
+    );
 
-  return {
-    filePath: filePath,
-    totalSegments: segments.length,
-  };
+    this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+
+    return {
+      filePath: filePath,
+      totalSegments: segments.length,
+    };
+  } catch (e) {
+    // Rust 侧成功/失败都已清理 workDir；此处仅保护 Rust 未被调用就失败的边界（如 ensureFfmpegLoaded）
+    await rm(workDir, { recursive: true, force: true });
+    throw e;
+  }
 };
 
 type DownloadAndTransmuxOptions = {
@@ -314,7 +333,9 @@ async function setupCancelToken(
 
   const jobId = await createCancelToken();
   const onAbort = () => {
-    cancelJob(jobId).catch(() => {});
+    try {
+      cancelJob(jobId);
+    } catch {}
   };
   signal.addEventListener('abort', onAbort, { once: true });
 
@@ -322,7 +343,9 @@ async function setupCancelToken(
     jobId,
     cleanup: () => {
       signal.removeEventListener('abort', onAbort);
-      cancelJob(jobId).catch(() => {});
+      try {
+        cancelJob(jobId);
+      } catch {}
     },
   };
 }
@@ -357,7 +380,7 @@ async function downloadAndTransmux({
 }
 
 const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async function (
-  this,
+  this: HlsDownloaderNodeAdapter,
   options,
   onChunk,
 ) {
@@ -376,13 +399,12 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
     throw err;
   }
 
-  // 流式路径只需 resolvedUrl（media playlist URL），不需要 segments
-  const { resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
+  // 流式路径只需 resolvedUrl（media playlist URL）；segments 仅用于 totalSegments 计数。
+  // resolveToSegments 已返回 segments，直接复用，避免二次 parseHls（cache miss 时多一次 native round-trip）。
+  const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
   this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
 
-  // totalSegments：从 segments 长度取，传给上层进度 UI
-  const result = await parseHls.call(this, { url: resolvedUrl, headers });
-  const totalSegments = result.type === 'segment' ? result.data.length : 0;
+  const totalSegments = segments.length;
 
   const { jobId, cleanup } = await setupCancelToken(signal);
   try {
@@ -425,6 +447,7 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   getPosterUrl,
   download,
   downloadToStream,
+  clearCache: () => parseResultCache.clear(),
 }) as HlsDownloaderNodeAdapter;
 
 export const NodeAdapter: HlsDownloaderNodeAdapter = nodeAdapter;

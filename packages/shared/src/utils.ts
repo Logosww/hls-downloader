@@ -1,4 +1,9 @@
-import type { HlsDownloaderAdapter, HlsDownloaderAdapterInternal, Playlist } from './types';
+import type {
+  HlsDownloaderAdapter,
+  HlsDownloaderAdapterInternal,
+  Playlist,
+  VariantSelector,
+} from './types';
 
 const ADAPTER_BRAND = Symbol('hls-downloader.adapter');
 const ADAPTER_INTERNAL = Symbol('hls-downloader.adapter.internal');
@@ -97,11 +102,83 @@ export function getAdapterGlobalOptionsFromInternal<G = unknown>(
   return context.getGlobalOptions() as G | null;
 }
 
+const AUDIO_CODEC_RE = /^(mp4a|ac-3|ec-3|opus|fLaC|alac|dts)[.a-zA-Z0-9-]*$/i;
+
 /**
- * Select the variant with the highest bandwidth from a master playlist.
- * Falls back to the first entry when the list is non-empty.
+ * 判断 codecs 列表是否仅含音频（无视频 codec）。
+ * 无 codecs 信息时返回 false，交由 resolution 等其它维度判断。
  */
-export function selectBestVariant(playlists: Playlist[]): Playlist | undefined {
-  if (!playlists.length) return undefined;
-  return playlists.reduce((best, cur) => (cur.bandwidth > best.bandwidth ? cur : best));
+export function isAudioOnlyCodecs(codecs?: string): boolean {
+  if (!codecs) return false;
+  const parts = codecs
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return false;
+  return parts.every((c) => AUDIO_CODEC_RE.test(c));
 }
+
+function codecMatches(codecs: string | undefined, prefix: string): boolean {
+  if (!codecs) return false;
+  const lower = prefix.toLowerCase();
+  return codecs
+    .split(',')
+    .map((c) => c.trim().toLowerCase())
+    .some((c) => c.startsWith(lower));
+}
+
+/**
+ * 默认 variant 选择策略。选择流程：
+ * 1. 按 `options` 过滤：纯音频（除非 includeAudioOnly）、maxResolution、maxBandwidth；
+ *    过滤后为空则回退到过滤前列表（避免极端 manifest 无可选）。
+ * 2. 优先级排序：preferredCodec 命中 > preferredAudio 命中 > resolution 像素数 > bandwidth。
+ * 3. 无 options 时退化为“最高分辨率 → 最高带宽”（兼容旧行为）。
+ */
+export const selectBestVariant: VariantSelector = (
+  playlists,
+  options,
+): Playlist | undefined => {
+  if (!playlists.length) return undefined;
+
+  const candidates = playlists.filter((p) => {
+    if (!options?.includeAudioOnly && p.isAudioOnly) return false;
+    if (options?.maxResolution && p.resolution) {
+      if (p.resolution.width * p.resolution.height > options.maxResolution.width * options.maxResolution.height) {
+        return false;
+      }
+    }
+    if (options?.maxBandwidth !== undefined && p.bandwidth > options.maxBandwidth) {
+      return false;
+    }
+    return true;
+  });
+  const pool = candidates.length > 0 ? candidates : playlists;
+
+  const hasPref =
+    !!options?.preferredCodec || !!options?.preferredAudio || !!options?.maxResolution || options?.maxBandwidth !== undefined;
+  if (!hasPref) {
+    // 无偏好：最高分辨率 → 最高带宽（兼容旧行为）
+    return pool.reduce((best, cur) => {
+      const bestPixels = best.resolution ? best.resolution.width * best.resolution.height : 0;
+      const curPixels = cur.resolution ? cur.resolution.width * cur.resolution.height : 0;
+      if (curPixels !== bestPixels) return curPixels > bestPixels ? cur : best;
+      return cur.bandwidth > best.bandwidth ? cur : best;
+    });
+  }
+
+  // 打分排序：preferredCodec(4) > preferredAudio(2) > resolution(1, 降序) > bandwidth(降序)
+  const scored = pool.map((p) => {
+    let score = 0;
+    if (options?.preferredCodec && codecMatches(p.codecs, options.preferredCodec)) score += 4;
+    if (options?.preferredAudio && codecMatches(p.codecs, options.preferredAudio)) score += 2;
+    return { p, score };
+  });
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const aPixels = a.p.resolution ? a.p.resolution.width * a.p.resolution.height : 0;
+    const bPixels = b.p.resolution ? b.p.resolution.width * b.p.resolution.height : 0;
+    if (bPixels !== aPixels) return bPixels - aPixels;
+    return b.p.bandwidth - a.p.bandwidth;
+  });
+  return scored[0]?.p;
+};

@@ -47,7 +47,7 @@ const downloader = new HlsDownloader({
   },
 })
 
-// init() is lightweight; WASM / WebCodecs / native FFmpeg start on demand
+// init() loads the transmux engine (BrowserAdapter: hls-transmux WASM; NodeAdapter: no-op, FFmpeg loads on demand)
 await downloader.init()
 
 // Parse playlist only — no segments, no transmux/transcode engine load

@@ -5,7 +5,7 @@ The main facade class for downloading HLS streams. Imported from `@hls-downloade
 ::: info Default download path (transmux)
 **Ordinary `download()` keeps source codecs and transmuxes to MP4.** BrowserAdapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly; NodeAdapter uses its native Rust path.
 
-Re-encoding is opt-in via `transcode` — see [Adapter API](./adapters.md). BrowserAdapter uses Mediabunny and WebCodecs; NodeAdapter loads native FFmpeg on demand. `init()` and `parseHls()` never start those engines.
+Re-encoding is opt-in via `transcode` — see [Adapter API](./adapters.md). BrowserAdapter loads its hls-transmux WASM module in `init()`; NodeAdapter is a no-op (FFmpeg loads on demand). `parseHls()` never starts those engines.
 :::
 
 ## Constructor
@@ -70,7 +70,9 @@ Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
 async init(): Promise<void>
 ```
 
-Initialize lightweight adapter state. BrowserAdapter and NodeAdapter start their heavy engines only when a later API needs them. Calling `download()` automatically triggers `init()` if not yet initialized.
+Initialize adapter state. BrowserAdapter loads its WASM module (transmux engine) here — this is the main startup cost on the browser, so callers may want to invoke `init()` ahead of time (e.g. on page load) rather than letting it block the first `download()` / `downloadToStream()`. NodeAdapter is a no-op (FFmpeg loads on demand). The call is idempotent — repeated invocations share the same promise.
+
+`download()` and `downloadToStream()` automatically call `init()` if not yet initialized. `parseHls()` and `getPosterUrl()` do **not** trigger `init()` and work without initialization.
 
 ### `setOptions()`
 
@@ -163,7 +165,7 @@ try {
 ### `downloadToStream()`
 
 ::: tip BrowserAdapter & NodeAdapter
-`downloadToStream()` is supported on both **`BrowserAdapter`** and **`NodeAdapter`**. On `BrowserAdapter`, the fMP4 bytes flow via `onChunk` and are well-suited for real-time MSE playback (e.g. `SourceBuffer.appendBuffer`).
+`downloadToStream()` is supported on both **`BrowserAdapter`** and **`NodeAdapter`**, but the two adapters have **different streaming semantics** (see below). On `BrowserAdapter` the fMP4 bytes flow via `onChunk` as fragmented MP4; on `NodeAdapter` bytes flow with real backpressure.
 :::
 
 ```ts
@@ -173,9 +175,14 @@ async downloadToStream(
 ): Promise<HlsDownloaderStreamResult>
 ```
 
-Parses HLS, transmuxes with Rust, and pushes fMP4 bytes through `onChunk`. **The library itself does not write to disk.** BrowserAdapter first prefetches playlist resources with bounded concurrency, then its WASM writer emits chunks; NodeAdapter downloads and emits concurrently.
+Parses HLS, transmuxes, and pushes fMP4 bytes through `onChunk`. **The library itself does not write to disk.**
 
-Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each subsequent segment: `styp`+`moof`+`mdat`, optional trailing `mfra`). Browser MSE can consume it directly.
+#### Streaming behavior asymmetry
+
+- **`NodeAdapter` — true streaming with backpressure.** Segments are downloaded and muxed concurrently; fMP4 chunks flow through `onChunk` as soon as each segment is ready. A bounded tokio channel (256 KB) provides backpressure, so a slow `onChunk` consumer naturally throttles downloading. The first `onChunk` fires after the first segment is muxed, not after the whole stream is fetched.
+- **`BrowserAdapter` — batch-then-emit (not real-time).** `BrowserAdapter` first prefetches **all** segments and resources (init segments, keys) into memory with bounded concurrency, then its WASM writer emits fMP4 chunks. The first `onChunk` therefore fires **only after the entire playlist has been downloaded**; peak memory is roughly the sum of all segment sizes plus the fMP4 output. This is **not** suitable for low-latency / real-time MSE playback despite the `onChunk` API shape. True segment-by-segment streaming on the browser path is planned for a future major version.
+
+Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each subsequent segment: `styp`+`moof`+`mdat`, optional trailing `mfra`). Browser MSE can consume it directly (note the buffering caveat above for `BrowserAdapter`).
 
 Merges per-call options with `globalOptions` (per-call wins).
 
@@ -184,9 +191,9 @@ Merges per-call options with `globalOptions` (per-call wins).
 | `url` | `string` | HLS playlist URL |
 | `headers` | `Record<string, string>` | Request headers |
 | `filename` | `string` | Ignored on streaming path (no file is written); accepted for option compatibility |
-| `maxRetry` | `number` | Currently not effective on the streaming path (built-in reqwest has no retry hook) |
+| `maxRetry` | `number` | Effective on `BrowserAdapter` (segment prefetch retries). **Not effective on `NodeAdapter`** streaming path (the built-in reqwest client has no retry hook) |
 | `downloadConcurrency` | `number` | Concurrent segment downloads |
-| `signal` | `AbortSignal` | Cooperative cancellation. When the signal aborts, the stream rejects with an `AbortError` |
+| `signal` | `AbortSignal` | Cooperative cancellation. When the signal aborts, the stream rejects with an `AbortError`. On `BrowserAdapter`, abort during the prefetch phase is limited to `fetch`-level signal propagation |
 
 Returns `{ totalSegments: number }`.
 

@@ -124,6 +124,10 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       onChunk,
     );
   }
+  /** 清空 adapter 内部的 parseHls / poster 缓存。adapter 未实现时为 no-op。 */
+  clearCache(): void {
+    this.#adapter.clearCache?.();
+  }
 }
 
 export default HlsDownloader;
