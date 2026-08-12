@@ -2,10 +2,6 @@ name: Setup pnpm
 description: Install Node via actions/setup-node, then pnpm via pnpm/action-setup@v6
 
 inputs:
-  version:
-    description: pnpm version
-    required: false
-    default: latest
   node-version:
     description: Node.js version for subsequent workflow steps
     required: false
@@ -26,8 +22,8 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
+    # pnpm 版本由 package.json 的 packageManager 字段决定（Vercel 部署也依赖该字段）
     - uses: pnpm/action-setup@v6
       with:
-        version: ${{ inputs.version }}
         cache: ${{ inputs.cache }}
         run_install: ${{ inputs.install }}

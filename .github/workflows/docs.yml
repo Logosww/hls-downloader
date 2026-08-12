@@ -9,9 +9,6 @@ concurrency:
   group: docs-deploy
   cancel-in-progress: true
 
-env:
-  PNPM_VERSION: latest
-
 permissions:
   contents: read
   pages: write
@@ -26,7 +23,6 @@ jobs:
 
       - uses: ./.github/actions/setup-pnpm
         with:
-          version: ${{ env.PNPM_VERSION }}
           cache: 'true'
           install: 'false'
 
