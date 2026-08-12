@@ -116,17 +116,21 @@ export const DownloadList = ({ items, floatButton, onSave, onCancel }: IDownload
     <Popover>
       <TooltipProvider>
         <Tooltip>
-          <PopoverTrigger asChild>
-            <TooltipTrigger asChild>
-              <Button
-                size="lg"
-                variant="outline"
-                className="cursor-pointer font-bold shadow-xl fixed z-10 bottom-16 right-16"
-              >
-                <DownloadCloudIcon />
-                {items.length || ''}
-              </Button>
-            </TooltipTrigger>
+          <PopoverTrigger
+            render={
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="cursor-pointer font-bold shadow-xl fixed z-10 bottom-16 right-16"
+                  />
+                }
+              />
+            }
+          >
+            <DownloadCloudIcon />
+            {items.length || ''}
           </PopoverTrigger>
           <TooltipContent>下载列表</TooltipContent>
         </Tooltip>

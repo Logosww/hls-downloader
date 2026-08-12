@@ -184,12 +184,11 @@ export const ConfirmModal = ({
                   <FormLabel className="text-xs">转码预设</FormLabel>
                   <FormControl>
                     <ToggleGroup
-                      type="single"
                       variant="outline"
                       size="sm"
                       className="w-full"
-                      value={field.value}
-                      onValueChange={(value) => value && field.onChange(value)}
+                      value={field.value ? [field.value] : []}
+                      onValueChange={(value) => value[0] && field.onChange(value[0])}
                     >
                       <ToggleGroupItem className="flex-1" value="none">
                         默认
