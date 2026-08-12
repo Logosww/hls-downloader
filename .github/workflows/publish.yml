@@ -67,6 +67,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev
+          # ubuntu-24.04-arm pins system CMake to 3.31.6, but vcpkg's z_vcpkg_spdx.cmake
+          # uses string(JSON STRING_ENCODE) requiring CMake 4.3+. ARM runners set
+          # VCPKG_FORCE_SYSTEM_BINARIES=1, so vcpkg can't download its own CMake — upgrade it.
+          if [ "$(dpkg --print-architecture)" = "arm64" ]; then
+            python3 -m pip install --user --break-system-packages --upgrade cmake
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            hash -r
+          fi
+          cmake --version
 
       - name: Install vcpkg host dependencies (macOS)
         if: runner.os == 'macOS'
