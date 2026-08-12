@@ -359,6 +359,10 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: pnpm run test:e2e:publish
 
+      - name: Strip native binaries from adapters dist
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
+        run: rm -f packages/adapters/dist/*.node
+
       - name: Inject adapters optional native dependencies
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: pnpm run adapters:inject-optional-deps
