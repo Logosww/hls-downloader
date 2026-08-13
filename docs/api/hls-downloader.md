@@ -124,6 +124,7 @@ Merges per-call options with `globalOptions` (per-call wins).
 | `downloadConcurrency` | `number` | Concurrent segment downloads |
 | `transcode` | `HlsDownloaderTranscodeOptions` | Transcode with WebCodecs in BrowserAdapter or FFmpeg in NodeAdapter. Omit for default transmux/remux |
 | `signal` | `AbortSignal` | Cooperative cancellation. When the signal aborts, the download promise rejects with an `AbortError` |
+| `variant` | `VariantSelectOptions` | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth) |
 | *(adapter-specific)* | — | See [Adapter API](./adapters.md) |
 
 BrowserAdapter supports `preset` plus `videoBitrate` and `audioBitrate`. NodeAdapter supports all fields below:
@@ -194,6 +195,7 @@ Merges per-call options with `globalOptions` (per-call wins).
 | `maxRetry` | `number` | Effective on `BrowserAdapter` (segment prefetch retries). **Not effective on `NodeAdapter`** streaming path (the built-in reqwest client has no retry hook) |
 | `downloadConcurrency` | `number` | Concurrent segment downloads |
 | `signal` | `AbortSignal` | Cooperative cancellation. When the signal aborts, the stream rejects with an `AbortError`. On `BrowserAdapter`, abort during the prefetch phase is limited to `fetch`-level signal propagation |
+| `variant` | `VariantSelectOptions` | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth) |
 
 Returns `{ totalSegments: number }`.
 
@@ -273,3 +275,33 @@ Attempt to extract a poster/thumbnail image URL from the stream. Merges `options
 |--------|------|-------------|
 | `url` | `string` | HLS playlist URL |
 | `headers` | `Record<string, string>` | Request headers |
+
+### `clearCache()`
+
+```ts
+clearCache(): void
+```
+
+Invalidate the adapter's internal `parseHls` result cache. The next `parseHls()` call for any URL re-fetches from the network. No-op if the adapter has no cache.
+
+## Variant selection
+
+When `parseHls()` returns a master playlist, `download()` / `downloadToStream()` pick one variant via `selectBestVariant`. The default strategy:
+
+1. Exclude audio-only variants (unless `includeAudioOnly`).
+2. Exclude variants exceeding `maxResolution` / `maxBandwidth` (if set); fall back to the unfiltered list if all are excluded.
+3. Score by `preferredCodec` → `preferredAudio` → resolution (pixels) → bandwidth, picking the highest.
+
+Steer selection per-call with the `variant` option:
+
+```ts
+await downloader.download({
+  url: 'https://example.com/master.m3u8',
+  variant: {
+    maxResolution: { width: 1280, height: 720 },
+    preferredCodec: 'hvc1',
+  },
+});
+```
+
+See [VariantSelectOptions](./types.md#variantselectoptions) for the full option shape. `selectBestVariant` and the `VariantSelector` type are exported from `@hls-downloader/shared` for custom strategies.

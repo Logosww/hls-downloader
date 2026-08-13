@@ -188,7 +188,7 @@ function startStreamDownload(task: DownloadTask, headers?: Record<string, string
           if (done) break;
           writer.write(value);
         }
-        await writer.end();
+        return await writer.end();
       } catch (err) {
         console.error(`[task ${task.id}] file write failed:`, err);
         throw err;

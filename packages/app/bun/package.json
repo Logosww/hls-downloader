@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch index.ts",
-    "start": "bun index.ts"
+    "start": "bun index.ts",
+    "lint": "oxlint"
   },
   "dependencies": {
     "@hls-downloader/adapters": "workspace:*",

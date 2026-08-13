@@ -5,6 +5,24 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [3.2.0] - 2026-08-13
+
+### Added
+
+- **Universal**: 新增 `HlsDownloader.clearCache()` 用于失效 `parseHls` 缓存。
+- **Universal**: 新增 `VariantSelectOptions` 与 `VariantSelector` 类型；`selectBestVariant` 改为可替换策略，支持通过 `download({ variant })` / `downloadToStream({ variant })` 按次调用指定偏好。
+- `Playlist` 新增 `resolution`、`codecs`、`frameRate`、`isAudioOnly` 字段。
+
+### Changed
+
+- **Universal**: `parseHls` 缓存 key 改为 URL + headers，增加 TTL + LRU 上限，且不再缓存错误结果。
+- **Universal**: `selectBestVariant` 过滤纯音频 variant，按 codec 偏好 → 分辨率 → 带宽排序。
+- **NodeAdapter**: `downloadToStream` 不再发起冗余的 `parseHls` 调用。
+
+### Fixed
+
+- **NodeAdapter**: 下载临时目录在成功与失败时都会清理。
+
 ## [3.1.1] - 2026-08-12
 
 ### Changed

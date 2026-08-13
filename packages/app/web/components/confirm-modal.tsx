@@ -35,7 +35,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Loader2Icon } from 'lucide-react';
 
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/adapters/browser';
-import type { Playlist } from '@hls-downloader/adapters';
+import type { Playlist } from '@hls-downloader/shared';
 
 export const confirmFormSchema = z.object({
   quality: z.string(),

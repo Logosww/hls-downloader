@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.2.0] - 2026-08-13
+
+### Added
+
+- **Universal**: `HlsDownloader.clearCache()` to invalidate the `parseHls` cache.
+- **Universal**: `VariantSelectOptions` and `VariantSelector` type; `selectBestVariant` is now a replaceable strategy, steerable per-call via `download({ variant })` / `downloadToStream({ variant })`.
+- Enrich `Playlist` with `resolution`, `codecs`, `frameRate`, `isAudioOnly`.
+
+### Changed
+
+- **Universal**: `parseHls` cache now keyed by URL + headers, bounded by TTL + LRU, and no longer caches errors.
+- **Universal**: `selectBestVariant` filters audio-only variants and scores by codec preference → resolution → bandwidth.
+- **NodeAdapter**: `downloadToStream` no longer issues a redundant `parseHls` call.
+
+### Fixed
+
+- **NodeAdapter**: Clean up the per-download temp directory on both success and failure.
+
 ## [3.1.1] - 2026-08-12
 
 ### Changed

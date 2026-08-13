@@ -18,8 +18,47 @@ type Playlist = {
   name: string
   bandwidth: number
   uri: string
+  resolution?: { width: number; height: number }
+  codecs?: string
+  frameRate?: number
+  isAudioOnly?: boolean
 }
 ```
+
+A variant stream from a master playlist. `isAudioOnly` is `true` when the variant has no `RESOLUTION` and its `codecs` are audio-only.
+
+## VariantSelectOptions
+
+```ts
+type VariantSelectOptions = {
+  maxResolution?: { width: number; height: number }
+  maxBandwidth?: number
+  preferredCodec?: string
+  preferredAudio?: string
+  includeAudioOnly?: boolean
+}
+```
+
+Preferences for variant selection. All fields optional; omitted fields do not constrain selection.
+
+| Field | Description |
+|-------|-------------|
+| `maxResolution` | Exclude variants whose pixel count exceeds this |
+| `maxBandwidth` | Exclude variants whose bandwidth exceeds this (bps) |
+| `preferredCodec` | Prefer variants whose `codecs` start with this prefix (e.g. `'avc1'`, `'hvc1'`) |
+| `preferredAudio` | Prefer variants whose `codecs` include this audio codec prefix |
+| `includeAudioOnly` | Include audio-only variants in candidates (default `false`) |
+
+## VariantSelector
+
+```ts
+type VariantSelector = (
+  playlists: Playlist[],
+  options?: VariantSelectOptions,
+) => Playlist | undefined
+```
+
+A replaceable variant selection strategy. The default implementation is `selectBestVariant`.
 
 ## ParseHlsResult
 
@@ -122,10 +161,11 @@ type HlsDownloaderDownloadOptions = {
   downloadConcurrency?: number
   transcode?: HlsDownloaderTranscodeOptions
   signal?: AbortSignal
+  variant?: VariantSelectOptions
 }
 ```
 
-Per-call options for `download()`. `filename` is a plain filename without extension; the final extension is resolved internally from the output container (`mp4` by default, preset/format-aware when `transcode` is set). Pass `signal` (an `AbortSignal`) to cooperatively cancel an in-progress download; the download promise rejects with an `AbortError`.
+Per-call options for `download()` and `downloadToStream()`. `filename` is a plain filename without extension; the final extension is resolved internally from the output container (`mp4` by default, preset/format-aware when `transcode` is set). Pass `signal` (an `AbortSignal`) to cooperatively cancel an in-progress download; the download promise rejects with an `AbortError`. `variant` steers master-playlist variant selection (see [VariantSelectOptions](#variantselectoptions)).
 
 ## HlsDownloaderStreamResult
 
