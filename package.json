@@ -53,6 +53,8 @@
     "prepublishOnly": "pnpm run build",
     "start:app-web": "turbo run start --filter=@hls-downloader/app-web",
     "test": "turbo run test --filter=@hls-downloader/test",
+    "test:unit": "pnpm --filter @hls-downloader/test run test:unit",
+    "test:native:unit": "pnpm --filter @hls-downloader/test run test:native:unit",
     "test:e2e": "pnpm --filter @hls-downloader/test run test:e2e",
     "test:e2e:publish": "pnpm --filter @hls-downloader/test run test:e2e:publish",
     "test:native": "pnpm --filter @hls-downloader/test run test:native",

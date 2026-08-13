@@ -7,7 +7,7 @@ import {
   stripContext,
   ParseHlsCache,
   buildParseHlsCacheKey,
-  isAudioOnlyCodecs,
+  mapManifest,
   type HlsDownloaderAdapterInternal,
   type HlsDownloaderDownloadOptions,
   type HlsDownloaderFetchOptions,
@@ -139,60 +139,9 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
 
     let base = url.origin + path;
 
-    if (parser.manifest.playlists?.length) {
-      const groups = parser.manifest.playlists
-        .map((g: any) => {
-          const codecs: string | undefined = g.attributes.CODECS;
-          const resolution = g.attributes.RESOLUTION
-            ? {
-                width: g.attributes.RESOLUTION.width as number,
-                height: g.attributes.RESOLUTION.height as number,
-              }
-            : undefined;
-          const frameRateRaw = g.attributes['FRAME-RATE'];
-          const frameRate =
-            frameRateRaw != null && !Number.isNaN(Number(frameRateRaw))
-              ? Number(frameRateRaw)
-              : undefined;
-          const isAudioOnly = !g.attributes.RESOLUTION && isAudioOnlyCodecs(codecs);
-          return {
-            name: g.attributes.NAME
-              ? g.attributes.NAME
-              : g.attributes.RESOLUTION
-                ? `${g.attributes.RESOLUTION.width}x${g.attributes.RESOLUTION.height}`
-                : `MAYBE_AUDIO:${g.attributes.BANDWIDTH}`,
-            bandwidth: g.attributes.BANDWIDTH,
-            uri: g.uri.startsWith('http') ? g.uri : base.replace('{{URL}}', g.uri),
-            resolution,
-            codecs,
-            frameRate,
-            isAudioOnly,
-          } as Playlist;
-        })
-        .filter((g: Playlist | null) => g);
-
-      const result: ParseHlsResult = {
-        type: 'playlist',
-        data: groups,
-      };
-      parseResultCache.set(cacheKey, result);
-      return result;
-    } else if (parser.manifest.segments?.length) {
-      let segments = parser.manifest.segments;
-      segments = segments.map((s: any) => ({
-        ...s,
-        uri: s.uri.startsWith('http') ? s.uri : base.replace('{{URL}}', s.uri),
-      }));
-
-      const result: ParseHlsResult = {
-        type: 'segment',
-        data: segments,
-      };
-      parseResultCache.set(cacheKey, result);
-      return result;
-    }
-
-    throw new Error('No playlists or segments found');
+    const result = mapManifest(parser.manifest, base);
+    parseResultCache.set(cacheKey, result);
+    return result;
   } catch (error: any) {
     // error 不缓存，下次调用重新走网络
     const result: ParseHlsResult = {

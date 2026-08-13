@@ -84,6 +84,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Unit tests (TS parser, fixture-driven)
+        run: pnpm run test:unit
+
       - run: pnpm exec turbo run lint --filter=!@hls-downloader/app-web
 
       - run: pnpm run build
@@ -263,6 +266,9 @@ jobs:
           workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Unit tests (Rust parser, fixture-driven)
+        run: pnpm run test:native:unit
 
       - name: Native smoke check
         run: node scripts/ci-native-smoke.ts ${{ matrix.mode }}

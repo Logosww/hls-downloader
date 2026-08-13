@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "pnpm run test:e2e",
+    "test": "pnpm run test:unit && pnpm run test:e2e",
+    "test:unit": "vitest run parse-hls.unit.test.ts",
+    "test:native:unit": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --lib hls",
     "test:e2e": "vitest run library-api.e2e.test.ts",
     "test:e2e:publish": "HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS=1 vitest run library-api.e2e.test.ts publish-entrypoints.e2e.test.ts",
     "test:native": "vitest run node-adapter-transcode.test.ts",
@@ -15,6 +17,8 @@
     "@hls-downloader/shared": "workspace:*"
   },
   "devDependencies": {
+    "@types/m3u8-parser": "^7.2.6",
+    "m3u8-parser": "^7.2.0",
     "vitest": "^4.1.10"
   }
 }

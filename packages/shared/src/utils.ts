@@ -1,6 +1,7 @@
 import type {
   HlsDownloaderAdapter,
   HlsDownloaderAdapterInternal,
+  ParseHlsResult,
   Playlist,
   VariantSelector,
 } from './types';
@@ -182,3 +183,88 @@ export const selectBestVariant: VariantSelector = (
   });
   return scored[0]?.p;
 };
+
+/** m3u8-parser 解析出的 manifest 最小结构（仅声明 mapManifest 用到的字段）。 */
+type ManifestAttributes = {
+  CODECS?: string;
+  RESOLUTION?: { width: number; height: number };
+  BANDWIDTH?: number;
+  'FRAME-RATE'?: string | number;
+  NAME?: string;
+};
+type ManifestPlaylist = { attributes?: ManifestAttributes; uri: string };
+type ManifestSegment = { uri: string; [key: string]: any };
+type M3u8Manifest = {
+  playlists?: ManifestPlaylist[];
+  segments?: ManifestSegment[];
+};
+
+/**
+ * 把 m3u8-parser 解析出的 manifest 映射为 `ParseHlsResult`（纯函数，无副作用）。
+ * - master：映射 variants 为 `Playlist[]`（含相对 URI 解析、`isAudioOnly` 判定、`name` 推导）。
+ * - media：映射 segments，保留 m3u8-parser 原始字段（key/map/byterange 等），仅解析 URI。
+ * - 空 playlist 且空 segment 时抛 `'No playlists or segments found'`。
+ *
+ * 从 browser adapter 的 `parseHls` 中抽出，使其可在 node/vitest 中被单元测试。
+ */
+export function mapManifest(manifest: M3u8Manifest, base: string): ParseHlsResult {
+  if (manifest.playlists?.length) {
+    const groups = manifest.playlists
+      .filter((g) => g && g.attributes)
+      .map((g) => {
+        const codecs: string | undefined = g.attributes.CODECS;
+        const resolution = g.attributes.RESOLUTION
+          ? {
+              width: g.attributes.RESOLUTION.width as number,
+              height: g.attributes.RESOLUTION.height as number,
+            }
+          : undefined;
+        const frameRateRaw = g.attributes['FRAME-RATE'];
+        const frameRate =
+          frameRateRaw != null && !Number.isNaN(Number(frameRateRaw))
+            ? Number(frameRateRaw)
+            : undefined;
+        const isAudioOnly = !g.attributes.RESOLUTION && isAudioOnlyCodecs(codecs);
+        return {
+          name: g.attributes.NAME
+            ? g.attributes.NAME
+            : g.attributes.RESOLUTION
+              ? `${g.attributes.RESOLUTION.width}x${g.attributes.RESOLUTION.height}`
+              : `MAYBE_AUDIO:${g.attributes.BANDWIDTH}`,
+          bandwidth: g.attributes.BANDWIDTH,
+          uri: g.uri.startsWith('http') ? g.uri : base.replace('{{URL}}', g.uri),
+          resolution,
+          codecs,
+          frameRate,
+          isAudioOnly,
+        } as Playlist;
+      });
+
+    if (groups.length > 0) {
+      return {
+        type: 'playlist',
+        data: groups,
+      };
+    }
+  }
+
+  if (manifest.segments?.length) {
+    const resolveUri = (uri: string) =>
+      uri.startsWith('http') ? uri : base.replace('{{URL}}', uri);
+
+    const segments = manifest.segments.map((s) => {
+      const mapped: Record<string, unknown> = { ...s, uri: resolveUri(s.uri) };
+      if (s.map && typeof s.map === 'object' && 'uri' in s.map) {
+        mapped.map = { ...s.map, uri: resolveUri((s.map as { uri: string }).uri) };
+      }
+      return mapped;
+    });
+
+    return {
+      type: 'segment',
+      data: segments as ManifestSegment[],
+    };
+  }
+
+  throw new Error('No playlists or segments found');
+}
