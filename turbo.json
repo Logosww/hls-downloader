@@ -32,8 +32,8 @@
     },
     "@hls-downloader/docs#build": {
       "dependsOn": [],
-      "env": ["VITEPRESS_BASE"],
-      "outputs": [".vitepress/dist/**"]
+      "env": ["NEXT_PUBLIC_SITE_URL"],
+      "outputs": [".next/**", "!.next/cache/**"]
     },
     "@hls-downloader/docs#dev": {
       "dependsOn": [],

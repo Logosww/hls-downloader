@@ -19,6 +19,6 @@
   "devDependencies": {
     "@types/m3u8-parser": "^7.2.6",
     "m3u8-parser": "^7.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+# fumadocs
+.source
+
 # turbo
 .turbo/
 
@@ -46,10 +49,6 @@ pnpm-debug.log*
 # rust
 target/
 packages/adapters/src/node/.cargo
-
-# vitepress
-docs/.vitepress/cache
-docs/.vitepress/dist
 
 # vercel
 .vercel/

@@ -14,11 +14,6 @@ onlyBuiltDependencies:
   - sharp
   - unrs-resolver
 
-packageConfigs:
-  '@hls-downloader/docs':
-    overrides:
-      'vite': '^8.0.0'
-
 minimumReleaseAgeExclude:
   - next
   - '@next/env@16.3.0'
