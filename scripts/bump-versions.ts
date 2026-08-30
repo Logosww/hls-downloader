@@ -87,8 +87,7 @@ Options:
 }
 
 /** x.y.z，可选 -prerelease、+build（与 node-semver 常见写法一致） */
-const VERSION_HEAD =
-  /^(\d+)\.(\d+)\.(\d+)(?:-([^+]+))?(?:\+([^\s]*))?$/;
+const VERSION_HEAD = /^(\d+)\.(\d+)\.(\d+)(?:-([^+]+))?(?:\+([^\s]*))?$/;
 
 function parseVersionParts(v: string): {
   major: number;
@@ -98,9 +97,7 @@ function parseVersionParts(v: string): {
 } {
   const m = v.trim().match(VERSION_HEAD);
   if (!m) {
-    throw new Error(
-      `Invalid version (expect x.y.z with optional -prerelease +build): ${v}`,
-    );
+    throw new Error(`Invalid version (expect x.y.z with optional -prerelease +build): ${v}`);
   }
   return {
     major: Number(m[1]),
@@ -169,7 +166,9 @@ const argv = process.argv.slice(2);
 const { release, explicitVersion, useChangeset, dryRun } = parseArgs(argv);
 
 if (explicitVersion && useChangeset) {
-  console.error('Cannot use --version together with --changeset. Use direct bump for exact versions.');
+  console.error(
+    'Cannot use --version together with --changeset. Use direct bump for exact versions.',
+  );
   process.exit(1);
 }
 

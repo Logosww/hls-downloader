@@ -29,18 +29,16 @@ let fontPromise:
 function loadCJKFonts() {
   if (!fontPromise) {
     fontPromise = Promise.all(
-      (Object.entries(CJK_FONT_URLS) as [('400' | '700'), string][]).map(
-        async ([weight, url]) => {
-          const data = await fetch(url).then((res) => res.arrayBuffer());
+      (Object.entries(CJK_FONT_URLS) as ['400' | '700', string][]).map(async ([weight, url]) => {
+        const data = await fetch(url).then((res) => res.arrayBuffer());
 
-          return {
-            name: 'Noto Sans SC',
-            data,
-            weight: Number(weight) as 400 | 700,
-            style: 'normal' as const,
-          };
-        },
-      ),
+        return {
+          name: 'Noto Sans SC',
+          data,
+          weight: Number(weight) as 400 | 700,
+          style: 'normal' as const,
+        };
+      }),
     ).catch(() => null);
   }
 
@@ -58,11 +56,7 @@ export async function GET(
   const fonts = await loadCJKFonts();
 
   return new ImageResponse(
-    <DefaultImage
-      title={page.data.title}
-      description={page.data.description}
-      site={appName}
-    />,
+    <DefaultImage title={page.data.title} description={page.data.description} site={appName} />,
     {
       width: 1200,
       height: 630,

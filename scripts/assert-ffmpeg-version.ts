@@ -32,7 +32,9 @@ try {
     );
   }
 
-  console.log(`FFmpeg binding check passed: libavcodec=${codecVersion}, libavformat=${formatVersion}`);
+  console.log(
+    `FFmpeg binding check passed: libavcodec=${codecVersion}, libavformat=${formatVersion}`,
+  );
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

@@ -1,17 +1,16 @@
 ---
-title: "HlsDownloader"
-description: "The HlsDownloader facade class — constructor, options, and methods."
+title: 'HlsDownloader'
+description: 'The HlsDownloader facade class — constructor, options, and methods.'
 ---
 
 The main facade class for downloading HLS streams. Imported from `@hls-downloader/core`.
-
 
 <Callout type="info" title="Default download path (transmux)">
 **Ordinary `download()` keeps source codecs and transmuxes to MP4.** BrowserAdapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly; NodeAdapter uses its native Rust path.
 
 Re-encoding is opt-in via `transcode` — see [Adapter API](/api/adapters). BrowserAdapter loads its hls-transmux WASM module in `init()`; NodeAdapter is a no-op (FFmpeg loads on demand). `parseHls()` never starts those engines.
-</Callout>
 
+</Callout>
 
 ## Constructor
 
@@ -23,11 +22,11 @@ new HlsDownloader({
 })
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `adapter` | `BrowserAdapter \| NodeAdapter` | The adapter to use |
-| `options` | `GlobalOptions<T>` | Default options (see below). Merged into each `parseHls` / `download` / `getPosterUrl` call |
-| `onEvent` | `(event, payload?) => void` | Event callback for tracking progress and errors |
+| Parameter | Type                            | Description                                                                                 |
+| --------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `adapter` | `BrowserAdapter \| NodeAdapter` | The adapter to use                                                                          |
+| `options` | `GlobalOptions<T>`              | Default options (see below). Merged into each `parseHls` / `download` / `getPosterUrl` call |
+| `onEvent` | `(event, payload?) => void`     | Event callback for tracking progress and errors                                             |
 
 ## Properties
 
@@ -51,19 +50,19 @@ The current default options, or `null` if none were set.
 
 Exported from `@hls-downloader/core` as `GlobalOptions<T>`. The shape depends on the adapter type `T`.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `download` | `HlsDownloaderGlobalDownloadOptions` | Default fetch / download settings (excluding per-call `url`) |
-| `transcode` | `HlsDownloaderTranscodeOptions` | Default transcode settings |
-| *(adapter-specific)* | — | See [Adapter API](/api/adapters) |
+| Field                | Type                                 | Description                                                  |
+| -------------------- | ------------------------------------ | ------------------------------------------------------------ |
+| `download`           | `HlsDownloaderGlobalDownloadOptions` | Default fetch / download settings (excluding per-call `url`) |
+| `transcode`          | `HlsDownloaderTranscodeOptions`      | Default transcode settings                                   |
+| _(adapter-specific)_ | —                                    | See [Adapter API](/api/adapters)                             |
 
 ### `download` object
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `headers` | `Record<string, string>` | Default request headers |
-| `concurrency` | `number` | Default concurrent segment downloads |
-| `maxRetry` | `number` | Default max retry attempts per segment |
+| Field         | Type                     | Description                            |
+| ------------- | ------------------------ | -------------------------------------- |
+| `headers`     | `Record<string, string>` | Default request headers                |
+| `concurrency` | `number`                 | Default concurrent segment downloads   |
+| `maxRetry`    | `number`                 | Default max retry attempts per segment |
 
 Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
 
@@ -101,10 +100,10 @@ Returns a `ParseHlsResult`:
 - `{ type: 'segment', data: Segment[] }` — media playlist with segments
 - `{ type: 'error', message: string }` — parse error
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `url` | `string` | HLS playlist URL |
-| `headers` | `Record<string, string>` | Request headers |
+| Option    | Type                     | Description      |
+| --------- | ------------------------ | ---------------- |
+| `url`     | `string`                 | HLS playlist URL |
+| `headers` | `Record<string, string>` | Request headers  |
 
 ### `download()`
 
@@ -120,30 +119,30 @@ Parse, download all segments, and merge them into a single file. On success, **`
 
 Merges per-call options with `globalOptions` (per-call wins).
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `url` | `string` | HLS playlist URL |
-| `headers` | `Record<string, string>` | Request headers |
-| `filename` | `string` | Output filename without extension. The extension is resolved internally from the output container (`mp4` by default, `webm` for `vp9`, or `transcode.format`) |
-| `maxRetry` | `number` | Max retry attempts per segment |
-| `downloadConcurrency` | `number` | Concurrent segment downloads |
-| `transcode` | `HlsDownloaderTranscodeOptions` | Transcode with WebCodecs in BrowserAdapter or FFmpeg in NodeAdapter. Omit for default transmux/remux |
-| `signal` | `AbortSignal` | Cooperative cancellation. When the signal aborts, the download promise rejects with an `AbortError` |
-| `variant` | `VariantSelectOptions` | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth) |
-| *(adapter-specific)* | — | See [Adapter API](/api/adapters) |
+| Option                | Type                            | Description                                                                                                                                                   |
+| --------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`                 | `string`                        | HLS playlist URL                                                                                                                                              |
+| `headers`             | `Record<string, string>`        | Request headers                                                                                                                                               |
+| `filename`            | `string`                        | Output filename without extension. The extension is resolved internally from the output container (`mp4` by default, `webm` for `vp9`, or `transcode.format`) |
+| `maxRetry`            | `number`                        | Max retry attempts per segment                                                                                                                                |
+| `downloadConcurrency` | `number`                        | Concurrent segment downloads                                                                                                                                  |
+| `transcode`           | `HlsDownloaderTranscodeOptions` | Transcode with WebCodecs in BrowserAdapter or FFmpeg in NodeAdapter. Omit for default transmux/remux                                                          |
+| `signal`              | `AbortSignal`                   | Cooperative cancellation. When the signal aborts, the download promise rejects with an `AbortError`                                                           |
+| `variant`             | `VariantSelectOptions`          | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth)                                                              |
+| _(adapter-specific)_  | —                               | See [Adapter API](/api/adapters)                                                                                                                              |
 
 BrowserAdapter supports `preset` plus `videoBitrate` and `audioBitrate`. NodeAdapter supports all fields below:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `preset` | `'h264' \| 'hevc' \| 'vp9'` | Shorthand encoding profile |
-| `videoCodec` | `string` | Overrides preset video codec |
-| `audioCodec` | `string` | Overrides preset audio codec |
-| `format` | `string` | Output container (`-f`) |
-| `crf` | `number` | Quality (x264/x265/vp9) |
-| `videoBitrate` | `string \| number` | Video bitrate |
-| `audioBitrate` | `string \| number` | Audio bitrate |
-| `speed` | `HlsDownloaderEncoderSpeed` | x264/x265 encoder preset |
+| Field          | Type                        | Description                  |
+| -------------- | --------------------------- | ---------------------------- |
+| `preset`       | `'h264' \| 'hevc' \| 'vp9'` | Shorthand encoding profile   |
+| `videoCodec`   | `string`                    | Overrides preset video codec |
+| `audioCodec`   | `string`                    | Overrides preset audio codec |
+| `format`       | `string`                    | Output container (`-f`)      |
+| `crf`          | `number`                    | Quality (x264/x265/vp9)      |
+| `videoBitrate` | `string \| number`          | Video bitrate                |
+| `audioBitrate` | `string \| number`          | Audio bitrate                |
+| `speed`        | `HlsDownloaderEncoderSpeed` | x264/x265 encoder preset     |
 
 #### Example: aborting a download with AbortController
 
@@ -170,11 +169,11 @@ try {
 
 ### `downloadToStream()`
 
-
 <Callout type="info" title="BrowserAdapter & NodeAdapter">
-`downloadToStream()` is supported on both **`BrowserAdapter`** and **`NodeAdapter`**, but the two adapters have **different streaming semantics** (see below). On `BrowserAdapter` the fMP4 bytes flow via `onChunk` as fragmented MP4; on `NodeAdapter` bytes flow with real backpressure.
+  `downloadToStream()` is supported on both **`BrowserAdapter`** and **`NodeAdapter`**, but the two
+  adapters have **different streaming semantics** (see below). On `BrowserAdapter` the fMP4 bytes
+  flow via `onChunk` as fragmented MP4; on `NodeAdapter` bytes flow with real backpressure.
 </Callout>
-
 
 ```ts
 async downloadToStream(
@@ -194,15 +193,15 @@ Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each subsequent segm
 
 Merges per-call options with `globalOptions` (per-call wins).
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `url` | `string` | HLS playlist URL |
-| `headers` | `Record<string, string>` | Request headers |
-| `filename` | `string` | Ignored on streaming path (no file is written); accepted for option compatibility |
-| `maxRetry` | `number` | Effective on `BrowserAdapter` (segment prefetch retries). **Not effective on `NodeAdapter`** streaming path (the built-in reqwest client has no retry hook) |
-| `downloadConcurrency` | `number` | Concurrent segment downloads |
-| `signal` | `AbortSignal` | Cooperative cancellation. When the signal aborts, the stream rejects with an `AbortError`. On `BrowserAdapter`, abort during the prefetch phase is limited to `fetch`-level signal propagation |
-| `variant` | `VariantSelectOptions` | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth) |
+| Option                | Type                     | Description                                                                                                                                                                                    |
+| --------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`                 | `string`                 | HLS playlist URL                                                                                                                                                                               |
+| `headers`             | `Record<string, string>` | Request headers                                                                                                                                                                                |
+| `filename`            | `string`                 | Ignored on streaming path (no file is written); accepted for option compatibility                                                                                                              |
+| `maxRetry`            | `number`                 | Effective on `BrowserAdapter` (segment prefetch retries). **Not effective on `NodeAdapter`** streaming path (the built-in reqwest client has no retry hook)                                    |
+| `downloadConcurrency` | `number`                 | Concurrent segment downloads                                                                                                                                                                   |
+| `signal`              | `AbortSignal`            | Cooperative cancellation. When the signal aborts, the stream rejects with an `AbortError`. On `BrowserAdapter`, abort during the prefetch phase is limited to `fetch`-level signal propagation |
+| `variant`             | `VariantSelectOptions`   | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth)                                                                                               |
 
 Returns `{ totalSegments: number }`.
 
@@ -223,7 +222,7 @@ const server = createServer(async (req, res) => {
   }
 
   res.writeHead(200, {
-    'Content-Type': 'video/mp4',   // fMP4 — browser MSE can parse
+    'Content-Type': 'video/mp4', // fMP4 — browser MSE can parse
     'Cache-Control': 'no-cache',
     // No Content-Length — streaming, length unknown
   });
@@ -238,22 +237,18 @@ const server = createServer(async (req, res) => {
       downloadConcurrency: 8,
     },
     (bytes) => {
-      res.write(bytes);            // stream as-you-go
-      fileChunks.push(bytes);     // buffer for later file write
+      res.write(bytes); // stream as-you-go
+      fileChunks.push(bytes); // buffer for later file write
     },
   );
   res.end();
 
   // Write the file afterwards (or use ReadableStream.tee() to persist in parallel during the stream)
-  await writeFile(
-    'output.mp4',
-    Buffer.concat(fileChunks.map((c) => Buffer.from(c))),
-  );
+  await writeFile('output.mp4', Buffer.concat(fileChunks.map((c) => Buffer.from(c))));
 });
 
 server.listen(3000);
 ```
-
 
 <Callout type="info" title="Recommended approach for stream + persist in parallel">
 If you want to persist the file in parallel during the stream (rather than after), wrap `onChunk` into a `ReadableStream`, then fork with `stream.tee()`:
@@ -261,14 +256,13 @@ If you want to persist the file in parallel during the stream (rather than after
 - branch 2 → `Bun.write(filePath, branch)` or `pipeline(branch, createWriteStream(filePath))` (background file write)
 
 `tee()` provides backpressure and ordering guarantees; the two branches consume independently. The file becomes available once the task completes.
+
 </Callout>
-
-
 
 <Callout type="info" title="Resume not supported">
-The streaming path writes to a non-seekable sink, so `resume` is not supported. If the stream fails midway, restart from the beginning.
+  The streaming path writes to a non-seekable sink, so `resume` is not supported. If the stream
+  fails midway, restart from the beginning.
 </Callout>
-
 
 ### `getPosterUrl()`
 
@@ -282,10 +276,10 @@ Attempt to extract a poster/thumbnail image URL from the stream. Merges `options
 
 **Does not load FFmpeg on `BrowserAdapter`.** On `NodeAdapter`, FFmpeg may load only if lightweight extraction fails — see [Adapter API](/api/adapters).
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `url` | `string` | HLS playlist URL |
-| `headers` | `Record<string, string>` | Request headers |
+| Option    | Type                     | Description      |
+| --------- | ------------------------ | ---------------- |
+| `url`     | `string`                 | HLS playlist URL |
+| `headers` | `Record<string, string>` | Request headers  |
 
 ### `clearCache()`
 

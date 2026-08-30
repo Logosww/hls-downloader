@@ -4,7 +4,13 @@ import { useEffect, useMemo } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { PlusIcon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 
@@ -48,7 +54,9 @@ export const HeadersModal = ({
 
   useEffect(() => {
     if (!open) return;
-    reset({ headers: defaultHeaderEntries.length ? defaultHeaderEntries : [{ key: '', value: '' }] });
+    reset({
+      headers: defaultHeaderEntries.length ? defaultHeaderEntries : [{ key: '', value: '' }],
+    });
   }, [defaultHeaderEntries, open, reset]);
 
   const onSubmit = handleSubmit((values) => {

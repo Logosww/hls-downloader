@@ -64,10 +64,14 @@ run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:native'], roo
 
 const nativeNodes = findNativeNodeFiles(nodeDir, nodeDir);
 if (nativeNodes.length === 0) {
-  console.error('No native .node artifact produced under packages/adapters/src/node (expected native.*.node).');
+  console.error(
+    'No native .node artifact produced under packages/adapters/src/node (expected native.*.node).',
+  );
   try {
     const top = readdirSync(nodeDir);
-    console.error(`Top-level entries in node dir (${top.length}): ${top.slice(0, 40).join(', ')}${top.length > 40 ? '…' : ''}`);
+    console.error(
+      `Top-level entries in node dir (${top.length}): ${top.slice(0, 40).join(', ')}${top.length > 40 ? '…' : ''}`,
+    );
   } catch {
     /* ignore */
   }

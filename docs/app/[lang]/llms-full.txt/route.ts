@@ -2,10 +2,7 @@ import { getLLMText, source } from '@/lib/source';
 
 export const revalidate = false;
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ lang: string }> },
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
   const scanned = await Promise.all(source.getPages(lang).map(getLLMText));
 

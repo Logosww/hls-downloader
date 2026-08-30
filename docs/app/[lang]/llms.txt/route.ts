@@ -3,10 +3,7 @@ import { llms } from 'fumadocs-core/source';
 
 export const revalidate = false;
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ lang: string }> },
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
 
   return new Response(llms(source).index(lang), {

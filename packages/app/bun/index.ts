@@ -338,9 +338,7 @@ const app = new Elysia()
         stream: t.Optional(t.Boolean()),
         transcode: t.Optional(
           t.Object({
-            preset: t.Optional(
-              t.Union([t.Literal('h264'), t.Literal('hevc'), t.Literal('vp9')]),
-            ),
+            preset: t.Optional(t.Union([t.Literal('h264'), t.Literal('hevc'), t.Literal('vp9')])),
             videoCodec: t.Optional(t.String()),
             audioCodec: t.Optional(t.String()),
             format: t.Optional(t.String()),

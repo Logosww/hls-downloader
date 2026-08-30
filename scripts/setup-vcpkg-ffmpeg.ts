@@ -48,7 +48,10 @@ if (!existsSync(join(root, '.git'))) {
     mkdirSync(root, { recursive: true });
     execFileSync('git', ['init'], { stdio: 'inherit', cwd: root });
     execFileSync('git', ['remote', 'add', 'origin', VCPKG_REMOTE], { stdio: 'inherit', cwd: root });
-    execFileSync('git', ['fetch', '--depth', '1', 'origin', VCPKG_TAG], { stdio: 'inherit', cwd: root });
+    execFileSync('git', ['fetch', '--depth', '1', 'origin', VCPKG_TAG], {
+      stdio: 'inherit',
+      cwd: root,
+    });
     execFileSync('git', ['checkout', 'FETCH_HEAD'], { stdio: 'inherit', cwd: root });
   } else {
     execFileSync('git', ['clone', '--depth', '1', '--branch', VCPKG_TAG, VCPKG_REMOTE, root], {

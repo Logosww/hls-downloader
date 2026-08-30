@@ -428,9 +428,7 @@ describe('shared API e2e', () => {
     ).toBe('720p-hevc');
 
     // maxBandwidth 限制：选不超过上限的最高分辨率
-    expect(
-      selectBestVariant(playlists, { maxBandwidth: 2600 })!.name,
-    ).toBe('720p-hevc');
+    expect(selectBestVariant(playlists, { maxBandwidth: 2600 })!.name).toBe('720p-hevc');
 
     // 无 options：最高分辨率（1080p）
     expect(selectBestVariant(playlists)!.name).toBe('1080p-avc');

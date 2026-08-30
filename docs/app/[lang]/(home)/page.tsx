@@ -1,22 +1,10 @@
 import type { Metadata } from 'next';
-import {
-  ArrowRight,
-  Zap,
-  Layers,
-  FileCode2,
-  Activity,
-  Boxes,
-} from 'lucide-react';
+import { ArrowRight, Zap, Layers, FileCode2, Activity, Boxes } from 'lucide-react';
 import { appName, demoUrl, gitConfig } from '@/lib/shared';
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.58.23 2.75.11 3.04.73.8 1.18 1.83 1.18 3.08 0 4.41-2.7 5.38-5.26 5.67.41.35.78 1.05.78 2.12 0 1.53-.01 2.76-.01 3.13 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
     </svg>
   );
@@ -90,30 +78,23 @@ const content = {
       {
         icon: FileCode2,
         title: 'TypeScript 优先',
-        details:
-          '使用 TypeScript 编写，提供完整的类型定义。享受类型安全的 API 和出色的 IDE 支持。',
+        details: '使用 TypeScript 编写，提供完整的类型定义。享受类型安全的 API 和出色的 IDE 支持。',
       },
       {
         icon: Activity,
         title: '事件驱动的进度追踪',
-        details:
-          '丰富的事件系统，实时追踪下载进度、分片合并和错误处理。',
+        details: '丰富的事件系统，实时追踪下载进度、分片合并和错误处理。',
       },
       {
         icon: Boxes,
         title: 'Monorepo 架构',
-        details:
-          '模块化的包结构 — 可安装聚合包，也可按需引入作用域子包。',
+        details: '模块化的包结构 — 可安装聚合包，也可按需引入作用域子包。',
       },
     ],
   },
 } as const;
 
-export default async function HomePage({
-  params,
-}: {
-  params: Promise<{ lang: string }>;
-}) {
+export default async function HomePage({ params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
   const t = content[lang as keyof typeof content] ?? content.en;
   const prefix = lang === 'en' ? '' : `/${lang}`;
@@ -125,12 +106,8 @@ export default async function HomePage({
         <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
           {t.tagline}
         </p>
-        <h1 className="mt-4 text-4xl font-extrabold tracking-tight sm:text-6xl">
-          {t.title}
-        </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-          {t.subtitle}
-        </p>
+        <h1 className="mt-4 text-4xl font-extrabold tracking-tight sm:text-6xl">{t.title}</h1>
+        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">{t.subtitle}</p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <a
@@ -178,9 +155,7 @@ export default async function HomePage({
                 <Icon className="size-5" />
               </div>
               <h3 className="mt-4 font-semibold">{feature.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {feature.details}
-              </p>
+              <p className="mt-2 text-sm text-muted-foreground">{feature.details}</p>
             </div>
           );
         })}

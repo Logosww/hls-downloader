@@ -1,4 +1,1 @@
-export {
-  BrowserAdapter,
-  type HlsDownloaderBrowserAdapter,
-} from '@hls-downloader/adapters/browser';
+export { BrowserAdapter, type HlsDownloaderBrowserAdapter } from '@hls-downloader/adapters/browser';

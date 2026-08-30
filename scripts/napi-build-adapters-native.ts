@@ -10,8 +10,7 @@ const repoRoot = join(__dirname, '..');
 const adaptersRoot = join(repoRoot, 'packages', 'adapters');
 const nodeDir = join(adaptersRoot, 'src', 'node');
 
-const useStatic =
-  process.env.HLS_FFMPEG_STATIC === '1' || process.argv.includes('--static');
+const useStatic = process.env.HLS_FFMPEG_STATIC === '1' || process.argv.includes('--static');
 
 // 远程构建环境(如 Vercel)无 Rust 工具链时跳过 native 编译;
 // app-web 只依赖 adapters/browser(wasm),不需要 native 产物。

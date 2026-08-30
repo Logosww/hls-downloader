@@ -56,15 +56,50 @@ try {
   run('pnpm', ['--filter', '@hls-downloader/core', 'run', 'build'], root);
   run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:publish'], root);
   run('pnpm', ['run', 'build:root'], root);
-  run('pnpm', ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'create-npm-dirs', '--cwd', 'src/node'], root);
   run(
     'pnpm',
-    ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'artifacts', '--cwd', 'src/node', '--output-dir', '.', '--npm-dir', 'npm'],
+    [
+      '--filter',
+      '@hls-downloader/adapters',
+      'exec',
+      'napi',
+      'create-npm-dirs',
+      '--cwd',
+      'src/node',
+    ],
     root,
   );
   run(
     'pnpm',
-    ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'pre-publish', '--cwd', 'src/node', '--skip-optional-publish', '-t', 'npm'],
+    [
+      '--filter',
+      '@hls-downloader/adapters',
+      'exec',
+      'napi',
+      'artifacts',
+      '--cwd',
+      'src/node',
+      '--output-dir',
+      '.',
+      '--npm-dir',
+      'npm',
+    ],
+    root,
+  );
+  run(
+    'pnpm',
+    [
+      '--filter',
+      '@hls-downloader/adapters',
+      'exec',
+      'napi',
+      'pre-publish',
+      '--cwd',
+      'src/node',
+      '--skip-optional-publish',
+      '-t',
+      'npm',
+    ],
     root,
   );
 
@@ -98,7 +133,9 @@ try {
   if (!adaptersPkg.version) {
     throw new Error('adapters package.json is missing version');
   }
-  const platformPkgName = (JSON.parse(readFileSync(join(currentPlatformPackageDir, 'package.json'), 'utf8')) as PackageJson).name;
+  const platformPkgName = (
+    JSON.parse(readFileSync(join(currentPlatformPackageDir, 'package.json'), 'utf8')) as PackageJson
+  ).name;
   if (!platformPkgName) {
     throw new Error('Platform package.json is missing name');
   }

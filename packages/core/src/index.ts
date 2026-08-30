@@ -119,10 +119,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     onChunk: (bytes: Uint8Array) => void,
   ): Promise<HlsDownloaderStreamResult> {
     await this.init();
-    return await this.#adapter.downloadToStream(
-      injectContext(options, this.#context),
-      onChunk,
-    );
+    return await this.#adapter.downloadToStream(injectContext(options, this.#context), onChunk);
   }
   /** 清空 adapter 内部的 parseHls / poster 缓存。adapter 未实现时为 no-op。 */
   clearCache(): void {

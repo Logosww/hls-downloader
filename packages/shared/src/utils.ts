@@ -135,16 +135,16 @@ function codecMatches(codecs: string | undefined, prefix: string): boolean {
  * 2. 优先级排序：preferredCodec 命中 > preferredAudio 命中 > resolution 像素数 > bandwidth。
  * 3. 无 options 时退化为“最高分辨率 → 最高带宽”（兼容旧行为）。
  */
-export const selectBestVariant: VariantSelector = (
-  playlists,
-  options,
-): Playlist | undefined => {
+export const selectBestVariant: VariantSelector = (playlists, options): Playlist | undefined => {
   if (!playlists.length) return undefined;
 
   const candidates = playlists.filter((p) => {
     if (!options?.includeAudioOnly && p.isAudioOnly) return false;
     if (options?.maxResolution && p.resolution) {
-      if (p.resolution.width * p.resolution.height > options.maxResolution.width * options.maxResolution.height) {
+      if (
+        p.resolution.width * p.resolution.height >
+        options.maxResolution.width * options.maxResolution.height
+      ) {
         return false;
       }
     }
@@ -156,7 +156,10 @@ export const selectBestVariant: VariantSelector = (
   const pool = candidates.length > 0 ? candidates : playlists;
 
   const hasPref =
-    !!options?.preferredCodec || !!options?.preferredAudio || !!options?.maxResolution || options?.maxBandwidth !== undefined;
+    !!options?.preferredCodec ||
+    !!options?.preferredAudio ||
+    !!options?.maxResolution ||
+    options?.maxBandwidth !== undefined;
   if (!hasPref) {
     // 无偏好：最高分辨率 → 最高带宽（兼容旧行为）
     return pool.reduce((best, cur) => {

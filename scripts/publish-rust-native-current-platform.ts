@@ -18,15 +18,42 @@ function run(command: string, args: string[], cwd: string): void {
 }
 
 run('pnpm', ['--filter', '@hls-downloader/adapters', 'run', 'build:native:static'], root);
-run('pnpm', ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'create-npm-dirs', '--cwd', 'src/node'], root);
 run(
   'pnpm',
-  ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'artifacts', '--cwd', 'src/node', '--output-dir', '.', '--npm-dir', 'npm'],
+  ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'create-npm-dirs', '--cwd', 'src/node'],
   root,
 );
 run(
   'pnpm',
-  ['--filter', '@hls-downloader/adapters', 'exec', 'napi', 'pre-publish', '--cwd', 'src/node', '--skip-optional-publish', '-t', 'npm'],
+  [
+    '--filter',
+    '@hls-downloader/adapters',
+    'exec',
+    'napi',
+    'artifacts',
+    '--cwd',
+    'src/node',
+    '--output-dir',
+    '.',
+    '--npm-dir',
+    'npm',
+  ],
+  root,
+);
+run(
+  'pnpm',
+  [
+    '--filter',
+    '@hls-downloader/adapters',
+    'exec',
+    'napi',
+    'pre-publish',
+    '--cwd',
+    'src/node',
+    '--skip-optional-publish',
+    '-t',
+    'npm',
+  ],
   root,
 );
 run('pnpm', ['run', 'adapters:inject-native-pkg-repository'], root);
@@ -36,7 +63,8 @@ const platformDirs = readdirSync(npmDir)
   .filter((p) => statSync(p).isDirectory());
 
 let published = 0;
-const adaptersVersion = (JSON.parse(readFileSync(adaptersPkgPath, 'utf8')) as { version: string }).version;
+const adaptersVersion = (JSON.parse(readFileSync(adaptersPkgPath, 'utf8')) as { version: string })
+  .version;
 const distTag = distTagForVersion(adaptersVersion);
 if (distTag) {
   console.log(`Prerelease ${adaptersVersion}: publishing with dist-tag "${distTag}"`);

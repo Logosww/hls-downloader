@@ -1,10 +1,4 @@
-import {
-  ALL_FORMATS,
-  BufferSource,
-  CanvasSink,
-  EncodedPacketSink,
-  Input,
-} from 'mediabunny';
+import { ALL_FORMATS, BufferSource, CanvasSink, EncodedPacketSink, Input } from 'mediabunny';
 
 export type ExtractPosterFromSegmentOptions = {
   segmentUrl: string;

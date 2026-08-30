@@ -1,12 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { DownloadIcon, Loader2Icon } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -368,7 +363,9 @@ export default function HomePage() {
       const objectUrl = URL.createObjectURL(mediaSource);
 
       const onLoadedData = () => {
-        setStreamPreview((prev) => (prev.open && prev.loading ? { ...prev, loading: false } : prev));
+        setStreamPreview((prev) =>
+          prev.open && prev.loading ? { ...prev, loading: false } : prev,
+        );
       };
 
       const onError = (e: unknown) => {

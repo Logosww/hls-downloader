@@ -8,7 +8,7 @@ const config = {
   reactCompiler: true,
   experimental: {
     turbopackRustReactCompiler: true,
-  }
+  },
 };
 
 export default withMDX(config);

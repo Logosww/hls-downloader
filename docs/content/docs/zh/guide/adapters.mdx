@@ -1,6 +1,6 @@
 ---
-title: "适配器"
-description: "为你的运行环境选择并配置 BrowserAdapter 与 NodeAdapter。"
+title: '适配器'
+description: '为你的运行环境选择并配置 BrowserAdapter 与 NodeAdapter。'
 ---
 
 HLS Downloader 使用适配器模式来支持不同运行环境。请根据你的环境选择对应的适配器：
@@ -8,20 +8,19 @@ HLS Downloader 使用适配器模式来支持不同运行环境。请根据你�
 - **浏览器** — `BrowserAdapter`
 - **Node.js** — `NodeAdapter`（Rust N-API 原生实现）
 
-
 <Callout type="warn" title="默认 Transmux">
 **普通 `download()` 会保留源编码并 transmux 为 MP4。** BrowserAdapter 使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly，NodeAdapter 使用其原生实现。
 
 浏览器转码使用 Mediabunny 与 WebCodecs；Node 转码才会按需加载原生 FFmpeg。
-</Callout>
 
+</Callout>
 
 ## BrowserAdapter（浏览器）
 
 ```ts
-import { BrowserAdapter } from '@hls-downloader/adapters/browser'
+import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 // 或
-import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser'
+import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
 ```
 
 浏览器适配器的普通下载使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly。`download()` 返回经典 fast-start MP4；`downloadToStream()` 输出适用于 MSE 的 fragmented MP4 分块。
@@ -34,9 +33,9 @@ WASM 模块仅在开始 transmux 时按需加载。发布二进制在 HTTP 压�
 
 基于仓库内 8 分片 fixture（Chrome 150 / macOS，CPU 路径，3 次运行中位数；transmux 计时不含网络预取）：
 
-| 路径 | 新引擎 | 对照基线 | 中位墙钟时间 | 加速比 |
-|------|--------|----------|--------------|--------|
-| Transmux | `hls-transmux` WASM | Mediabunny remux | ~1.9 ms vs ~9.5 ms | ≈ **5.0×** |
+| 路径               | 新引擎               | 对照基线                | 中位墙钟时间        | 加速比     |
+| ------------------ | -------------------- | ----------------------- | ------------------- | ---------- |
+| Transmux           | `hls-transmux` WASM  | Mediabunny remux        | ~1.9 ms vs ~9.5 ms  | ≈ **5.0×** |
 | Transcode（H.264） | Mediabunny WebCodecs | `ffmpeg.wasm`（多线程） | ~531 ms vs ~1164 ms | ≈ **2.2×** |
 
 ### 示例
@@ -54,27 +53,27 @@ const downloader = new HlsDownloader({
       videoBitrate: '4M',
     },
   },
-})
+});
 ```
 
 ## NodeAdapter（Node.js）
 
 ```ts
-import { NodeAdapter } from '@hls-downloader/adapters/node'
+import { NodeAdapter } from '@hls-downloader/adapters/node';
 // 或
-import { NodeAdapter } from '@logosw/hls-downloader/adapters/node'
+import { NodeAdapter } from '@logosw/hls-downloader/adapters/node';
 ```
 
 Rust 适配器加载通过 N-API 构建的原生 `.node` 模块。**默认下载走原生 transmux，不初始化 FFmpeg。**
 
 ### 何时加载 FFmpeg（NodeAdapter）
 
-| API | FFmpeg | 触发条件 |
-|-----|--------|---------|
-| `download()`（默认） | 否 | 省略 `transcode` 且未启用 `aria2.enabled` |
-| `download()` | 是 | `transcode` 对象、`globalOptions.transcode`，或 **`aria2.enabled: true`** |
-| `getPosterUrl()` | 视情况 | 轻量提取失败 → FFmpeg 回退 |
-| `parseHls()` / `init()` | 否 | — |
+| API                     | FFmpeg | 触发条件                                                                  |
+| ----------------------- | ------ | ------------------------------------------------------------------------- |
+| `download()`（默认）    | 否     | 省略 `transcode` 且未启用 `aria2.enabled`                                 |
+| `download()`            | 是     | `transcode` 对象、`globalOptions.transcode`，或 **`aria2.enabled: true`** |
+| `getPosterUrl()`        | 视情况 | 轻量提取失败 → FFmpeg 回退                                                |
+| `parseHls()` / `init()` | 否     | —                                                                         |
 
 ### 要求
 
@@ -86,8 +85,8 @@ Rust 适配器加载通过 N-API 构建的原生 `.node` 模块。**默认下载
 
 通过 `HlsDownloader` 的 `options` / `setOptions` 或单次 `download()` 传入：
 
-| 字段 | 类型 |
-|------|------|
+| 字段    | 类型     |
+| ------- | -------- |
 | `aria2` | `object` |
 
 #### `aria2`
@@ -97,8 +96,8 @@ Rust 适配器加载通过 N-API 构建的原生 `.node` 模块。**默认下载
 ### 示例
 
 ```ts
-import { HlsDownloader } from '@hls-downloader/core'
-import { NodeAdapter } from '@hls-downloader/adapters/node'
+import { HlsDownloader } from '@hls-downloader/core';
+import { NodeAdapter } from '@hls-downloader/adapters/node';
 
 const downloader = new HlsDownloader({
   adapter: NodeAdapter,
@@ -112,17 +111,16 @@ const downloader = new HlsDownloader({
       maxConcurrentDownloads: 16,
     },
   },
-})
+});
 
-await downloader.init()
+await downloader.init();
 
 const result = await downloader.download({
   url: 'https://example.com/stream.m3u8',
   filename: 'output',
-})
+});
 ```
 
-
 <Callout type="warn">
-不要将 Node 适配器（原生 `.node` 模块）打包进浏览器代码。浏览器打包时请只导入 browser 子路径。
+  不要将 Node 适配器（原生 `.node` 模块）打包进浏览器代码。浏览器打包时请只导入 browser 子路径。
 </Callout>

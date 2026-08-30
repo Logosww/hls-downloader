@@ -129,9 +129,7 @@ describe('mapManifest — 结构性断言', () => {
     // m3u8-parser 把 EXT-X-KEY 挂到 segment 上，mapManifest 保留 ...s
     expect(first.key?.uri).toBe('https://secure.domain.com');
     // 相对 segment URI 被解析为绝对
-    expect(first.uri).toBe(
-      'https://example.com/path/20140311T113819-01-338559live.ts',
-    );
+    expect(first.uri).toBe('https://example.com/path/20140311T113819-01-338559live.ts');
   });
 
   it('fmp4-map.m3u8: EXT-X-MAP 的 init segment uri 被解析为绝对', () => {

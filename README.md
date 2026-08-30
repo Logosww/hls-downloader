@@ -1,6 +1,6 @@
 # HLS Downloader
 
-随时随地下载你喜爱的任何 HLS 视频流。Downloads HLS stream whatever and wherever you want. 
+随时随地下载你喜爱的任何 HLS 视频流。Downloads HLS stream whatever and wherever you want.
 
 [![npm version](https://img.shields.io/npm/v/@logosw/hls-downloader?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/@logosw/hls-downloader)
 [![npm downloads](https://img.shields.io/npm/dm/@logosw/hls-downloader?style=flat-square&logo=npm&label=downloads)](https://www.npmjs.com/package/@logosw/hls-downloader)
@@ -113,7 +113,7 @@ const server = createServer(async (req, res) => {
   }
 
   res.writeHead(200, {
-    'Content-Type': 'video/mp4',          // fMP4，浏览器 MSE 可解析
+    'Content-Type': 'video/mp4', // fMP4，浏览器 MSE 可解析
     'Cache-Control': 'no-cache',
     // 注意：不设 Content-Length（流式，长度未知）
   });
@@ -125,7 +125,7 @@ const server = createServer(async (req, res) => {
       downloadConcurrency: 8,
     },
     (bytes) => {
-        res.write(bytes);  // 每个 chunk 直接写入 HTTP response body
+      res.write(bytes); // 每个 chunk 直接写入 HTTP response body
     },
   );
   res.end();
@@ -135,6 +135,7 @@ server.listen(3000);
 ```
 
 要点：
+
 - 输出为 **fragmented MP4**（首段 `ftyp`+`moov`，每段 `styp`+`moof`+`mdat`），浏览器 MSE 可直接消费
 - 此 NodeAdapter 示例会在首个 segment 处理后开始推送；BrowserAdapter 会先完成资源预取
 - 库本身不落盘；调用方可通过 `ReadableStream.tee()` 分叉一路写文件实现「边推流 + 边落盘」
@@ -142,21 +143,19 @@ server.listen(3000);
 
 ### `HlsDownloader` API 摘要
 
-
-| 成员                                                                        | 说明                                                                                  |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `constructor({ adapter, options?, onEvent? })`                             | `options` 为 `GlobalOptions<T>`：`download`、`transcode` 及适配器专有字段，会与每次调用合并 |
-| `init()`                                                                  | 初始化轻量适配器状态；BrowserAdapter 的 WASM 与 WebCodecs 路径均按需启动                                                 |
-| `isInit`                                                                  | 是否已完成初始化                                                                            |
-| `globalOptions`                                                           | 当前默认选项，未设置时为 `null`                                                              |
-| `setOptions(options)`                                                     | 更新默认选项                                                                               |
-| `parseHls({ url, headers? })`                                             | 返回 `ParseHlsResult`：主列表 `playlist`、媒体列表 `segment` 或 `error`                         |
+| 成员                                                                                                | 说明                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constructor({ adapter, options?, onEvent? })`                                                      | `options` 为 `GlobalOptions<T>`：`download`、`transcode` 及适配器专有字段，会与每次调用合并                                                                                                                                                                                   |
+| `init()`                                                                                            | 初始化轻量适配器状态；BrowserAdapter 的 WASM 与 WebCodecs 路径均按需启动                                                                                                                                                                                                      |
+| `isInit`                                                                                            | 是否已完成初始化                                                                                                                                                                                                                                                              |
+| `globalOptions`                                                                                     | 当前默认选项，未设置时为 `null`                                                                                                                                                                                                                                               |
+| `setOptions(options)`                                                                               | 更新默认选项                                                                                                                                                                                                                                                                  |
+| `parseHls({ url, headers? })`                                                                       | 返回 `ParseHlsResult`：主列表 `playlist`、媒体列表 `segment` 或 `error`                                                                                                                                                                                                       |
 | `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, signal?, ... })` | 下载并合并；默认走 transmux/remux。BrowserAdapter 显式 `transcode` 时使用 Mediabunny WebCodecs，NodeAdapter 使用 FFmpeg。`signal` 用于协作式取消（中止时抛 `AbortError`）。**BrowserAdapter** → `{ blobURL, totalSegments }`，**NodeAdapter** → `{ filePath, totalSegments }` |
-| `downloadToStream({ url, headers?, ..., signal? }, onChunk)`                       | **BrowserAdapter 与 NodeAdapter。** 输出 fMP4 字节，适合浏览器 MSE 或 HTTP 转发。BrowserAdapter 先并发预取资源，再通过 WASM writer 推送分块；NodeAdapter 可边下载边推流。返回 `{ totalSegments }` |
-| `getPosterUrl({ url, headers? })`                                         | 返回封面 URL 字符串，若无则 `undefined`                                                        |
+| `downloadToStream({ url, headers?, ..., signal? }, onChunk)`                                        | **BrowserAdapter 与 NodeAdapter。** 输出 fMP4 字节，适合浏览器 MSE 或 HTTP 转发。BrowserAdapter 先并发预取资源，再通过 WASM writer 推送分块；NodeAdapter 可边下载边推流。返回 `{ totalSegments }`                                                                             |
+| `getPosterUrl({ url, headers? })`                                                                   | 返回封面 URL 字符串，若无则 `undefined`                                                                                                                                                                                                                                       |
 
 `GlobalOptions.download` 字段：`headers`、`concurrency`、`maxRetry`。单次 `download({ downloadConcurrency })` 覆盖 `download.concurrency`。
-
 
 ### 事件 `HlsDownloaderEvent`
 
@@ -164,8 +163,8 @@ server.listen(3000);
 
 ### NodeAdapter 专有选项
 
-| 字段 | 类型 |
-|------|------|
+| 字段    | 类型     |
+| ------- | -------- |
 | `aria2` | `object` |
 
 `aria2` 字段见文档 [Adapter API](docs/api/adapters.md)。
@@ -210,18 +209,16 @@ The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-do
 
 ### Packages and subpaths
 
-
-| Package / entry                                   | Role                                                                                                                   |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `@logosw/hls-downloader`                       | Umbrella: default export `HlsDownloader`, re-exports `shared`, Browser/Node adapters (same as installing scoped packages) |
-| `@logosw/hls-downloader/core`                  | Same as `@hls-downloader/core`                                                                                         |
-| `@logosw/hls-downloader/shared`                | Same as `@hls-downloader/shared`                                                                                       |
-| `@logosw/hls-downloader/adapters`, `.../browser`, `.../node` | Same as `@hls-downloader/adapters` and subpaths |
-| `@hls-downloader/core`                            | `HlsDownloader` class                                                                                                  |
-| `@hls-downloader/shared`                          | Types, `HlsDownloaderEvent`, `createAdapter`, etc. (pulled in via core/adapters)                                       |
-| `@hls-downloader/adapters/browser`                   | Browser adapter `BrowserAdapter`                                                                                          |
-| `@hls-downloader/adapters/node`                   | Node adapter `NodeAdapter`                                                                                             |
-
+| Package / entry                                              | Role                                                                                                                      |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `@logosw/hls-downloader`                                     | Umbrella: default export `HlsDownloader`, re-exports `shared`, Browser/Node adapters (same as installing scoped packages) |
+| `@logosw/hls-downloader/core`                                | Same as `@hls-downloader/core`                                                                                            |
+| `@logosw/hls-downloader/shared`                              | Same as `@hls-downloader/shared`                                                                                          |
+| `@logosw/hls-downloader/adapters`, `.../browser`, `.../node` | Same as `@hls-downloader/adapters` and subpaths                                                                           |
+| `@hls-downloader/core`                                       | `HlsDownloader` class                                                                                                     |
+| `@hls-downloader/shared`                                     | Types, `HlsDownloaderEvent`, `createAdapter`, etc. (pulled in via core/adapters)                                          |
+| `@hls-downloader/adapters/browser`                           | Browser adapter `BrowserAdapter`                                                                                          |
+| `@hls-downloader/adapters/node`                              | Node adapter `NodeAdapter`                                                                                                |
 
 ### Basic usage
 
@@ -302,7 +299,7 @@ const server = createServer(async (req, res) => {
   }
 
   res.writeHead(200, {
-    'Content-Type': 'video/mp4',          // fMP4 — browser MSE can parse
+    'Content-Type': 'video/mp4', // fMP4 — browser MSE can parse
     'Cache-Control': 'no-cache',
     // Note: no Content-Length (streaming, length unknown)
   });
@@ -314,7 +311,7 @@ const server = createServer(async (req, res) => {
       downloadConcurrency: 8,
     },
     (bytes) => {
-      res.write(bytes);  // each chunk goes straight to the HTTP response body
+      res.write(bytes); // each chunk goes straight to the HTTP response body
     },
   );
   res.end();
@@ -324,6 +321,7 @@ server.listen(3000);
 ```
 
 Notes:
+
 - Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each segment: `styp`+`moof`+`mdat`) — directly consumable by browser MSE
 - This NodeAdapter example starts emitting after the first segment; BrowserAdapter prefetches resources first
 - The library does not write to disk; callers can fork a file-writing branch with `ReadableStream.tee()` for "stream + persist"
@@ -331,21 +329,19 @@ Notes:
 
 ### `HlsDownloader` API overview
 
-
-| Member                                                                    | Description                                                                                                       |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `constructor({ adapter, options?, onEvent? })`                             | `options` is `GlobalOptions<T>`: `download`, `transcode`, and adapter-specific fields; merged into each call |
-| `init()`                                                                  | Initialize lightweight adapter state; BrowserAdapter starts its WASM and WebCodecs paths on demand               |
-| `isInit`                                                                  | Whether initialization finished                                                                                   |
-| `globalOptions`                                                           | Current default options, or `null` if unset                                                                       |
-| `setOptions(options)`                                                     | Replace default options                                                                                           |
-| `parseHls({ url, headers? })`                                             | Returns `ParseHlsResult`: `playlist`, `segment`, or `error`                                                       |
+| Member                                                                                              | Description                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constructor({ adapter, options?, onEvent? })`                                                      | `options` is `GlobalOptions<T>`: `download`, `transcode`, and adapter-specific fields; merged into each call                                                                                                                                                                          |
+| `init()`                                                                                            | Initialize lightweight adapter state; BrowserAdapter starts its WASM and WebCodecs paths on demand                                                                                                                                                                                    |
+| `isInit`                                                                                            | Whether initialization finished                                                                                                                                                                                                                                                       |
+| `globalOptions`                                                                                     | Current default options, or `null` if unset                                                                                                                                                                                                                                           |
+| `setOptions(options)`                                                                               | Replace default options                                                                                                                                                                                                                                                               |
+| `parseHls({ url, headers? })`                                                                       | Returns `ParseHlsResult`: `playlist`, `segment`, or `error`                                                                                                                                                                                                                           |
 | `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, signal?, ... })` | Download and merge; default transmux/remux. BrowserAdapter uses Mediabunny WebCodecs for explicit `transcode`; NodeAdapter uses FFmpeg. `signal` enables cooperative cancellation. **BrowserAdapter** → `{ blobURL, totalSegments }`, **NodeAdapter** → `{ filePath, totalSegments }` |
-| `downloadToStream({ url, headers?, ..., signal? }, onChunk)`                        | **BrowserAdapter & NodeAdapter.** Emits fMP4 bytes for browser MSE or HTTP forwarding. BrowserAdapter concurrently prefetches resources before its WASM writer emits chunks; NodeAdapter can download and stream concurrently. Returns `{ totalSegments }` |
-| `getPosterUrl({ url, headers? })`                                         | Poster URL string, or `undefined`                                                                                 |
+| `downloadToStream({ url, headers?, ..., signal? }, onChunk)`                                        | **BrowserAdapter & NodeAdapter.** Emits fMP4 bytes for browser MSE or HTTP forwarding. BrowserAdapter concurrently prefetches resources before its WASM writer emits chunks; NodeAdapter can download and stream concurrently. Returns `{ totalSegments }`                            |
+| `getPosterUrl({ url, headers? })`                                                                   | Poster URL string, or `undefined`                                                                                                                                                                                                                                                     |
 
 `GlobalOptions.download` fields: `headers`, `concurrency`, `maxRetry`. Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
-
 
 ### `HlsDownloaderEvent` values
 
@@ -353,8 +349,8 @@ Includes (not limited to): `STARTING_DOWNLOAD`, `SOURCE_PARSED`, `DOWNLOADING`, 
 
 ### NodeAdapter options
 
-| Field | Type |
-|-------|------|
+| Field   | Type     |
+| ------- | -------- |
 | `aria2` | `object` |
 
 See [Adapter API](docs/api/adapters.md) for `aria2` fields.
