@@ -1,7 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { execSync } from 'child_process';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { existsSync, rmSync } from 'fs';
 
 const HLS_URL =
   'https://is02.dlserv3.com/vod/_definst_/bprost/sample/STT-5380B_sample.mp4/playlist.m3u8';
@@ -47,8 +46,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
   afterAll(() => {
     for (const file of downloadedFiles) {
       try {
-        const dir = join(file, '..');
-        execSync(`rm -rf "${dir}"`, { stdio: 'ignore' });
+        rmSync(file, { force: true });
       } catch {}
     }
   });
@@ -102,7 +100,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
     });
 
     expect(result.filePath).toBeTruthy();
-    expect(result.filePath.endsWith('vp9.webm')).toBe(true);
+    expect(result.filePath.endsWith('hevc.mp4')).toBe(true);
     expect(existsSync(result.filePath)).toBe(true);
     downloadedFiles.push(result.filePath);
 
@@ -123,7 +121,7 @@ describe('Node Adapter Transcode 端到端测试', () => {
     });
 
     expect(result.filePath).toBeTruthy();
-    expect(result.filePath.endsWith('custom-acodec.webm')).toBe(true);
+    expect(result.filePath.endsWith('vp9.webm')).toBe(true);
     expect(existsSync(result.filePath)).toBe(true);
     downloadedFiles.push(result.filePath);
 

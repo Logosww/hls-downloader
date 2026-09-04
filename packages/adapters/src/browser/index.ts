@@ -100,7 +100,7 @@ const parseResultCache = new ParseHlsCache();
 const posterCache: Record<string, string | undefined> = Object.create(null);
 
 const init: HlsDownloaderBrowserAdapter['init'] = async function () {
-  await ensureWasm();
+  // WASM and WebCodecs are initialized lazily by the operation that needs them.
 };
 
 const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
@@ -128,6 +128,7 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
       errorCode: HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
       adapter: this.name,
     });
+    url = new URL(response.url || url.href);
     let manifest = await response.text();
 
     const parser = new Parser();

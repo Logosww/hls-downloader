@@ -84,12 +84,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Unit tests (TS parser, fixture-driven)
-        run: pnpm run test:unit
+      - name: Fast tests
+        run: pnpm test
+
+      - name: HTTP integration tests
+        run: pnpm run test:integration
 
       - run: pnpm exec turbo run lint --filter=!@hls-downloader/app-web
 
       - run: pnpm run build
+
+      - name: Published entrypoint tests
+        run: pnpm run test:publish
 
   native-matrix:
     name: Native verify (${{ matrix.name }})

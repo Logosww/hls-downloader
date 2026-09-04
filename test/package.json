@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "test": "pnpm run test:unit && pnpm run test:e2e",
-    "test:unit": "vitest run parse-hls.unit.test.ts",
+    "test:unit": "vitest run parse-hls.unit.test.ts retry.unit.test.ts",
+    "test:integration": "vitest run hls-http.integration.test.ts",
     "test:native:unit": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --lib hls",
     "test:e2e": "vitest run library-api.e2e.test.ts",
-    "test:e2e:publish": "HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS=1 vitest run library-api.e2e.test.ts publish-entrypoints.e2e.test.ts",
+    "test:e2e:publish": "pnpm run test:publish",
+    "test:publish": "HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS=1 vitest run library-api.e2e.test.ts publish-entrypoints.e2e.test.ts",
     "test:native": "vitest run node-adapter-transcode.test.ts",
     "test:watch": "vitest"
   },
