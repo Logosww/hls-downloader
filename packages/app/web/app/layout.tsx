@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const DmSans = DM_Sans({
   display: 'swap',
+  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {

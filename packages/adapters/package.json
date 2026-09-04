@@ -48,13 +48,13 @@
   "dependencies": {
     "@hls-downloader/core": "workspace:*",
     "@hls-downloader/shared": "workspace:*",
-    "mediabunny": "^1.55.3"
+    "mediabunny": "^1.55.6"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.8.6",
+    "@napi-rs/cli": "^3.9.0",
     "@types/m3u8-parser": "^7.2.6",
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "m3u8-parser": "^7.2.0",
-    "p-limit": "^7.3.1"
+    "p-limit": "^7.3.2"
   }
 }

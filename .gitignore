@@ -54,3 +54,6 @@ packages/adapters/src/node/.cargo
 .vercel/
 vercel.json
 .vercelignore
+
+# local planning
+ROADMAP.md
