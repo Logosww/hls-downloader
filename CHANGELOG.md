@@ -12,7 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Universal**: Add `operationId` to download options, results, and lifecycle events. A UUID is generated automatically when callers do not provide one.
 - **Universal**: Add `HlsDownloaderError` with stable error codes and sanitized diagnostic metadata for manifest, segment, encryption, transmux, transcode, and cancellation failures.
 - **Universal**: Expose read-only `downloader.capabilities` so applications can inspect streaming, retry, byte-range, AES-128, transcode, and persistent-output support at runtime.
-- Add programmable HTTP HLS fixtures and shared Browser/Node contract coverage for redirects, headers, retries, response failures, concurrency, and cancellation.
 
 ### Changed
 

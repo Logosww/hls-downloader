@@ -28,6 +28,9 @@ coverage/
 .env.local
 .env.*.local
 
+# store
+.pnpm_store
+
 # debug
 npm-debug.log*
 yarn-debug.log*
