@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.3.0] - 2026-09-04
+
+### Added
+
+- **Universal**: Add `operationId` to download options, results, and lifecycle events. A UUID is generated automatically when callers do not provide one.
+- **Universal**: Add `HlsDownloaderError` with stable error codes and sanitized diagnostic metadata for manifest, segment, encryption, transmux, transcode, and cancellation failures.
+- **Universal**: Expose read-only `downloader.capabilities` so applications can inspect streaming, retry, byte-range, AES-128, transcode, and persistent-output support at runtime.
+- Add programmable HTTP HLS fixtures and shared Browser/Node contract coverage for redirects, headers, retries, response failures, concurrency, and cancellation.
+
+### Changed
+
+- Align Browser and Node retry behavior. `maxRetry` is the total attempt count (minimum `1`); network errors, HTTP `408`, `425`, `429`, and `5xx` responses use cancellable exponential backoff from 250 ms up to 4 seconds.
+- Isolate event handlers in per-download operation contexts, allowing concurrent `download()` and `downloadToStream()` calls to share an adapter safely.
+- Web app downloads now use a three-worker queue with independent progress, cancellation, failure, completion, and saved states.
+- Web saving falls back to `<a download>` when the File System Access API is unavailable and consistently revokes generated Blob URLs.
+
+### Fixed
+
+- Prevent lifecycle events from leaking between concurrent downloader instances or operations.
+- Ensure cancellation interrupts both active requests and retry delays while preserving `name === 'AbortError'`.
+- Normalize unknown failures at the core boundary and emit at most one structured `ERROR` event per failed operation.
+
 ## [3.2.0] - 2026-08-13
 
 ### Added

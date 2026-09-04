@@ -6,18 +6,11 @@
  *   pnpm run version:bump -- --minor                   # minor +1
  *   pnpm run version:bump -- --major                   # major +1
  *   pnpm run version:bump -- --version 2.0.0-beta.1    # 指定版本字符串（不做格式校验）
- *   pnpm run version:bump -- --changeset               # 通过 Changesets 执行 semver（patch/minor/major）
  *   pnpm run version:bump -- --dry-run                 # 仅打印，不写文件
- *
- * 说明：`--version` 与 `--changeset` 互斥；精确版本仅支持直接改写 package.json。
- * `--changeset`：根包与 `@hls-downloader/rust-native`（嵌套在 adapters 下）不在 Changesets workspace 内；仅对 core/shared/adapters
- * 写 changeset，再对齐根目录与 rust-native 的 `version` 字段；
- * `updateInternalDependencies` 可能会一并抬高 app/docs 等依赖方版本，属预期行为。
  *
  * adapters 与 rust-native 的 optionalDependencies（各平台 native 包）仅在发布流水线里注入，本脚本只改 `version`，避免 CI 在包未发布时 `pnpm i` 与 lockfile 不一致。
  */
 
-import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
-/** 参与统一升版的包；其中根包与 rust-native 不在 Changesets 识别的 workspace 成员内。 */
+/** 参与统一升版的包。 */
 const PACKAGES: { name: string; relPath: string }[] = [
   { name: '@logosw/hls-downloader', relPath: 'package.json' },
   { name: '@hls-downloader/core', relPath: 'packages/core/package.json' },
@@ -34,19 +27,11 @@ const PACKAGES: { name: string; relPath: string }[] = [
   { name: '@hls-downloader/rust-native', relPath: 'packages/adapters/src/node/package.json' },
 ];
 
-const RUST_NATIVE_REL = 'packages/adapters/src/node/package.json';
-
-/** Changesets 仅覆盖 workspace 内的可发布子包（不含根包、不含嵌套的 rust-native）。 */
-const CHANGESET_PACKAGES = PACKAGES.filter(
-  (p) => p.name !== '@logosw/hls-downloader' && p.name !== '@hls-downloader/rust-native',
-);
-
 type Release = 'patch' | 'minor' | 'major';
 
 function parseArgs(argv: string[]) {
   let release: Release = 'patch';
   let explicitVersion: string | undefined;
-  let useChangeset = false;
   let dryRun = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -59,15 +44,13 @@ Options:
   --minor            Minor 递增
   --major            Major 递增
   --version, -v <str>    将上述包设为同一 version 字段（不校验 semver 格式）
-  --changeset        通过 @changesets/cli 执行 semver 递增（不支持与 --version 同用）
-  --dry-run          只打印结果，不写文件、不执行 changeset version
+  --dry-run          只打印结果，不写文件
 `);
       process.exit(0);
     }
     if (a === '--patch') release = 'patch';
     else if (a === '--minor') release = 'minor';
     else if (a === '--major') release = 'major';
-    else if (a === '--changeset') useChangeset = true;
     else if (a === '--dry-run') dryRun = true;
     else if (a === '--version' || a === '-v') {
       const raw = argv[++i];
@@ -83,7 +66,7 @@ Options:
     }
   }
 
-  return { release, explicitVersion, useChangeset, dryRun };
+  return { release, explicitVersion, dryRun };
 }
 
 /** x.y.z，可选 -prerelease、+build（与 node-semver 常见写法一致） */
@@ -138,59 +121,8 @@ function writeVersion(relPath: string, version: string, dryRun: boolean) {
   console.log(`Updated ${relPath}: ${prev} → ${version}`);
 }
 
-function runChangesetVersion(dryRun: boolean) {
-  if (dryRun) {
-    console.log('[dry-run] skip: pnpm exec changeset version');
-    return;
-  }
-  execSync('pnpm exec changeset version', { cwd: ROOT, stdio: 'inherit' });
-}
-
-function writeChangesetFile(release: Release): string {
-  const lines = [
-    '---',
-    ...CHANGESET_PACKAGES.map((p) => `"${p.name}": ${release}`),
-    '---',
-    '',
-    'Bump package versions (automated by scripts/bump-versions.ts)',
-    '',
-  ];
-  const name = `auto-bump-${Date.now()}.md`;
-  const dir = resolve(ROOT, '.changeset');
-  const path = resolve(dir, name);
-  writeFileSync(path, lines.join('\n'), 'utf-8');
-  return path;
-}
-
 const argv = process.argv.slice(2);
-const { release, explicitVersion, useChangeset, dryRun } = parseArgs(argv);
-
-if (explicitVersion && useChangeset) {
-  console.error(
-    'Cannot use --version together with --changeset. Use direct bump for exact versions.',
-  );
-  process.exit(1);
-}
-
-if (useChangeset) {
-  if (dryRun) {
-    console.log(
-      `[dry-run] would add changeset (${release}) for: ${CHANGESET_PACKAGES.map((p) => p.name).join(', ')}`,
-    );
-    console.log('[dry-run] would run: pnpm exec changeset version');
-    console.log('[dry-run] would sync root + rust-native to core version');
-    process.exit(0);
-  }
-  const csPath = writeChangesetFile(release);
-  console.log(`Created changeset: ${csPath}`);
-  runChangesetVersion(false);
-  const synced = readVersion('packages/core/package.json');
-  writeVersion('package.json', synced, false);
-  console.log(`Synced root @logosw/hls-downloader version to ${synced}`);
-  writeVersion(RUST_NATIVE_REL, synced, false);
-  console.log(`Synced @hls-downloader/rust-native to ${synced}`);
-  process.exit(0);
-}
+const { release, explicitVersion, dryRun } = parseArgs(argv);
 
 // 直接改写各 package.json
 if (explicitVersion) {

@@ -8,6 +8,28 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [3.3.0] - 2026-09-04
+
+### 新增
+
+- **通用**：下载选项、结果和生命周期事件新增 `operationId`；调用方未指定时自动生成 UUID。
+- **通用**：新增 `HlsDownloaderError`、稳定错误码，以及覆盖清单、分片、加密、封装、转码和取消失败的脱敏诊断元数据。
+- **通用**：新增只读 `downloader.capabilities`，应用可在运行时检查流式下载、重试、字节范围、AES-128、转码和持久输出能力。
+- 新增可编程 HTTP HLS fixture，以及 Browser/Node 共享契约测试，覆盖重定向、headers、重试、响应失败、并发和取消。
+
+### 变更
+
+- 对齐 Browser 与 Node 的重试行为。`maxRetry` 表示总尝试次数（最小为 `1`）；网络错误、HTTP `408`、`425`、`429` 和 `5xx` 响应使用从 250 ms 起、最高 4 秒的可取消指数退避。
+- 事件处理器改为按下载 operation 隔离，使并发 `download()` 和 `downloadToStream()` 可以安全共享 adapter。
+- Web 应用改用最多三个 worker 的下载队列，并为每个任务独立管理进度、取消、失败、完成和已保存状态。
+- File System Access API 不可用时，Web 保存操作回退到 `<a download>`，并统一回收生成的 Blob URL。
+
+### 修复
+
+- 修复并发 downloader 实例或 operation 之间生命周期事件串线的问题。
+- 取消操作现在可以中断活动请求和重试等待，同时保持 `name === 'AbortError'`。
+- 在 core 边界统一规范化未知异常，并保证每个失败 operation 最多发送一次结构化 `ERROR` 事件。
+
 ## [3.2.0] - 2026-08-13
 
 ### Added
