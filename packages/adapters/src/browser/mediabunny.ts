@@ -12,11 +12,13 @@ import {
 } from 'mediabunny';
 import { HlsDownloaderError, HlsDownloaderErrorCode } from '@hls-downloader/shared';
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/shared';
+import { fetchWithRetry } from './retry';
 
 export type TranscodeHlsOptions = {
   url: string;
   transcode: HlsDownloaderBrowserTranscodeOptions;
   headers?: Record<string, string>;
+  maxRetry: number;
   signal?: AbortSignal;
   onSegmentLoaded?: (loaded: number) => void;
   onProgress?: (progress: number) => void;
@@ -55,6 +57,7 @@ function createHlsSource(
   url: string,
   headers: Record<string, string> | undefined,
   signal: AbortSignal | undefined,
+  maxRetry: number,
   segmentUrls: string[],
   onSegmentLoaded: ((loaded: number) => void) | undefined,
 ) {
@@ -64,7 +67,8 @@ function createHlsSource(
 
   return new CustomPathedSource(url, async ({ path }) => {
     const resolvedUrl = resolveUrl(String(path), url);
-    const bufferPromise = sourceCache.get(resolvedUrl) ?? fetchBuffer(resolvedUrl, headers, signal);
+    const bufferPromise =
+      sourceCache.get(resolvedUrl) ?? fetchBuffer(resolvedUrl, headers, signal, maxRetry);
     sourceCache.set(resolvedUrl, bufferPromise);
     const buffer = await bufferPromise;
 
@@ -81,13 +85,14 @@ export async function transcodeHls({
   url,
   transcode,
   headers,
+  maxRetry,
   signal,
   onSegmentLoaded,
   onProgress,
   segmentUrls = [],
 }: TranscodeHlsOptions): Promise<TranscodeHlsResult> {
   const preset = TRANSCODE_PRESETS[transcode.preset];
-  const source = createHlsSource(url, headers, signal, segmentUrls, onSegmentLoaded);
+  const source = createHlsSource(url, headers, signal, maxRetry, segmentUrls, onSegmentLoaded);
   const input = new Input({ source, formats: HLS_FORMATS });
   const target = new BufferTarget();
   const output = new Output({
@@ -159,11 +164,14 @@ async function fetchBuffer(
   url: string,
   headers?: Record<string, string>,
   signal?: AbortSignal,
+  maxRetry = 1,
 ): Promise<ArrayBuffer> {
-  const response = await fetch(url, { headers, signal });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status}`);
-  }
+  const response = await fetchWithRetry({
+    url,
+    init: { headers, signal },
+    maxAttempts: maxRetry,
+    errorCode: HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+  });
   return await response.arrayBuffer();
 }
 

@@ -28,6 +28,7 @@ import {
 import { transcodeHls } from './mediabunny';
 import { extractPosterFromSegmentUrl } from './poster';
 import { promiseWithLimit } from './utils';
+import { fetchWithRetry } from './retry';
 import {
   ensureWasm,
   transmuxPreloadedToFmp4Stream,
@@ -106,14 +107,12 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   this: HlsDownloaderBrowserAdapter,
   options,
 ) {
-  const {
-    url: hlsUrl,
-    headers,
-    signal,
-  } = mergeFetchOptions(
-    getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options),
-    options,
-  );
+  const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
+  const { url: hlsUrl, headers, signal } = mergeFetchOptions(globalOptions, options);
+  const maxRetry =
+    (stripContext(options) as HlsDownloaderDownloadOptions).maxRetry ??
+    globalOptions?.download?.maxRetry ??
+    this.segmentRetryAttempts;
 
   const cacheKey = buildParseHlsCacheKey(hlsUrl, headers);
   const cached = parseResultCache.get(cacheKey);
@@ -122,14 +121,13 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   try {
     let url = new URL(hlsUrl);
 
-    let response = await fetch(url.href, { headers, mode: 'cors', signal });
-    if (!response.ok) {
-      throw new HlsDownloaderError(
-        HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
-        `Failed to fetch HLS manifest (${response.status})`,
-        { url: response.url || hlsUrl, status: response.status, adapter: this.name },
-      );
-    }
+    const response = await fetchWithRetry({
+      url: url.href,
+      init: { headers, mode: 'cors', signal },
+      maxAttempts: maxRetry,
+      errorCode: HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
+      adapter: this.name,
+    });
     let manifest = await response.text();
 
     const parser = new Parser();
@@ -290,6 +288,7 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
     url: resolvedUrl,
     transcode: browserTranscode,
     headers,
+    maxRetry,
     signal,
     segmentUrls: segments.map((segment) => segment.uri),
     onSegmentLoaded: (completed) => {
@@ -320,22 +319,6 @@ type DownloadFileOptions = {
   url: string;
   headers?: Record<string, string>;
   signal?: AbortSignal;
-};
-
-const downloadSegmentBytes = async ({ url, headers, signal }: DownloadFileOptions) => {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: headers,
-    mode: 'cors',
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}`);
-  }
-
-  const buffer = await response.arrayBuffer();
-  return new Uint8Array(buffer);
 };
 
 type DownloadAndTransmuxOptions = {
@@ -382,30 +365,25 @@ const downloadAndTransmux = async ({
 
 const downloadSegmentBytesWithRetry = async ({
   maxRetry,
+  segmentIndex,
   ...options
 }: DownloadFileOptions & {
   maxRetry: number;
+  segmentIndex?: number;
 }) => {
-  let retry = 0;
-
-  while (retry < maxRetry) {
-    try {
-      return await downloadSegmentBytes(options);
-    } catch {
-      if (options.signal?.aborted) {
-        throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-          adapter: 'BrowserAdapter',
-          url: options.url,
-        });
-      }
-      retry++;
-      if (retry >= maxRetry) {
-        throw new Error(`Failed to download ${options.url} after ${maxRetry} attempts`);
-      }
-    }
-  }
-
-  throw new Error(`Failed to download ${options.url}`);
+  const response = await fetchWithRetry({
+    url: options.url,
+    init: {
+      method: 'GET',
+      headers: options.headers,
+      mode: 'cors',
+      signal: options.signal,
+    },
+    maxAttempts: maxRetry,
+    errorCode: HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+    segmentIndex,
+  });
+  return new Uint8Array(await response.arrayBuffer());
 };
 
 type PreloadHlsResourcesOptions = {
@@ -433,30 +411,13 @@ async function fetchPlaylistText({
   maxRetry,
   ...options
 }: DownloadFileOptions & { maxRetry: number }): Promise<string> {
-  let retry = 0;
-  while (retry < maxRetry) {
-    try {
-      const response = await fetch(options.url, {
-        headers: options.headers,
-        mode: 'cors',
-        signal: options.signal,
-      });
-      if (!response.ok) throw new Error(`Failed to fetch ${options.url}`);
-      return await response.text();
-    } catch {
-      if (options.signal?.aborted) {
-        throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-          adapter: 'BrowserAdapter',
-          url: options.url,
-        });
-      }
-      retry++;
-      if (retry >= maxRetry) {
-        throw new Error(`Failed to download ${options.url} after ${maxRetry} attempts`);
-      }
-    }
-  }
-  throw new Error(`Failed to download ${options.url}`);
+  const response = await fetchWithRetry({
+    url: options.url,
+    init: { headers: options.headers, mode: 'cors', signal: options.signal },
+    maxAttempts: maxRetry,
+    errorCode: HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
+  });
+  return await response.text();
 }
 
 async function preloadHlsResources({
@@ -475,14 +436,21 @@ async function preloadHlsResources({
     signal,
   });
   const segmentCounts = new Map<string, number>();
+  const resourceSegmentIndexes = new Map<string, number>();
   const resourceUrls = new Set<string>();
 
-  for (const segment of segments) {
+  for (const [segmentIndex, segment] of segments.entries()) {
     const [segmentUrl, ...additionalUrls] = getSegmentResourceUrls(segment, playlistUrl);
     if (!segmentUrl) continue;
     segmentCounts.set(segmentUrl, (segmentCounts.get(segmentUrl) ?? 0) + 1);
     resourceUrls.add(segmentUrl);
-    for (const resourceUrl of additionalUrls) resourceUrls.add(resourceUrl);
+    resourceSegmentIndexes.set(segmentUrl, segmentIndex);
+    for (const resourceUrl of additionalUrls) {
+      resourceUrls.add(resourceUrl);
+      if (!resourceSegmentIndexes.has(resourceUrl)) {
+        resourceSegmentIndexes.set(resourceUrl, segmentIndex);
+      }
+    }
   }
 
   let completed = 0;
@@ -492,6 +460,7 @@ async function preloadHlsResources({
         url: resourceUrl,
         headers,
         maxRetry,
+        segmentIndex: resourceSegmentIndexes.get(resourceUrl),
         signal,
       });
       completed += segmentCounts.get(resourceUrl) ?? 0;

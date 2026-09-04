@@ -1,15 +1,15 @@
 use std::collections::HashMap;
-use std::io::{copy, BufReader, BufWriter as StdBufWriter, Write};
+use std::io::{BufReader, BufWriter as StdBufWriter, Write, copy};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use futures::stream::{self, StreamExt};
 use tokio::io::{AsyncWriteExt, BufWriter as TokioBufWriter};
 
-use crate::hls::Segment;
 use crate::HlsError;
+use crate::hls::Segment;
 
 #[derive(Debug, Clone)]
 pub enum DownloadProgress {
@@ -80,13 +80,36 @@ async fn download_segment_with_retry(
     max_retry: usize,
 ) -> Result<PathBuf, HlsError> {
     let mut last_err = None;
-    for _ in 0..max_retry {
+    let max_attempts = max_retry.max(1);
+    for attempt in 1..=max_attempts {
         match download_segment(client, segment, index, dir, headers).await {
             Ok(path) => return Ok(path),
-            Err(e) => last_err = Some(e),
+            Err(error) => {
+                if attempt == max_attempts || !is_retryable_download_error(&error) {
+                    return Err(error);
+                }
+                last_err = Some(error);
+                let base = 250_u64
+                    .saturating_mul(2_u64.saturating_pow((attempt - 1) as u32))
+                    .min(4_000);
+                tokio::time::sleep(std::time::Duration::from_millis(base)).await;
+            }
         }
     }
     Err(last_err.unwrap_or_else(|| HlsError::Parse("Download failed".to_string())))
+}
+
+fn is_retryable_download_error(error: &HlsError) -> bool {
+    match error {
+        HlsError::Network(_) => true,
+        HlsError::Parse(message) => {
+            let status = message
+                .split_whitespace()
+                .find_map(|part| part.trim_end_matches(':').parse::<u16>().ok());
+            status.is_some_and(|status| matches!(status, 408 | 425 | 429 | 500..=599))
+        }
+        _ => false,
+    }
 }
 
 fn write_aria2_input_file(
@@ -141,7 +164,9 @@ fn run_aria2_download(
         .arg(&session_path)
         .arg("-d")
         .arg(work_dir)
-        .arg(format!("--max-concurrent-downloads={max_concurrent_downloads}"))
+        .arg(format!(
+            "--max-concurrent-downloads={max_concurrent_downloads}"
+        ))
         .arg(format!("--max-tries={max_retry}"));
     if let Some(n) = aria2_options.max_connection_per_server.filter(|n| *n >= 1) {
         cmd.arg(format!("--max-connection-per-server={n}"));
@@ -258,10 +283,7 @@ pub(crate) fn merge_segments_with_ffmpeg(
         if idx < stream_count {
             let mut pkt = packet.clone();
             pkt.set_stream(idx);
-            pkt.rescale_ts(
-                stream.time_base(),
-                octx.stream(idx).unwrap().time_base(),
-            );
+            pkt.rescale_ts(stream.time_base(), octx.stream(idx).unwrap().time_base());
             pkt.set_position(-1);
             pkt.write_interleaved(&mut octx)?;
         }
@@ -518,4 +540,22 @@ pub async fn download_and_merge(
     }
 
     Ok(output_path_buf)
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    #[test]
+    fn retries_only_transient_http_failures() {
+        assert!(is_retryable_download_error(&HlsError::Parse(
+            "Failed to fetch segment: 429".into()
+        )));
+        assert!(is_retryable_download_error(&HlsError::Parse(
+            "Failed to fetch segment: 503".into()
+        )));
+        assert!(!is_retryable_download_error(&HlsError::Parse(
+            "Failed to fetch segment: 404".into()
+        )));
+    }
 }

@@ -1,16 +1,124 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use hls_transmux::{
-    transmux_hls_to_mp4_async, transmux_hls_to_writer_async, CancelToken, HlsInput, OutputFormat,
-    ReqwestSource, SourceLocation, TransmuxOptions, TransmuxProgress,
+    ByteRange, CancelToken, Error as TransmuxError, HlsInput, OutputFormat, ReqwestSource, Source,
+    SourceLocation, TextResource, TransmuxOptions, TransmuxProgress, transmux_hls_to_mp4_async,
+    transmux_hls_to_writer_async,
 };
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
+use crate::HlsError;
 use crate::cancel::JobCancelToken;
 use crate::download::{DownloadProgress, ProgressCallback};
-use crate::HlsError;
+
+#[derive(Debug)]
+struct RetryingSource {
+    inner: ReqwestSource,
+    max_attempts: usize,
+    cancel: Option<Arc<JobCancelToken>>,
+}
+
+impl RetryingSource {
+    fn new(
+        concurrency: usize,
+        headers: HeaderMap,
+        max_attempts: usize,
+        cancel: Option<Arc<JobCancelToken>>,
+    ) -> Self {
+        Self {
+            inner: ReqwestSource::with_concurrency_and_headers(concurrency.max(1), headers),
+            max_attempts: max_attempts.max(1),
+            cancel,
+        }
+    }
+
+    async fn wait(&self, attempt: usize) -> Result<(), TransmuxError> {
+        let base = 250_u64.saturating_mul(2_u64.saturating_pow((attempt - 1) as u32));
+        let base = base.min(4_000);
+        let jitter = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| 90 + u64::from(duration.subsec_nanos() % 21))
+            .unwrap_or(100);
+        let delay = tokio::time::sleep(std::time::Duration::from_millis(base * jitter / 100));
+        tokio::pin!(delay);
+        if let Some(cancel) = &self.cancel {
+            tokio::select! {
+                _ = &mut delay => Ok(()),
+                _ = cancel.cancelled() => Err(TransmuxError::Cancelled),
+            }
+        } else {
+            delay.await;
+            Ok(())
+        }
+    }
+
+    fn should_retry(error: &TransmuxError) -> bool {
+        let TransmuxError::Http(message) = error else {
+            return false;
+        };
+        let status = message
+            .split_whitespace()
+            .find_map(|part| part.parse::<u16>().ok());
+        status.is_none_or(|status| matches!(status, 408 | 425 | 429 | 500..=599))
+    }
+}
+
+impl Source for RetryingSource {
+    fn read_text<'a>(
+        &'a self,
+        location: &'a SourceLocation,
+    ) -> Pin<Box<dyn Future<Output = Result<TextResource, TransmuxError>> + Send + 'a>> {
+        Box::pin(async move {
+            for attempt in 1..=self.max_attempts {
+                if self
+                    .cancel
+                    .as_ref()
+                    .is_some_and(|cancel| cancel.is_cancelled())
+                {
+                    return Err(TransmuxError::Cancelled);
+                }
+                match self.inner.read_text(location).await {
+                    Ok(resource) => return Ok(resource),
+                    Err(error) if attempt < self.max_attempts && Self::should_retry(&error) => {
+                        self.wait(attempt).await?;
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+            unreachable!()
+        })
+    }
+
+    fn read_bytes<'a>(
+        &'a self,
+        location: &'a SourceLocation,
+        range: Option<&'a ByteRange>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TransmuxError>> + Send + 'a>> {
+        Box::pin(async move {
+            for attempt in 1..=self.max_attempts {
+                if self
+                    .cancel
+                    .as_ref()
+                    .is_some_and(|cancel| cancel.is_cancelled())
+                {
+                    return Err(TransmuxError::Cancelled);
+                }
+                match self.inner.read_bytes(location, range).await {
+                    Ok(bytes) => return Ok(bytes),
+                    Err(error) if attempt < self.max_attempts && Self::should_retry(&error) => {
+                        self.wait(attempt).await?;
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+            unreachable!()
+        })
+    }
+}
 
 /// Download HLS segments and transmux to MP4 using hls-transmux's built-in
 /// concurrent HTTP client + transmuxer. Writes the result directly to `output_path`.
@@ -18,16 +126,13 @@ use crate::HlsError;
 /// `playlist_url` 必须是已选定 variant 的 media playlist URL（由 NodeAdapter
 /// 上层 resolveToSegments 解析 master playlist 后给出）。
 ///
-/// `max_retry` 当前由 hls-transmux 内置 reqwest 客户端决定（不支持显式
-/// 重试次数配置；本次先标注为已知限制）。
-///
 /// `cancel` 为 `Some` 时，hls-transmux 会在每段循环顶部及 await 点检查取消信号。
 pub async fn transmux_segments_to_mp4_file(
     playlist_url: &str,
     output_path: &Path,
     headers: Option<&HashMap<String, String>>,
     concurrency: usize,
-    _max_retry: usize,
+    max_retry: usize,
     cancel: Option<Arc<JobCancelToken>>,
     on_progress: Option<ProgressCallback>,
 ) -> Result<(), HlsError> {
@@ -43,9 +148,11 @@ pub async fn transmux_segments_to_mp4_file(
         }
     }
 
-    let source = Arc::new(ReqwestSource::with_concurrency_and_headers(
-        concurrency.max(1),
+    let source = Arc::new(RetryingSource::new(
+        concurrency,
         header_map,
+        max_retry,
+        cancel.clone(),
     ));
     let location = SourceLocation::Url(
         url::Url::parse(playlist_url).map_err(|e| HlsError::Parse(e.to_string()))?,
@@ -54,12 +161,13 @@ pub async fn transmux_segments_to_mp4_file(
 
     let progress_cb = on_progress.as_ref().map(|cb| {
         let cb = Arc::clone(cb);
-        let cb_fn: Arc<dyn Fn(TransmuxProgress) + Send + Sync> = Arc::new(move |p: TransmuxProgress| {
-            cb(DownloadProgress::Downloading {
-                completed: p.completed_segments,
-                total: p.total_segments,
+        let cb_fn: Arc<dyn Fn(TransmuxProgress) + Send + Sync> =
+            Arc::new(move |p: TransmuxProgress| {
+                cb(DownloadProgress::Downloading {
+                    completed: p.completed_segments,
+                    total: p.total_segments,
+                });
             });
-        });
         cb_fn
     });
 
@@ -107,13 +215,12 @@ fn map_transmux_error(e: hls_transmux::Error) -> HlsError {
 ///
 /// `on_progress` 每段完成后触发，反映下载与 mux 进度。
 ///
-/// `max_retry` 当前由 hls-transmux 内置 reqwest 决定（不支持显式重试次数）。
 pub async fn transmux_hls_to_stream<W>(
     playlist_url: &str,
     writer: &mut W,
     headers: Option<&HashMap<String, String>>,
     concurrency: usize,
-    _max_retry: usize,
+    max_retry: usize,
     cancel: Option<Arc<JobCancelToken>>,
     on_progress: Option<ProgressCallback>,
 ) -> Result<(), HlsError>
@@ -132,9 +239,11 @@ where
         }
     }
 
-    let source = Arc::new(ReqwestSource::with_concurrency_and_headers(
-        concurrency.max(1),
+    let source = Arc::new(RetryingSource::new(
+        concurrency,
         header_map,
+        max_retry,
+        cancel.clone(),
     ));
     let location = SourceLocation::Url(
         url::Url::parse(playlist_url).map_err(|e| HlsError::Parse(e.to_string()))?,
@@ -143,12 +252,13 @@ where
 
     let progress_cb = on_progress.as_ref().map(|cb| {
         let cb = Arc::clone(cb);
-        let cb_fn: Arc<dyn Fn(TransmuxProgress) + Send + Sync> = Arc::new(move |p: TransmuxProgress| {
-            cb(DownloadProgress::Downloading {
-                completed: p.completed_segments,
-                total: p.total_segments,
+        let cb_fn: Arc<dyn Fn(TransmuxProgress) + Send + Sync> =
+            Arc::new(move |p: TransmuxProgress| {
+                cb(DownloadProgress::Downloading {
+                    completed: p.completed_segments,
+                    total: p.total_segments,
+                });
             });
-        });
         cb_fn
     });
 
@@ -174,4 +284,25 @@ where
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    #[test]
+    fn retries_network_and_transient_status_errors_only() {
+        assert!(RetryingSource::should_retry(&TransmuxError::Http(
+            "transport closed".into()
+        )));
+        assert!(RetryingSource::should_retry(&TransmuxError::Http(
+            "GET example returned status 503 Service Unavailable".into()
+        )));
+        assert!(!RetryingSource::should_retry(&TransmuxError::Http(
+            "GET example returned status 404 Not Found".into()
+        )));
+        assert!(!RetryingSource::should_retry(&TransmuxError::InvalidInput(
+            "bad playlist".into()
+        )));
+    }
 }
