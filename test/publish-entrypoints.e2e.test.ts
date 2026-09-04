@@ -9,6 +9,7 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
       expect(entry.default).toBe(entry.HlsDownloader);
       expect(entry.HlsDownloader).toBeTypeOf('function');
       expect(entry.HlsDownloaderEvent.READY_FOR_DOWNLOAD).toBe('ready-for-download');
+      expect(entry.HlsDownloaderErrorCode.ABORTED).toBe('ABORTED');
       expect(entry.createAdapter).toBeTypeOf('function');
       expect(entry.NodeAdapter).toBeDefined();
       expect(entry.BrowserAdapter).toBeDefined();
@@ -22,6 +23,7 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
 
       expect(core.default).toBe(core.HlsDownloader);
       expect(shared.createAdapter).toBeTypeOf('function');
+      expect(shared.HlsDownloaderError).toBeTypeOf('function');
       expect(shared.buildFfmpegOutputArgs({ preset: 'h264' })).toContain('libx264');
       expect(adaptersBrowser.BrowserAdapter).toBeDefined();
       expect(adaptersNode.NodeAdapter).toBeDefined();
@@ -38,6 +40,12 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
       expect(shared.HlsDownloaderEvent.ERROR).toBe('error');
       expect(adapters.BrowserAdapter).toBe(adaptersBrowser.BrowserAdapter);
       expect(adapters.NodeAdapter).toBe(adaptersNode.NodeAdapter);
+      expect(
+        new core.HlsDownloader({ adapter: adaptersBrowser.BrowserAdapter }).capabilities,
+      ).toMatchObject({
+        configurableRetry: true,
+        persistentOutput: false,
+      });
     });
   },
 );

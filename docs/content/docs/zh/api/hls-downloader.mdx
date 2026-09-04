@@ -189,11 +189,12 @@ async downloadToStream(
 | `url`                 | `string`                 | HLS 播放列表地址                                                   |
 | `headers`             | `Record<string, string>` | 请求头                                                             |
 | `filename`            | `string`                 | 流式路径不写文件，此字段被忽略；为选项兼容性而保留                 |
-| `maxRetry`            | `number`                 | 当前在流式路径下不生效（内置 reqwest 无重试钩子）                  |
+| `maxRetry`            | `number`                 | 包含首次请求的总尝试次数；Browser 与 Node 流式路径均生效           |
+| `operationId`         | `string`                 | 可选的事件关联 ID；省略时自动生成                                  |
 | `downloadConcurrency` | `number`                 | 分片并发下载数                                                     |
 | `signal`              | `AbortSignal`            | 协作式取消。当信号中止时，流式 Promise 会被拒绝并抛出 `AbortError` |
 
-返回 `{ totalSegments: number }`。
+返回 `{ totalSegments: number, operationId: string }`。
 
 #### 示例：HTTP 服务推流给浏览器（边推流 + 边落盘）
 

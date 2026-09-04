@@ -10,6 +10,7 @@ import {
 
 import type {
   DownloaderContext,
+  AdapterCapabilities,
   HlsDownloaderAdapter,
   HlsDownloaderAdapterInternal,
   HlsDownloaderGlobalDownloadOptions,
@@ -56,6 +57,9 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   readonly #onEvent?: HlsDownloaderAdapter['onEvent'];
   get isInit(): boolean {
     return this.#isInit;
+  }
+  get capabilities(): AdapterCapabilities {
+    return this.#adapter.capabilities;
   }
   constructor({
     adapter,

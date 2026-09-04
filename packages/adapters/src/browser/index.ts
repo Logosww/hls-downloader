@@ -541,6 +541,16 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
 
 const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   name: 'BrowserAdapter',
+  capabilities: {
+    download: true,
+    stream: true,
+    transcodePresets: ['h264', 'hevc', 'vp9'],
+    configurableRetry: true,
+    byteRange: true,
+    aes128: false,
+    liveRecording: false,
+    persistentOutput: false,
+  },
   chunkDownloadConcurrency: 10,
   segmentRetryAttempts: 10,
   init,

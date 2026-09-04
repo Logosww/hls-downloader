@@ -63,6 +63,16 @@ function createMemoryAdapter() {
 
   const internal: HlsDownloaderAdapterInternal<TestGlobalOptions, TestDownloadResult> = {
     name: 'MemoryAdapter',
+    capabilities: {
+      download: true,
+      stream: true,
+      transcodePresets: [],
+      configurableRetry: true,
+      byteRange: 'unknown',
+      aes128: 'unknown',
+      liveRecording: false,
+      persistentOutput: false,
+    },
     chunkDownloadConcurrency: 3,
     segmentRetryAttempts: 5,
     async init(options) {
@@ -158,6 +168,7 @@ describe('library API e2e', () => {
     });
 
     expect(downloader.isInit).toBe(false);
+    expect(downloader.capabilities).toMatchObject({ download: true, stream: true });
     expect(isRegisteredAdapter(adapter)).toBe(true);
     expect(getInternalAdapter(adapter)).toBe(internal);
     expect(() => {
@@ -233,6 +244,16 @@ describe('library API e2e', () => {
     type Result = { label: string; totalSegments: number };
     const internal: HlsDownloaderAdapterInternal<Record<string, never>, Result> = {
       name: 'ConcurrentAdapter',
+      capabilities: {
+        download: true,
+        stream: true,
+        transcodePresets: [],
+        configurableRetry: true,
+        byteRange: 'unknown',
+        aes128: 'unknown',
+        liveRecording: false,
+        persistentOutput: false,
+      },
       chunkDownloadConcurrency: 2,
       segmentRetryAttempts: 2,
       async init() {},

@@ -198,12 +198,13 @@ Merges per-call options with `globalOptions` (per-call wins).
 | `url`                 | `string`                 | HLS playlist URL                                                                                                                                                                               |
 | `headers`             | `Record<string, string>` | Request headers                                                                                                                                                                                |
 | `filename`            | `string`                 | Ignored on streaming path (no file is written); accepted for option compatibility                                                                                                              |
-| `maxRetry`            | `number`                 | Effective on `BrowserAdapter` (segment prefetch retries). **Not effective on `NodeAdapter`** streaming path (the built-in reqwest client has no retry hook)                                    |
+| `maxRetry`            | `number`                 | Total attempts including the first request; effective on Browser and Node streaming paths                                                                                                      |
+| `operationId`         | `string`                 | Optional caller-defined event correlation ID; generated automatically when omitted                                                                                                             |
 | `downloadConcurrency` | `number`                 | Concurrent segment downloads                                                                                                                                                                   |
 | `signal`              | `AbortSignal`            | Cooperative cancellation. When the signal aborts, the stream rejects with an `AbortError`. On `BrowserAdapter`, abort during the prefetch phase is limited to `fetch`-level signal propagation |
 | `variant`             | `VariantSelectOptions`   | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth)                                                                                               |
 
-Returns `{ totalSegments: number }`.
+Returns `{ totalSegments: number, operationId: string }`.
 
 #### Example: HTTP server streaming to a browser (stream + persist)
 

@@ -25,7 +25,7 @@ const downloader = new HlsDownloader({
         console.log(`Stitching: ${payload?.completed}/${payload?.total}`);
         break;
       case HlsDownloaderEvent.ERROR:
-        console.error('Download error');
+        console.error(payload.error.code, payload.operationId);
         break;
     }
   },
@@ -34,7 +34,7 @@ const downloader = new HlsDownloader({
 
 ## Event Reference
 
-| Event                  | Payload                | Description                                             |
+| Event                  | Additional payload     | Description                                             |
 | ---------------------- | ---------------------- | ------------------------------------------------------- |
 | `FFMPEG_LOADING`       | —                      | Native FFmpeg core is being loaded (`NodeAdapter` only) |
 | `FFMPEG_LOADED`        | —                      | Native FFmpeg core has been loaded (`NodeAdapter` only) |
@@ -44,7 +44,7 @@ const downloader = new HlsDownloader({
 | `DOWNLOADING_SEGMENTS` | `{ total, completed }` | Segment download progress                               |
 | `STITCHING_SEGMENTS`   | `{ total, completed }` | Segment stitching/merging progress                      |
 | `READY_FOR_DOWNLOAD`   | —                      | Merged file is ready                                    |
-| `ERROR`                | —                      | An error occurred                                       |
+| `ERROR`                | `{ error }`            | Structured `HlsDownloaderError`                         |
 
 ## Progress Tracking
 
@@ -52,9 +52,10 @@ The `DOWNLOADING_SEGMENTS` and `STITCHING_SEGMENTS` events provide a progress pa
 
 ```ts
 type ProgressPayload = {
+  operationId: string;
   total: number;
   completed: number;
 };
 ```
 
-These are the only two events that include a payload. All other events are emitted without additional data.
+Every download event payload includes `operationId`. Progress events add `total` and `completed`; `ERROR` adds a structured `error` with a stable code and sanitized metadata.

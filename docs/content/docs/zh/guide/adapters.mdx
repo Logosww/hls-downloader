@@ -15,6 +15,20 @@ HLS Downloader 使用适配器模式来支持不同运行环境。请根据你�
 
 </Callout>
 
+## 运行时能力
+
+可通过 `downloader.capabilities` 在运行时读取同一矩阵。
+
+| 能力           | Browser         | Node            |
+| -------------- | --------------- | --------------- |
+| 下载 / stream  | 是 / 是         | 是 / 是         |
+| 可配置重试     | 是              | 是              |
+| 转码预设       | h264、hevc、vp9 | h264、hevc、vp9 |
+| Byte range     | 是              | 是              |
+| AES-128        | 否              | 否              |
+| 持久输出       | 否              | 是              |
+| Live recording | 否              | 否              |
+
 ## BrowserAdapter（浏览器）
 
 ```ts

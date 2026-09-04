@@ -143,23 +143,37 @@ server.listen(3000);
 
 ### `HlsDownloader` API 摘要
 
-| 成员                                                                                                | 说明                                                                                                                                                                                                                                                                          |
-| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `constructor({ adapter, options?, onEvent? })`                                                      | `options` 为 `GlobalOptions<T>`：`download`、`transcode` 及适配器专有字段，会与每次调用合并                                                                                                                                                                                   |
-| `init()`                                                                                            | 初始化轻量适配器状态；BrowserAdapter 的 WASM 与 WebCodecs 路径均按需启动                                                                                                                                                                                                      |
-| `isInit`                                                                                            | 是否已完成初始化                                                                                                                                                                                                                                                              |
-| `globalOptions`                                                                                     | 当前默认选项，未设置时为 `null`                                                                                                                                                                                                                                               |
-| `setOptions(options)`                                                                               | 更新默认选项                                                                                                                                                                                                                                                                  |
-| `parseHls({ url, headers? })`                                                                       | 返回 `ParseHlsResult`：主列表 `playlist`、媒体列表 `segment` 或 `error`                                                                                                                                                                                                       |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, signal?, ... })` | 下载并合并；默认走 transmux/remux。BrowserAdapter 显式 `transcode` 时使用 Mediabunny WebCodecs，NodeAdapter 使用 FFmpeg。`signal` 用于协作式取消（中止时抛 `AbortError`）。**BrowserAdapter** → `{ blobURL, totalSegments }`，**NodeAdapter** → `{ filePath, totalSegments }` |
-| `downloadToStream({ url, headers?, ..., signal? }, onChunk)`                                        | **BrowserAdapter 与 NodeAdapter。** 输出 fMP4 字节，适合浏览器 MSE 或 HTTP 转发。BrowserAdapter 先并发预取资源，再通过 WASM writer 推送分块；NodeAdapter 可边下载边推流。返回 `{ totalSegments }`                                                                             |
-| `getPosterUrl({ url, headers? })`                                                                   | 返回封面 URL 字符串，若无则 `undefined`                                                                                                                                                                                                                                       |
+| 成员                                                                                                  | 说明                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `constructor({ adapter, options?, onEvent? })`                                                        | `options` 为 `GlobalOptions<T>`：`download`、`transcode` 及适配器专有字段，会与每次调用合并                                                                              |
+| `init()`                                                                                              | 初始化轻量适配器状态；BrowserAdapter 的 WASM 与 WebCodecs 路径均按需启动                                                                                                 |
+| `isInit`                                                                                              | 是否已完成初始化                                                                                                                                                         |
+| `globalOptions`                                                                                       | 当前默认选项，未设置时为 `null`                                                                                                                                          |
+| `setOptions(options)`                                                                                 | 更新默认选项                                                                                                                                                             |
+| `parseHls({ url, headers? })`                                                                         | 返回 `ParseHlsResult`：主列表 `playlist`、媒体列表 `segment` 或 `error`                                                                                                  |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, operationId?, signal?, ... })` | 下载并合并；`operationId` 可由调用方指定，缺省时自动生成。Browser 返回 `{ blobURL, totalSegments, operationId }`，Node 返回 `{ filePath, totalSegments, operationId }`。 |
+| `downloadToStream({ url, headers?, operationId?, signal?, ... }, onChunk)`                            | **BrowserAdapter 与 NodeAdapter。** 输出 fMP4 字节，返回 `{ totalSegments, operationId }`。                                                                              |
+| `getPosterUrl({ url, headers? })`                                                                     | 返回封面 URL 字符串，若无则 `undefined`                                                                                                                                  |
 
-`GlobalOptions.download` 字段：`headers`、`concurrency`、`maxRetry`。单次 `download({ downloadConcurrency })` 覆盖 `download.concurrency`。
+`GlobalOptions.download` 字段：`headers`、`concurrency`、`maxRetry`。`maxRetry` 表示包含首次请求在内的最大总尝试次数；网络错误、408、425、429 和 5xx 会指数退避重试，其他 4xx 直接失败。
 
 ### 事件 `HlsDownloaderEvent`
 
-包括但不限于：`STARTING_DOWNLOAD`、`SOURCE_PARSED`、`DOWNLOADING`、`DOWNLOADING_SEGMENTS`、`STITCHING_SEGMENTS`（后两者回调中带 `{ total, completed }`）、`READY_FOR_DOWNLOAD`、`ERROR`。`FFMPEG_LOADING` / `FFMPEG_LOADED` 仅在 `NodeAdapter` 加载原生 FFmpeg 时触发。在 `onEvent` 中按需监听即可。
+包括但不限于：`STARTING_DOWNLOAD`、`SOURCE_PARSED`、`DOWNLOADING`、`DOWNLOADING_SEGMENTS`、`STITCHING_SEGMENTS`、`READY_FOR_DOWNLOAD`、`ERROR`。所有下载事件 payload 均含 `operationId`；进度事件另含 `{ total, completed }`，`ERROR` 另含结构化 `HlsDownloaderError`。取消错误继续满足 `name === 'AbortError'`。
+
+### Adapter 能力矩阵
+
+可通过 `downloader.capabilities` 在运行时读取同一数据。
+
+| 能力               | Browser         | Node            |
+| ------------------ | --------------- | --------------- |
+| 下载 / fMP4 stream | 是 / 是         | 是 / 是         |
+| 可配置重试         | 是              | 是              |
+| Transcode presets  | h264、hevc、vp9 | h264、hevc、vp9 |
+| Byte range         | 是              | 是              |
+| AES-128            | 否              | 否              |
+| 持久输出           | 否（Blob URL）  | 是（文件路径）  |
+| Live recording     | 否              | 否              |
 
 ### NodeAdapter 专有选项
 
@@ -329,23 +343,37 @@ Notes:
 
 ### `HlsDownloader` API overview
 
-| Member                                                                                              | Description                                                                                                                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `constructor({ adapter, options?, onEvent? })`                                                      | `options` is `GlobalOptions<T>`: `download`, `transcode`, and adapter-specific fields; merged into each call                                                                                                                                                                          |
-| `init()`                                                                                            | Initialize lightweight adapter state; BrowserAdapter starts its WASM and WebCodecs paths on demand                                                                                                                                                                                    |
-| `isInit`                                                                                            | Whether initialization finished                                                                                                                                                                                                                                                       |
-| `globalOptions`                                                                                     | Current default options, or `null` if unset                                                                                                                                                                                                                                           |
-| `setOptions(options)`                                                                               | Replace default options                                                                                                                                                                                                                                                               |
-| `parseHls({ url, headers? })`                                                                       | Returns `ParseHlsResult`: `playlist`, `segment`, or `error`                                                                                                                                                                                                                           |
-| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, transcode?, signal?, ... })` | Download and merge; default transmux/remux. BrowserAdapter uses Mediabunny WebCodecs for explicit `transcode`; NodeAdapter uses FFmpeg. `signal` enables cooperative cancellation. **BrowserAdapter** → `{ blobURL, totalSegments }`, **NodeAdapter** → `{ filePath, totalSegments }` |
-| `downloadToStream({ url, headers?, ..., signal? }, onChunk)`                                        | **BrowserAdapter & NodeAdapter.** Emits fMP4 bytes for browser MSE or HTTP forwarding. BrowserAdapter concurrently prefetches resources before its WASM writer emits chunks; NodeAdapter can download and stream concurrently. Returns `{ totalSegments }`                            |
-| `getPosterUrl({ url, headers? })`                                                                   | Poster URL string, or `undefined`                                                                                                                                                                                                                                                     |
+| Member                                                                                                | Description                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constructor({ adapter, options?, onEvent? })`                                                        | `options` is `GlobalOptions<T>`: `download`, `transcode`, and adapter-specific fields; merged into each call                                                                                         |
+| `init()`                                                                                              | Initialize lightweight adapter state; BrowserAdapter starts its WASM and WebCodecs paths on demand                                                                                                   |
+| `isInit`                                                                                              | Whether initialization finished                                                                                                                                                                      |
+| `globalOptions`                                                                                       | Current default options, or `null` if unset                                                                                                                                                          |
+| `setOptions(options)`                                                                                 | Replace default options                                                                                                                                                                              |
+| `parseHls({ url, headers? })`                                                                         | Returns `ParseHlsResult`: `playlist`, `segment`, or `error`                                                                                                                                          |
+| `download({ url, headers?, filename?, maxRetry?, downloadConcurrency?, operationId?, signal?, ... })` | Download and merge. `operationId` may be supplied or is generated automatically. Browser returns `{ blobURL, totalSegments, operationId }`; Node returns `{ filePath, totalSegments, operationId }`. |
+| `downloadToStream({ url, headers?, operationId?, signal?, ... }, onChunk)`                            | **BrowserAdapter & NodeAdapter.** Emits fMP4 bytes and returns `{ totalSegments, operationId }`.                                                                                                     |
+| `getPosterUrl({ url, headers? })`                                                                     | Poster URL string, or `undefined`                                                                                                                                                                    |
 
-`GlobalOptions.download` fields: `headers`, `concurrency`, `maxRetry`. Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
+`GlobalOptions.download` fields: `headers`, `concurrency`, `maxRetry`. `maxRetry` is the total number of attempts including the first request. Network errors, 408, 425, 429, and 5xx responses use exponential backoff; other 4xx responses fail immediately.
 
 ### `HlsDownloaderEvent` values
 
-Includes (not limited to): `STARTING_DOWNLOAD`, `SOURCE_PARSED`, `DOWNLOADING`, `DOWNLOADING_SEGMENTS`, `STITCHING_SEGMENTS` (the last two pass `{ total, completed }`), `READY_FOR_DOWNLOAD`, `ERROR`. `FFMPEG_LOADING` / `FFMPEG_LOADED` fire only when `NodeAdapter` loads native FFmpeg. Handle them in `onEvent` as needed.
+Includes (not limited to): `STARTING_DOWNLOAD`, `SOURCE_PARSED`, `DOWNLOADING`, `DOWNLOADING_SEGMENTS`, `STITCHING_SEGMENTS`, `READY_FOR_DOWNLOAD`, and `ERROR`. Every download payload includes `operationId`; progress events also include `{ total, completed }`, and `ERROR` includes a structured `HlsDownloaderError`.
+
+### Adapter capability matrix
+
+The same data is available at runtime through `downloader.capabilities`.
+
+| Capability             | Browser         | Node            |
+| ---------------------- | --------------- | --------------- |
+| Download / fMP4 stream | yes / yes       | yes / yes       |
+| Configurable retry     | yes             | yes             |
+| Transcode presets      | h264, hevc, vp9 | h264, hevc, vp9 |
+| Byte range             | yes             | yes             |
+| AES-128                | no              | no              |
+| Persistent output      | no (Blob URL)   | yes (file path) |
+| Live recording         | no              | no              |
 
 ### NodeAdapter options
 

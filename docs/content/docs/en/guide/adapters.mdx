@@ -15,6 +15,20 @@ Browser transcoding uses Mediabunny and WebCodecs. Node transcoding loads native
 
 </Callout>
 
+## Runtime capabilities
+
+Read the same matrix from `downloader.capabilities` at runtime.
+
+| Capability         | Browser         | Node            |
+| ------------------ | --------------- | --------------- |
+| Download / stream  | yes / yes       | yes / yes       |
+| Configurable retry | yes             | yes             |
+| Transcode presets  | h264, hevc, vp9 | h264, hevc, vp9 |
+| Byte range         | yes             | yes             |
+| AES-128            | no              | no              |
+| Persistent output  | no              | yes             |
+| Live recording     | no              | no              |
+
 ## BrowserAdapter (Browser)
 
 ```ts

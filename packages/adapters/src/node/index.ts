@@ -472,6 +472,16 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
 
 const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   name: 'NodeAdapter',
+  capabilities: {
+    download: true,
+    stream: true,
+    transcodePresets: ['h264', 'hevc', 'vp9'],
+    configurableRetry: true,
+    byteRange: true,
+    aes128: false,
+    liveRecording: false,
+    persistentOutput: true,
+  },
   chunkDownloadConcurrency: 10,
   segmentRetryAttempts: 10,
   init,

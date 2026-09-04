@@ -73,6 +73,17 @@ export type HlsDownloaderAdapter = {
   onEvent?: <E extends HlsDownloaderEvent>(event: E, payload: HlsDownloaderEventPayload<E>) => void;
 };
 
+export type AdapterCapabilities = Readonly<{
+  download: boolean;
+  stream: boolean;
+  transcodePresets: readonly HlsDownloaderTranscodePreset[];
+  configurableRetry: boolean;
+  byteRange: boolean | 'unknown';
+  aes128: boolean | 'unknown';
+  liveRecording: boolean;
+  persistentOutput: boolean;
+}>;
+
 export type HlsDownloaderFetchOptions = {
   url: string;
   headers?: Record<string, string>;
@@ -141,6 +152,7 @@ export interface HlsDownloaderAdapterInternal<
   AdditionalOptions extends Record<string, any> = {},
   DownloadResult = unknown,
 > extends HlsDownloaderAdapter {
+  readonly capabilities: AdapterCapabilities;
   chunkDownloadConcurrency: number;
   segmentRetryAttempts: number;
   init(options?: AdditionalOptions): Promise<void>;

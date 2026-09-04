@@ -25,7 +25,7 @@ const downloader = new HlsDownloader({
         console.log(`合并中: ${payload?.completed}/${payload?.total}`);
         break;
       case HlsDownloaderEvent.ERROR:
-        console.error('下载出错');
+        console.error(payload.error.code, payload.operationId);
         break;
     }
   },
@@ -34,7 +34,7 @@ const downloader = new HlsDownloader({
 
 ## 事件参考
 
-| 事件                   | 载荷                   | 描述                                         |
+| 事件                   | 附加载荷               | 描述                                         |
 | ---------------------- | ---------------------- | -------------------------------------------- |
 | `FFMPEG_LOADING`       | —                      | 原生 FFmpeg 核心正在加载（仅 `NodeAdapter`） |
 | `FFMPEG_LOADED`        | —                      | 原生 FFmpeg 核心已加载（仅 `NodeAdapter`）   |
@@ -44,7 +44,7 @@ const downloader = new HlsDownloader({
 | `DOWNLOADING_SEGMENTS` | `{ total, completed }` | 分片下载进度                                 |
 | `STITCHING_SEGMENTS`   | `{ total, completed }` | 分片合并进度                                 |
 | `READY_FOR_DOWNLOAD`   | —                      | 合并文件已就绪                               |
-| `ERROR`                | —                      | 发生错误                                     |
+| `ERROR`                | `{ error }`            | 结构化 `HlsDownloaderError`                  |
 
 ## 进度追踪
 
@@ -52,9 +52,10 @@ const downloader = new HlsDownloader({
 
 ```ts
 type ProgressPayload = {
+  operationId: string;
   total: number;
   completed: number;
 };
 ```
 
-这是仅有的两个包含载荷的事件。其他事件均不携带额外数据。
+所有下载事件载荷均包含 `operationId`。进度事件额外包含 `total` 和 `completed`；`ERROR` 额外包含带稳定错误码和脱敏元数据的结构化 `error`。
