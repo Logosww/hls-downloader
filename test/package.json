@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "pnpm run test:unit && pnpm run test:e2e",
-    "test:unit": "vitest run parse-hls.unit.test.ts retry.unit.test.ts",
+    "test:unit": "vitest run parse-hls.unit.test.ts retry.unit.test.ts web-download-manager.unit.test.ts",
     "test:integration": "vitest run hls-http.integration.test.ts",
     "test:native:unit": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --lib hls",
     "test:e2e": "vitest run library-api.e2e.test.ts",

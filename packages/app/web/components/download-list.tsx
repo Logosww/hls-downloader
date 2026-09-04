@@ -1,27 +1,21 @@
 import { Fragment } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, DownloadCloudIcon, XIcon } from 'lucide-react';
+import { CheckCircle, DownloadCloudIcon, Trash2Icon, XIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { DownloadTask } from '@/hooks/use-download-manager';
 
-export interface IDownloadListItem {
-  id: string;
-  url: string;
-  title: string;
-  previewSrc: string;
-  percentage: number;
-  status: 'downloading' | 'paused' | 'completed' | 'failed' | 'saved' | 'cancelled';
-  blobURL?: string;
-}
+export type IDownloadListItem = DownloadTask;
 
 interface IDownloadListItemProps {
   item: IDownloadListItem;
   onSave?: (id: string) => void;
   onCancel?: (id: string) => void;
+  onRemove?: (id: string) => void;
 }
 
 interface IDownloadListProps {
@@ -29,9 +23,73 @@ interface IDownloadListProps {
   floatButton?: boolean;
   onSave?: (id: string) => void;
   onCancel?: (id: string) => void;
+  onRemove?: (id: string) => void;
 }
 
-const DownloadListItem = ({ item, onSave, onCancel }: IDownloadListItemProps) => {
+const statusLabels: Record<DownloadTask['status'], string> = {
+  queued: '排队中',
+  downloading: '下载中',
+  completed: '已完成',
+  failed: '失败',
+  saved: '已保存',
+  cancelled: '已取消',
+};
+
+const DownloadProgress = ({
+  item,
+  onCancel,
+}: Pick<IDownloadListItemProps, 'item' | 'onCancel'>) => (
+  <div className="w-40 flex items-center gap-2">
+    <Progress value={item.percentage} />
+    <span className="text-xs text-muted-foreground tabular-nums">
+      {Math.floor(item.percentage)}%
+    </span>
+    <Button
+      size="icon-sm"
+      variant="destructive"
+      type="button"
+      aria-label={`取消 ${item.title}`}
+      onClick={() => onCancel?.(item.id)}
+    >
+      <XIcon data-icon="icon" />
+    </Button>
+  </div>
+);
+
+const DownloadActions = ({
+  item,
+  onSave,
+  onRemove,
+}: Pick<IDownloadListItemProps, 'item' | 'onSave' | 'onRemove'>) => {
+  const canSave = item.status === 'saved' || (item.status === 'completed' && item.blobURL);
+  return (
+    <div className="flex items-center gap-2">
+      {canSave ? (
+        <Button
+          size="sm"
+          type="button"
+          disabled={item.status === 'saved'}
+          onClick={() => onSave?.(item.id)}
+        >
+          {item.status === 'saved' ? <CheckCircle data-icon="inline-start" /> : null}
+          {item.status === 'saved' ? '已保存' : '保存'}
+        </Button>
+      ) : null}
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        type="button"
+        aria-label={`删除 ${item.title}`}
+        onClick={() => onRemove?.(item.id)}
+      >
+        <Trash2Icon data-icon="icon" />
+      </Button>
+    </div>
+  );
+};
+
+const DownloadListItem = ({ item, onSave, onCancel, onRemove }: IDownloadListItemProps) => {
+  const isPending = item.status === 'queued' || item.status === 'downloading';
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2 min-w-0">
@@ -42,53 +100,25 @@ const DownloadListItem = ({ item, onSave, onCancel }: IDownloadListItemProps) =>
         )}
         <div className="min-w-0">
           <div className="truncate text-sm">{item.title}</div>
-          <div className="text-xs text-muted-foreground">
-            {item.status === 'saved'
-              ? '已保存'
-              : item.status === 'completed'
-                ? '已完成'
-                : item.status === 'failed'
-                  ? '失败'
-                  : item.status === 'cancelled'
-                    ? '已取消'
-                    : item.status === 'paused'
-                      ? '已暂停'
-                      : '下载中'}
-          </div>
+          <div className="text-xs text-muted-foreground">{statusLabels[item.status]}</div>
         </div>
       </div>
-      {item.status === 'downloading' && (
-        <div className="w-40 flex items-center gap-2">
-          <Progress value={item.percentage} />
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {Math.floor(item.percentage)}%
-          </span>
-          <Button
-            size="icon-sm"
-            variant="destructive"
-            type="button"
-            onClick={() => onCancel?.(item.id)}
-          >
-            <XIcon />
-          </Button>
-        </div>
-      )}
-      {(item.status === 'saved' || (item.status === 'completed' && item.blobURL)) && (
-        <Button
-          size="sm"
-          type="button"
-          disabled={item.status === 'saved'}
-          onClick={() => onSave?.(item.id)}
-        >
-          {item.status === 'saved' && <CheckCircle />}
-          {item.status === 'saved' ? '已保存' : '保存'}
-        </Button>
+      {isPending ? (
+        <DownloadProgress item={item} onCancel={onCancel} />
+      ) : (
+        <DownloadActions item={item} onSave={onSave} onRemove={onRemove} />
       )}
     </div>
   );
 };
 
-export const DownloadList = ({ items, floatButton, onSave, onCancel }: IDownloadListProps) => {
+export const DownloadList = ({
+  items,
+  floatButton,
+  onSave,
+  onCancel,
+  onRemove,
+}: IDownloadListProps) => {
   if (!floatButton)
     return (
       <Card>
@@ -100,7 +130,12 @@ export const DownloadList = ({ items, floatButton, onSave, onCancel }: IDownload
             {items.length ? (
               items.map((item, index) => (
                 <Fragment key={item.id}>
-                  <DownloadListItem item={item} onSave={onSave} onCancel={onCancel} />
+                  <DownloadListItem
+                    item={item}
+                    onSave={onSave}
+                    onCancel={onCancel}
+                    onRemove={onRemove}
+                  />
                   {index !== items.length - 1 && <Separator className="my-2" />}
                 </Fragment>
               ))
@@ -129,7 +164,7 @@ export const DownloadList = ({ items, floatButton, onSave, onCancel }: IDownload
               />
             }
           >
-            <DownloadCloudIcon />
+            <DownloadCloudIcon data-icon="icon" />
             {items.length || ''}
           </PopoverTrigger>
           <TooltipContent>下载列表</TooltipContent>
@@ -141,7 +176,12 @@ export const DownloadList = ({ items, floatButton, onSave, onCancel }: IDownload
           {items.length ? (
             items.map((item, index) => (
               <Fragment key={item.id}>
-                <DownloadListItem item={item} onSave={onSave} onCancel={onCancel} />
+                <DownloadListItem
+                  item={item}
+                  onSave={onSave}
+                  onCancel={onCancel}
+                  onRemove={onRemove}
+                />
                 {index !== items.length - 1 && <Separator className="my-2" />}
               </Fragment>
             ))
