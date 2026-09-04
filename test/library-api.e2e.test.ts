@@ -4,6 +4,7 @@ import {
   assertBrowserTranscodeOptions,
   buildFfmpegOutputArgs,
   createAdapter,
+  emitAdapterEvent,
   getDownloadFilenameBase,
   getDownloadOutputExt,
   getDownloadOutputFilename,
@@ -178,6 +179,7 @@ describe('library API e2e', () => {
     const download = await downloader.download({
       url: 'https://cdn.example.test/video.m3u8',
       filename: 'video',
+      operationId: 'download-primary',
     });
 
     expect(download).toEqual({
@@ -189,6 +191,7 @@ describe('library API e2e', () => {
       transcode: { preset: 'h264', crf: 24 },
       token: 'global-token',
       totalSegments: 2,
+      operationId: 'download-primary',
     });
 
     const override = await downloader.download({
@@ -207,6 +210,9 @@ describe('library API e2e', () => {
       transcode: { preset: 'vp9' },
       token: 'call-token',
     });
+    expect(override.operationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
 
     expect(await downloader.getPosterUrl({ url: 'https://cdn.example.test/video.m3u8' })).toBe(
       'https://cdn.example.test/video.m3u8/poster.jpg',
@@ -218,6 +224,64 @@ describe('library API e2e', () => {
     expect(calls.getPosterUrl).toHaveBeenCalledWith({
       url: 'https://cdn.example.test/video.m3u8',
     });
+  });
+
+  it('isolates events by downloader and concurrent operation', async () => {
+    type Result = { label: string; totalSegments: number };
+    const internal: HlsDownloaderAdapterInternal<Record<string, never>, Result> = {
+      name: 'ConcurrentAdapter',
+      chunkDownloadConcurrency: 2,
+      segmentRetryAttempts: 2,
+      async init() {},
+      async parseHls() {
+        return { type: 'segment', data: [] };
+      },
+      async download(options) {
+        emitAdapterEvent(internal, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+        await new Promise((resolve) =>
+          setTimeout(resolve, options.url.endsWith('/slow.m3u8') ? 15 : 1),
+        );
+        emitAdapterEvent(internal, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+        return { label: options.url, totalSegments: 0 };
+      },
+      async downloadToStream(options, onChunk) {
+        emitAdapterEvent(internal, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+        onChunk(new Uint8Array([1]));
+        emitAdapterEvent(internal, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+        return { totalSegments: 0 };
+      },
+      async getPosterUrl() {
+        return undefined;
+      },
+    };
+    const adapter = createAdapter(internal);
+    const firstEvents: string[] = [];
+    const secondEvents: string[] = [];
+    const first = new HlsDownloader({
+      adapter,
+      onEvent: (_event, payload) => firstEvents.push(payload.operationId),
+    });
+    const second = new HlsDownloader({
+      adapter,
+      onEvent: (_event, payload) => secondEvents.push(payload.operationId),
+    });
+
+    const [slow, fast, streamed] = await Promise.all([
+      first.download({ url: 'https://example.test/slow.m3u8', operationId: 'slow' }),
+      first.download({ url: 'https://example.test/fast.m3u8', operationId: 'fast' }),
+      second.downloadToStream(
+        { url: 'https://example.test/stream.m3u8', operationId: 'stream' },
+        () => {},
+      ),
+    ]);
+
+    expect([slow.operationId, fast.operationId, streamed.operationId]).toEqual([
+      'slow',
+      'fast',
+      'stream',
+    ]);
+    expect(firstEvents).toEqual(['slow', 'fast', 'fast', 'slow']);
+    expect(secondEvents).toEqual(['stream', 'stream']);
   });
 
   it('rejects adapters that were not created by the library', () => {

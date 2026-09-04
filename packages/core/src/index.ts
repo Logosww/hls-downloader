@@ -14,6 +14,7 @@ import type {
   HlsDownloaderDownloadOptions,
   HlsDownloaderStreamResult,
   HlsDownloaderTranscodeOptions,
+  HlsDownloaderEventPayload,
 } from '@hls-downloader/shared';
 
 export { HlsDownloaderEvent } from '@hls-downloader/shared';
@@ -49,6 +50,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   readonly #adapterProxy: T;
   readonly #adapter: HlsDownloaderAdapterInternal;
   readonly #context: DownloaderContext;
+  readonly #onEvent?: HlsDownloaderAdapter['onEvent'];
   get isInit(): boolean {
     return this.#isInit;
   }
@@ -70,11 +72,23 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     this.#adapterProxy = adapter;
     this.#globalOptions = options ?? null;
     this.#adapter = getInternalAdapter(adapter);
+    this.#onEvent = onEvent;
     this.#context = {
       internal: this.#adapter,
       getGlobalOptions: () => this.globalOptions,
     };
-    this.#adapter.onEvent = onEvent;
+  }
+  #createOperationContext(operationId: string): DownloaderContext {
+    return {
+      ...this.#context,
+      operationId,
+      emit: <E extends import('@hls-downloader/shared').HlsDownloaderEvent>(
+        event: E,
+        payload?: Omit<HlsDownloaderEventPayload<E>, 'operationId'>,
+      ) => {
+        this.#onEvent?.(event, { operationId, ...payload } as HlsDownloaderEventPayload<E>);
+      },
+    };
   }
   async init(): Promise<void> {
     if (this.#isInit) return;
@@ -105,11 +119,18 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     options: HlsDownloaderFetchOptions &
       HlsDownloaderDownloadOptions &
       Partial<HlsDownloaderConfigFactory<T>['additionalOptions']>,
-  ): Promise<HlsDownloaderConfigFactory<T>['downloadResult']> {
+  ): Promise<HlsDownloaderConfigFactory<T>['downloadResult'] & { operationId: string }> {
+    const operationId = options.operationId ?? globalThis.crypto.randomUUID();
     await this.init();
-    return (await this.#adapter.download(
-      injectContext(options, this.#context),
-    )) as HlsDownloaderConfigFactory<T>['downloadResult'];
+    const result = await this.#adapter.download(
+      injectContext(options, this.#createOperationContext(operationId)),
+    );
+    return {
+      ...(result as object),
+      operationId,
+    } as HlsDownloaderConfigFactory<T>['downloadResult'] & {
+      operationId: string;
+    };
   }
   async getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined> {
     return await this.#adapter.getPosterUrl(injectContext(options, this.#context));
@@ -118,8 +139,13 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
     onChunk: (bytes: Uint8Array) => void,
   ): Promise<HlsDownloaderStreamResult> {
+    const operationId = options.operationId ?? globalThis.crypto.randomUUID();
     await this.init();
-    return await this.#adapter.downloadToStream(injectContext(options, this.#context), onChunk);
+    const result = await this.#adapter.downloadToStream(
+      injectContext(options, this.#createOperationContext(operationId)),
+      onChunk,
+    );
+    return { ...result, operationId };
   }
   /** 清空 adapter 内部的 parseHls / poster 缓存。adapter 未实现时为 no-op。 */
   clearCache(): void {

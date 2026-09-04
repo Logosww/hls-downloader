@@ -55,16 +55,15 @@ export enum HlsDownloaderEvent {
   ERROR = 'error',
 }
 
+export type HlsDownloaderEventPayload<E extends HlsDownloaderEvent = HlsDownloaderEvent> = {
+  operationId: string;
+} & (E extends HlsDownloaderEvent.DOWNLOADING_SEGMENTS | HlsDownloaderEvent.STITCHING_SEGMENTS
+  ? { total: number; completed: number }
+  : Record<string, never>);
+
 export type HlsDownloaderAdapter = {
   name: string;
-  onEvent?: <E extends HlsDownloaderEvent>(
-    event: E,
-    payload?: E extends
-      | HlsDownloaderEvent.DOWNLOADING_SEGMENTS
-      | HlsDownloaderEvent.STITCHING_SEGMENTS
-      ? { total: number; completed: number }
-      : undefined,
-  ) => void;
+  onEvent?: <E extends HlsDownloaderEvent>(event: E, payload: HlsDownloaderEventPayload<E>) => void;
 };
 
 export type HlsDownloaderFetchOptions = {
@@ -115,6 +114,8 @@ export type HlsDownloaderBrowserTranscodeOptions = {
 };
 
 export type HlsDownloaderDownloadOptions = {
+  /** Stable identifier used to correlate lifecycle events for this operation. */
+  operationId?: string;
   filename?: string;
   maxRetry?: number;
   downloadConcurrency?: number;
@@ -125,6 +126,7 @@ export type HlsDownloaderDownloadOptions = {
 };
 
 export type HlsDownloaderStreamResult = {
+  operationId: string;
   totalSegments: number;
 };
 
@@ -143,7 +145,7 @@ export interface HlsDownloaderAdapterInternal<
   downloadToStream(
     options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
     onChunk: (bytes: Uint8Array) => void,
-  ): Promise<HlsDownloaderStreamResult>;
+  ): Promise<Omit<HlsDownloaderStreamResult, 'operationId'>>;
   /** 清空 adapter 内部的 parseHls / poster 缓存。可选实现。 */
   clearCache?(): void;
 }

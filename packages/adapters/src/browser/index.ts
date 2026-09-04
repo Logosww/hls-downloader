@@ -1,6 +1,7 @@
 import { Parser } from 'm3u8-parser';
 import {
   createAdapter,
+  emitAdapterEvent,
   getAdapterGlobalOptionsFromInternal,
   HlsDownloaderEvent,
   selectBestVariant,
@@ -210,7 +211,7 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
     options,
   );
 
-  this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
     const err = new Error('Download aborted');
@@ -223,7 +224,7 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
     ...s,
     index: i,
   }));
-  this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
 
   const shouldTranscode = needsBrowserTranscode(transcode);
 
@@ -236,20 +237,20 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
       downloadConcurrency,
       signal,
       onProgress: (completed) => {
-        this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+        emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
           total: segments.length,
           completed,
         });
       },
       onMuxProgress: (completed) => {
-        this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+        emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
           total: segments.length,
           completed,
         });
       },
     });
 
-    this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+    emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
     return {
       blobURL,
@@ -265,20 +266,20 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
     signal,
     segmentUrls: segments.map((segment) => segment.uri),
     onSegmentLoaded: (completed) => {
-      this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+      emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
         total: segments.length,
         completed,
       });
     },
     onProgress: (progress) => {
-      this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
         total: 100,
         completed: Math.floor(progress * 100),
       });
     },
   });
 
-  this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
   const blobURL = URL.createObjectURL(new Blob([result.buffer], { type: result.mimeType }));
 
@@ -489,7 +490,7 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
     options,
   );
 
-  this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
     const err = new Error('Download aborted');
@@ -500,7 +501,7 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
   const wasmReady = ensureWasm();
 
   const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
-  this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
 
   const [resources] = await Promise.all([
     preloadHlsResources({
@@ -511,7 +512,7 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
       downloadConcurrency,
       signal,
       onProgress: (completed) => {
-        this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+        emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
           total: segments.length,
           completed,
         });
@@ -528,12 +529,12 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
     }
     onChunk(chunk);
   });
-  this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+  emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
     total: segments.length,
     completed: segments.length,
   });
 
-  this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
   return { totalSegments: segments.length };
 };
 

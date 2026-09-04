@@ -1,5 +1,6 @@
 import {
   createAdapter,
+  emitAdapterEvent,
   getAdapterGlobalOptionsFromInternal,
   HlsDownloaderEvent,
   selectBestVariant,
@@ -130,12 +131,12 @@ const init: HlsDownloaderNodeAdapter['init'] = async function () {
   // FFmpeg is loaded only by APIs that need it.
 };
 
-function ensureFfmpegLoaded(adapter: HlsDownloaderNodeAdapter) {
+function ensureFfmpegLoaded(adapter: HlsDownloaderNodeAdapter, options: Record<string, unknown>) {
   if (ffmpegInitialized) return;
-  adapter.onEvent?.(HlsDownloaderEvent.FFMPEG_LOADING);
+  emitAdapterEvent(adapter, options, HlsDownloaderEvent.FFMPEG_LOADING);
   initFfmpeg();
   ffmpegInitialized = true;
-  adapter.onEvent?.(HlsDownloaderEvent.FFMPEG_LOADED);
+  emitAdapterEvent(adapter, options, HlsDownloaderEvent.FFMPEG_LOADED);
 }
 
 const parseHls: HlsDownloaderNodeAdapter['parseHls'] = async function (
@@ -200,7 +201,7 @@ const getPosterUrl: HlsDownloaderNodeAdapter['getPosterUrl'] = async function (
   // MediaBunny CanvasSink 需要 VideoEncoder 和 OffscreenCanvas 支持，
   // 而 Node/Bun 服务端目前缺少这些 API，引入 @mediabunny/server polyfill 则体积过大。
   // 等后续 Node/Bun 运行时原生完善支持后再考虑切换回 MediaBunny 方案。
-  ensureFfmpegLoaded(this);
+  ensureFfmpegLoaded(this, options);
   const poster = (await extractPoster(segmentUrl, fetchOptions.headers)) ?? undefined;
 
   posterCache[fetchOptions.url] = poster;
@@ -215,7 +216,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode, signal } =
     mergeDownloadOptions(this, globalOptions, options);
 
-  this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
     const err = new Error('Download aborted');
@@ -224,7 +225,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   }
 
   const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
-  this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
 
   const workDir = join(process.cwd(), randomUUID());
   await mkdir(workDir, { recursive: true });
@@ -246,20 +247,20 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
           maxRetry,
           cancelJobId: jobId,
           onProgress: (completed, total) => {
-            this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+            emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
               total,
               completed,
             });
           },
           onMuxProgress: (completed, total) => {
-            this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+            emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
               total,
               completed,
             });
           },
         });
 
-        this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+        emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
         return {
           filePath,
@@ -270,7 +271,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
       }
     }
 
-    ensureFfmpegLoaded(this);
+    ensureFfmpegLoaded(this, options);
     const self = this;
     const filePath = await downloadAndMerge(
       napiSegments,
@@ -283,14 +284,20 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
       transcodeArgs,
       (phase: string, completed: number, total: number) => {
         if (phase === 'downloading') {
-          self.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, { total, completed });
+          emitAdapterEvent(self, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+            total,
+            completed,
+          });
         } else if (phase === 'merging') {
-          self.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, { total, completed });
+          emitAdapterEvent(self, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
+            total,
+            completed,
+          });
         }
       },
     );
 
-    this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+    emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
     return {
       filePath: filePath,
@@ -391,7 +398,7 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
     options,
   );
 
-  this.onEvent?.(HlsDownloaderEvent.STARTING_DOWNLOAD);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
     const err = new Error('Download aborted');
@@ -402,7 +409,7 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
   // 流式路径只需 resolvedUrl（media playlist URL）；segments 仅用于 totalSegments 计数。
   // resolveToSegments 已返回 segments，直接复用，避免二次 parseHls（cache miss 时多一次 native round-trip）。
   const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
-  this.onEvent?.(HlsDownloaderEvent.SOURCE_PARSED);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
 
   const totalSegments = segments.length;
 
@@ -421,7 +428,10 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
       },
       (err: Error | null, completed: number, total: number) => {
         if (err) return;
-        this.onEvent?.(HlsDownloaderEvent.DOWNLOADING_SEGMENTS, { total, completed });
+        emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+          total,
+          completed,
+        });
       },
     );
   } finally {
@@ -429,11 +439,11 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
   }
 
   // 末端触发 STITCHING_SEGMENTS + READY_FOR_DOWNLOAD，保持事件语义一致
-  this.onEvent?.(HlsDownloaderEvent.STITCHING_SEGMENTS, {
+  emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
     total: totalSegments,
     completed: totalSegments,
   });
-  this.onEvent?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+  emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
   return { totalSegments };
 };

@@ -1,6 +1,8 @@
 import type {
   HlsDownloaderAdapter,
   HlsDownloaderAdapterInternal,
+  HlsDownloaderEvent,
+  HlsDownloaderEventPayload,
   ParseHlsResult,
   Playlist,
   VariantSelector,
@@ -22,6 +24,11 @@ type BrandedInternal = HlsDownloaderAdapterInternal & {
 export type DownloaderContext = {
   readonly internal: HlsDownloaderAdapterInternal;
   getGlobalOptions(): unknown | null;
+  readonly operationId?: string;
+  emit?<E extends HlsDownloaderEvent>(
+    event: E,
+    payload?: Omit<HlsDownloaderEventPayload<E>, 'operationId'>,
+  ): void;
 };
 
 function readContext(options?: Record<string, unknown>): DownloaderContext | undefined {
@@ -101,6 +108,17 @@ export function getAdapterGlobalOptionsFromInternal<G = unknown>(
   if (!context || context.internal !== internal) return null;
 
   return context.getGlobalOptions() as G | null;
+}
+
+export function emitAdapterEvent<E extends HlsDownloaderEvent>(
+  internal: HlsDownloaderAdapterInternal,
+  options: Record<string, unknown>,
+  event: E,
+  payload?: Omit<HlsDownloaderEventPayload<E>, 'operationId'>,
+): void {
+  const context = readContext(options);
+  if (!context || context.internal !== internal) return;
+  context.emit?.(event, payload);
 }
 
 const AUDIO_CODEC_RE = /^(mp4a|ac-3|ec-3|opus|fLaC|alac|dts)[.a-zA-Z0-9-]*$/i;
