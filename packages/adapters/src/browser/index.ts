@@ -15,7 +15,10 @@ import {
   type HlsDownloaderGlobalDownloadOptions,
   assertBrowserTranscodeOptions,
   getDownloadOutputFilename,
+  HlsDownloaderError,
+  HlsDownloaderErrorCode,
   needsBrowserTranscode,
+  normalizeHlsError,
   type HlsDownloaderBrowserTranscodeOptions,
   type ParseHlsResult,
   type Playlist,
@@ -120,7 +123,13 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
     let url = new URL(hlsUrl);
 
     let response = await fetch(url.href, { headers, mode: 'cors', signal });
-    if (!response.ok) throw new Error(await response.text());
+    if (!response.ok) {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
+        `Failed to fetch HLS manifest (${response.status})`,
+        { url: response.url || hlsUrl, status: response.status, adapter: this.name },
+      );
+    }
     let manifest = await response.text();
 
     const parser = new Parser();
@@ -143,11 +152,16 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
     const result = mapManifest(parser.manifest, base);
     parseResultCache.set(cacheKey, result);
     return result;
-  } catch (error: any) {
+  } catch (cause: unknown) {
     // error 不缓存，下次调用重新走网络
+    const error = normalizeHlsError(cause, HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED, {
+      url: hlsUrl,
+      adapter: this.name,
+    });
     const result: ParseHlsResult = {
       type: 'error',
       message: error.message,
+      error,
     };
     return result;
   }
@@ -170,11 +184,24 @@ async function resolveToSegments(
   if (result.type === 'playlist') {
     const variant = (options as { variant?: VariantSelectOptions }).variant;
     const best = selectBestVariant(result.data as Playlist[], variant);
-    if (!best) throw new Error('Empty master playlist: no variant available');
+    if (!best) {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.NO_VARIANT,
+        'Empty master playlist: no variant available',
+        { adapter: adapter.name },
+      );
+    }
     return resolveToSegments(adapter, { ...options, url: best.uri });
   }
 
-  throw new Error(result.message ?? 'Failed to parse HLS');
+  throw (
+    result.error ??
+    new HlsDownloaderError(
+      HlsDownloaderErrorCode.MANIFEST_INVALID,
+      result.message ?? 'Failed to parse HLS',
+      { adapter: adapter.name },
+    )
+  );
 }
 
 const getPosterUrl: HlsDownloaderBrowserAdapter['getPosterUrl'] = async function (
@@ -214,9 +241,9 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
   emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
-    const err = new Error('Download aborted');
-    err.name = 'AbortError';
-    throw err;
+    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+      adapter: this.name,
+    });
   }
 
   const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
@@ -342,9 +369,10 @@ const downloadAndTransmux = async ({
     onProgress,
   });
   if (signal?.aborted) {
-    const error = new Error('Download aborted');
-    error.name = 'AbortError';
-    throw error;
+    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+      adapter: 'BrowserAdapter',
+      url,
+    });
   }
   const { buffer } = await transmuxPreloadedToMp4(resources);
   onMuxProgress(segments.length);
@@ -365,9 +393,10 @@ const downloadSegmentBytesWithRetry = async ({
       return await downloadSegmentBytes(options);
     } catch {
       if (options.signal?.aborted) {
-        const abortErr = new Error('Download aborted');
-        abortErr.name = 'AbortError';
-        throw abortErr;
+        throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+          adapter: 'BrowserAdapter',
+          url: options.url,
+        });
       }
       retry++;
       if (retry >= maxRetry) {
@@ -416,9 +445,10 @@ async function fetchPlaylistText({
       return await response.text();
     } catch {
       if (options.signal?.aborted) {
-        const error = new Error('Download aborted');
-        error.name = 'AbortError';
-        throw error;
+        throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+          adapter: 'BrowserAdapter',
+          url: options.url,
+        });
       }
       retry++;
       if (retry >= maxRetry) {
@@ -493,9 +523,9 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
   emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
-    const err = new Error('Download aborted');
-    err.name = 'AbortError';
-    throw err;
+    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+      adapter: this.name,
+    });
   }
 
   const wasmReady = ensureWasm();
@@ -523,9 +553,10 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
 
   await transmuxPreloadedToFmp4Stream(resources, (chunk) => {
     if (signal?.aborted) {
-      const error = new Error('Download aborted');
-      error.name = 'AbortError';
-      throw error;
+      throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+        adapter: this.name,
+        url,
+      });
     }
     onChunk(chunk);
   });

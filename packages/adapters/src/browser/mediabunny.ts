@@ -10,6 +10,7 @@ import {
   QUALITY_HIGH,
   WebMOutputFormat,
 } from 'mediabunny';
+import { HlsDownloaderError, HlsDownloaderErrorCode } from '@hls-downloader/shared';
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/shared';
 
 export type TranscodeHlsOptions = {
@@ -126,18 +127,18 @@ export async function transcodeHls({
     conversion.onProgress = onProgress;
     const onAbort = () => void conversion.cancel();
     if (signal?.aborted) {
-      const error = new Error('Download aborted');
-      error.name = 'AbortError';
-      throw error;
+      throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+        adapter: 'BrowserAdapter',
+      });
     }
     signal?.addEventListener('abort', onAbort, { once: true });
     try {
       await conversion.execute();
     } catch (error) {
       if (signal?.aborted) {
-        const abortError = new Error('Download aborted');
-        abortError.name = 'AbortError';
-        throw abortError;
+        throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+          adapter: 'BrowserAdapter',
+        });
       }
       throw error;
     } finally {

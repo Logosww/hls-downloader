@@ -2,6 +2,9 @@ import {
   getInternalAdapter,
   injectContext,
   isRegisteredAdapter,
+  HlsDownloaderErrorCode,
+  HlsDownloaderEvent,
+  normalizeHlsError,
   ParseHlsResult,
 } from '@hls-downloader/shared';
 
@@ -122,15 +125,26 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   ): Promise<HlsDownloaderConfigFactory<T>['downloadResult'] & { operationId: string }> {
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
     await this.init();
-    const result = await this.#adapter.download(
-      injectContext(options, this.#createOperationContext(operationId)),
-    );
-    return {
-      ...(result as object),
-      operationId,
-    } as HlsDownloaderConfigFactory<T>['downloadResult'] & {
-      operationId: string;
-    };
+    const context = this.#createOperationContext(operationId);
+    try {
+      const result = await this.#adapter.download(injectContext(options, context));
+      return {
+        ...(result as object),
+        operationId,
+      } as HlsDownloaderConfigFactory<T>['downloadResult'] & {
+        operationId: string;
+      };
+    } catch (cause) {
+      const error = normalizeHlsError(
+        cause,
+        options.transcode
+          ? HlsDownloaderErrorCode.TRANSCODE_FAILED
+          : HlsDownloaderErrorCode.TRANSMUX_FAILED,
+        { adapter: this.#adapter.name, url: options.url },
+      );
+      context.emit?.(HlsDownloaderEvent.ERROR, { error });
+      throw error;
+    }
   }
   async getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined> {
     return await this.#adapter.getPosterUrl(injectContext(options, this.#context));
@@ -141,11 +155,18 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   ): Promise<HlsDownloaderStreamResult> {
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
     await this.init();
-    const result = await this.#adapter.downloadToStream(
-      injectContext(options, this.#createOperationContext(operationId)),
-      onChunk,
-    );
-    return { ...result, operationId };
+    const context = this.#createOperationContext(operationId);
+    try {
+      const result = await this.#adapter.downloadToStream(injectContext(options, context), onChunk);
+      return { ...result, operationId };
+    } catch (cause) {
+      const error = normalizeHlsError(cause, HlsDownloaderErrorCode.TRANSMUX_FAILED, {
+        adapter: this.#adapter.name,
+        url: options.url,
+      });
+      context.emit?.(HlsDownloaderEvent.ERROR, { error });
+      throw error;
+    }
   }
   /** 清空 adapter 内部的 parseHls / poster 缓存。adapter 未实现时为 no-op。 */
   clearCache(): void {

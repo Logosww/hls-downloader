@@ -13,6 +13,8 @@ import {
   getTranscodeDefaultFilename,
   getTranscodeMimeType,
   HlsDownloaderEvent,
+  HlsDownloaderError,
+  HlsDownloaderErrorCode,
   injectContext,
   isAudioOnlyCodecs,
   isRegisteredAdapter,
@@ -20,6 +22,7 @@ import {
   needsFfmpegTranscode,
   resolveTranscodeOptions,
   selectBestVariant,
+  sanitizeHlsUrl,
   stripContext,
 } from '@hls-downloader/shared';
 import type {
@@ -282,6 +285,53 @@ describe('library API e2e', () => {
     ]);
     expect(firstEvents).toEqual(['slow', 'fast', 'fast', 'slow']);
     expect(secondEvents).toEqual(['stream', 'stream']);
+  });
+
+  it('normalizes failures and emits one structured error event', async () => {
+    const errorEvents: HlsDownloaderError[] = [];
+    const { adapter, internal } = createMemoryAdapter();
+    internal.download = async () => {
+      throw new Error('native failure');
+    };
+    const downloader = new HlsDownloader({
+      adapter,
+      onEvent(event, payload) {
+        if (event === HlsDownloaderEvent.ERROR) errorEvents.push(payload.error);
+      },
+    });
+
+    const failure = downloader.download({
+      url: 'https://user:secret@example.test/video.m3u8?token=sensitive#fragment',
+      operationId: 'failed-operation',
+    });
+    await expect(failure).rejects.toMatchObject({
+      name: 'HlsDownloaderError',
+      code: HlsDownloaderErrorCode.TRANSMUX_FAILED,
+      url: 'https://example.test/video.m3u8',
+      adapter: 'MemoryAdapter',
+      recoverable: false,
+    });
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0]).toBeInstanceOf(HlsDownloaderError);
+  });
+
+  it('preserves AbortError compatibility and sanitizes URLs', async () => {
+    const { adapter, internal } = createMemoryAdapter();
+    internal.download = async () => {
+      throw new DOMException('cancelled', 'AbortError');
+    };
+    const downloader = new HlsDownloader({ adapter });
+
+    await expect(
+      downloader.download({ url: 'https://example.test/video.m3u8?token=secret' }),
+    ).rejects.toMatchObject({
+      name: 'AbortError',
+      code: HlsDownloaderErrorCode.ABORTED,
+    });
+    expect(sanitizeHlsUrl('https://user:pass@example.test/a.m3u8?q=1#x')).toBe(
+      'https://example.test/a.m3u8',
+    );
+    expect(sanitizeHlsUrl('not a URL')).toBeUndefined();
   });
 
   it('rejects adapters that were not created by the library', () => {

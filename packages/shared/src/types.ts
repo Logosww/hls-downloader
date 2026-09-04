@@ -1,3 +1,5 @@
+import type { HlsDownloaderError } from './errors';
+
 export type Segment = {
   uri: string;
   [key: string]: any;
@@ -41,7 +43,7 @@ export type VariantSelector = (
 export type ParseHlsResult =
   | { type: 'playlist'; data: Playlist[]; message?: undefined }
   | { type: 'segment'; data: Segment[]; message?: undefined }
-  | { type: 'error'; data?: undefined; message: string };
+  | { type: 'error'; data?: undefined; message: string; error?: HlsDownloaderError };
 
 export enum HlsDownloaderEvent {
   FFMPEG_LOADING = 'ffmpeg-loading',
@@ -57,9 +59,14 @@ export enum HlsDownloaderEvent {
 
 export type HlsDownloaderEventPayload<E extends HlsDownloaderEvent = HlsDownloaderEvent> = {
   operationId: string;
+  total?: number;
+  completed?: number;
+  error?: HlsDownloaderError;
 } & (E extends HlsDownloaderEvent.DOWNLOADING_SEGMENTS | HlsDownloaderEvent.STITCHING_SEGMENTS
   ? { total: number; completed: number }
-  : Record<string, never>);
+  : E extends HlsDownloaderEvent.ERROR
+    ? { error: HlsDownloaderError }
+    : Record<string, never>);
 
 export type HlsDownloaderAdapter = {
   name: string;

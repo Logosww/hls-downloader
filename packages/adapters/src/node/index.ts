@@ -15,6 +15,8 @@ import {
   needsFfmpegTranscode,
   buildFfmpegOutputArgs,
   getDownloadOutputFilename,
+  HlsDownloaderError,
+  HlsDownloaderErrorCode,
   type ParseHlsResult,
   type Playlist,
   type Segment,
@@ -123,7 +125,14 @@ function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
         })),
       };
     default:
-      return { type: 'error', message: napi.message ?? 'Unknown error' };
+      const message = napi.message ?? 'Unknown error';
+      return {
+        type: 'error',
+        message,
+        error: new HlsDownloaderError(HlsDownloaderErrorCode.MANIFEST_INVALID, message, {
+          adapter: 'NodeAdapter',
+        }),
+      };
   }
 }
 
@@ -176,11 +185,24 @@ async function resolveToSegments(
   if (result.type === 'playlist') {
     const variant = (options as { variant?: VariantSelectOptions }).variant;
     const best = selectBestVariant(result.data as Playlist[], variant);
-    if (!best) throw new Error('Empty master playlist: no variant available');
+    if (!best) {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.NO_VARIANT,
+        'Empty master playlist: no variant available',
+        { adapter: adapter.name },
+      );
+    }
     return resolveToSegments(adapter, { ...options, url: best.uri });
   }
 
-  throw new Error(result.message ?? 'Failed to parse HLS');
+  throw (
+    result.error ??
+    new HlsDownloaderError(
+      HlsDownloaderErrorCode.MANIFEST_INVALID,
+      result.message ?? 'Failed to parse HLS',
+      { adapter: adapter.name },
+    )
+  );
 }
 
 const getPosterUrl: HlsDownloaderNodeAdapter['getPosterUrl'] = async function (
@@ -219,9 +241,9 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
-    const err = new Error('Download aborted');
-    err.name = 'AbortError';
-    throw err;
+    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+      adapter: this.name,
+    });
   }
 
   const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
@@ -333,9 +355,9 @@ async function setupCancelToken(
   if (!signal) return { jobId: null, cleanup: () => {} };
 
   if (signal.aborted) {
-    const err = new Error('Download aborted');
-    err.name = 'AbortError';
-    throw err;
+    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+      adapter: 'NodeAdapter',
+    });
   }
 
   const jobId = await createCancelToken();
@@ -401,9 +423,9 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
   emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
-    const err = new Error('Download aborted');
-    err.name = 'AbortError';
-    throw err;
+    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
+      adapter: this.name,
+    });
   }
 
   // 流式路径只需 resolvedUrl（media playlist URL）；segments 仅用于 totalSegments 计数。
