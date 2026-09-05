@@ -17,6 +17,9 @@ dist/
 # native addons
 *.node
 
+# generated wasm-bindgen artifacts
+/packages/adapters/src/browser/generated/
+
 # typescript
 *.tsbuildinfo
 

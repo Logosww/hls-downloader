@@ -14,13 +14,25 @@ const environment = {
   PATH: `${process.env.HOME}/.cargo/bin:${process.env.PATH ?? ''}`,
 };
 
-// 远程构建环境(如 Vercel)无 Rust 工具链时跳过;
-// wasm 产物(hls_transmux_browser_wasm_bg.wasm)由本地预编译,通过 .vercelignore 强制上传。
 const shell = process.platform === 'win32';
-const cargoCheck = spawnSync('cargo', ['--version'], { stdio: 'pipe', shell });
+const cargoCheck = spawnSync('cargo', ['--version'], {
+  env: environment,
+  stdio: 'pipe',
+  shell,
+});
 if (cargoCheck.error || cargoCheck.status !== 0) {
-  console.warn('[adapters] cargo not found, skipping wasm build (using prebuilt artifacts)');
-  process.exit(0);
+  console.error('[adapters] cargo is required to generate the browser WASM artifacts');
+  process.exit(1);
+}
+
+const bindgenCheck = spawnSync('wasm-bindgen', ['--version'], {
+  env: environment,
+  stdio: 'pipe',
+  shell,
+});
+if (bindgenCheck.error || bindgenCheck.status !== 0) {
+  console.error('[adapters] wasm-bindgen is required to generate the browser WASM artifacts');
+  process.exit(1);
 }
 
 mkdirSync(outputRoot, { recursive: true });
