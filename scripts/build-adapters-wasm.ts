@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,10 +8,15 @@ const browserRoot = join(repoRoot, 'packages', 'adapters', 'src', 'browser');
 const crateRoot = join(browserRoot, 'crates', 'hls-transmux-wasm');
 const targetRoot = join(crateRoot, 'target');
 const outputRoot = join(browserRoot, 'generated');
+const generatedArtifacts = [
+  join(outputRoot, 'hls_transmux_browser_wasm.js'),
+  join(outputRoot, 'hls_transmux_browser_wasm.d.ts'),
+  join(outputRoot, 'hls_transmux_browser_wasm_bg.wasm'),
+  join(outputRoot, 'hls_transmux_browser_wasm_bg.wasm.d.ts'),
+];
 const environment = {
   ...process.env,
   CARGO_TARGET_DIR: targetRoot,
-  PATH: `${process.env.HOME}/.cargo/bin:${process.env.PATH ?? ''}`,
 };
 
 const shell = process.platform === 'win32';
@@ -21,8 +26,7 @@ const cargoCheck = spawnSync('cargo', ['--version'], {
   shell,
 });
 if (cargoCheck.error || cargoCheck.status !== 0) {
-  console.error('[adapters] cargo is required to generate the browser WASM artifacts');
-  process.exit(1);
+  usePrebuiltArtifactsOrExit('cargo');
 }
 
 const bindgenCheck = spawnSync('wasm-bindgen', ['--version'], {
@@ -31,8 +35,7 @@ const bindgenCheck = spawnSync('wasm-bindgen', ['--version'], {
   shell,
 });
 if (bindgenCheck.error || bindgenCheck.status !== 0) {
-  console.error('[adapters] wasm-bindgen is required to generate the browser WASM artifacts');
-  process.exit(1);
+  usePrebuiltArtifactsOrExit('wasm-bindgen');
 }
 
 mkdirSync(outputRoot, { recursive: true });
@@ -56,3 +59,18 @@ const bindgen = spawnSync(
   { env: environment, stdio: 'inherit' },
 );
 if (bindgen.status !== 0) process.exit(bindgen.status ?? 1);
+
+function usePrebuiltArtifactsOrExit(missingTool: string): never {
+  const missingArtifacts = generatedArtifacts.filter((artifact) => !existsSync(artifact));
+  if (missingArtifacts.length === 0) {
+    console.warn(
+      `[adapters] ${missingTool} not found, skipping WASM build and using prebuilt artifacts`,
+    );
+    process.exit(0);
+  }
+
+  console.error(
+    `[adapters] ${missingTool} is required because prebuilt browser WASM artifacts are missing:\n${missingArtifacts.join('\n')}`,
+  );
+  process.exit(1);
+}

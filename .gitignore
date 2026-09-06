@@ -17,8 +17,9 @@ dist/
 # native addons
 *.node
 
-# generated wasm-bindgen artifacts
-/packages/adapters/src/browser/generated/
+# wasm binary is uploaded to Vercel via .vercelignore; keep the generated
+# JavaScript glue and declarations in Git so installs can build without Rust.
+/packages/adapters/src/browser/generated/*.wasm
 
 # typescript
 *.tsbuildinfo
