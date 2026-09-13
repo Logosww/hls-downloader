@@ -7,6 +7,12 @@ export type HlsWasmResources = {
   playlistUrl: string;
   texts: Record<string, string>;
   bytes: Record<string, Uint8Array>;
+  ranges: Array<{
+    url: string;
+    offset: number;
+    length: number;
+    bytes: Uint8Array;
+  }>;
 };
 
 export type HlsWasmReport = {
@@ -18,9 +24,10 @@ export type HlsWasmReport = {
 let initPromise: Promise<void> | undefined;
 
 export async function ensureWasm(): Promise<void> {
-  initPromise ??= init(new URL('./hls_transmux_browser_wasm_bg.wasm', import.meta.url)).then(
-    () => undefined,
-  );
+  initPromise ??= (async () => {
+    const wasmUrl = new URL('./hls_transmux_browser_wasm_bg.wasm', import.meta.url);
+    await init(wasmUrl);
+  })();
   await initPromise;
 }
 

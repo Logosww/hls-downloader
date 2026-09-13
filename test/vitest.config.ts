@@ -9,7 +9,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@hls-downloader/shared': resolve(__dirname, '../packages/shared/src/index.ts'),
+      '@hls-downloader/shared': resolve(import.meta.dirname, '../packages/shared/src/index.ts'),
     },
   },
 });

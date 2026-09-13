@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.4.0] - 2026-09-13
+
+### Added
+
+- Add `Playlist.hasAlternateRenditions` so consumers can detect master playlists that declare alternate tracks.
+
+### Changed
+
+- Browser `BYTERANGE` and `EXT-X-MAP` resources now use real range requests. Ranged responses are validated, while servers that return a full `200` response remain supported through local slicing.
+- Browser and Node now fail with the existing structured errors before downloading media for unsupported encryption, live/event playlists, discontinuities, and alternate renditions.
+
+### Fixed
+
+- Treat different byte ranges of the same URL as independent Browser resources for caching and retries.
+- Ensure `NodeAdapter.downloadToStream()` delivers all chunks before its promise resolves, including very short fMP4 streams.
+
 ## [3.3.0] - 2026-09-05
 
 ### Added

@@ -14,6 +14,8 @@ export type Playlist = {
   frameRate?: number;
   /** 无 RESOLUTION 且 codecs 仅含音频时为 true（用于过滤纯音频 variant）。 */
   isAudioOnly?: boolean;
+  /** Master playlist declares alternate audio/video/subtitle renditions. */
+  hasAlternateRenditions?: boolean;
 };
 
 /**

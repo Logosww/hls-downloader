@@ -85,6 +85,7 @@ execFileSync(vcpkgExe, ['install', `ffmpeg:${triplet}`, `pkgconf:${triplet}`], {
 const installed = join(root, 'installed', triplet);
 const pcDir = join(installed, 'lib', 'pkgconfig');
 const pkgConf = join(installed, 'tools', 'pkgconf', isWin ? 'pkgconf.exe' : 'pkgconf');
+const ffmpegTools = join(installed, 'tools', 'ffmpeg');
 
 if (!existsSync(pkgConf)) {
   throw new Error(`pkgconf not found: ${pkgConf}`);
@@ -134,6 +135,9 @@ const gh = process.env.GITHUB_ENV;
 if (gh) {
   for (const line of lines) {
     appendFileSync(gh, `${line}\n`);
+  }
+  if (existsSync(ffmpegTools) && process.env.GITHUB_PATH) {
+    appendFileSync(process.env.GITHUB_PATH, `${ffmpegTools}\n`);
   }
 } else {
   console.log('Export for local shell:');

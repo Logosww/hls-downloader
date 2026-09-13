@@ -21,6 +21,7 @@ import {
   type Playlist,
   type Segment,
   type VariantSelectOptions,
+  assertSupportedSegments,
 } from '@hls-downloader/shared';
 import {
   initFfmpeg,
@@ -114,6 +115,7 @@ function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
           codecs: p.codecs,
           frameRate: p.frameRate,
           isAudioOnly: p.isAudioOnly,
+          hasAlternateRenditions: p.hasAlternateRenditions,
         })),
       };
     case 'segment':
@@ -122,6 +124,9 @@ function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
         data: (napi.segments ?? []).map((s) => ({
           uri: s.uri,
           duration: s.duration,
+          key: s.encryptionMethod ? { method: s.encryptionMethod } : undefined,
+          discontinuity: s.discontinuity,
+          isLive: s.isLive,
         })),
       };
     default:
@@ -171,7 +176,22 @@ const parseHls: HlsDownloaderNodeAdapter['parseHls'] = async function (
 async function resolveToSegments(
   adapter: HlsDownloaderNodeAdapter,
   options: Record<string, unknown>,
+  state: { visited: Set<string>; depth: number } = { visited: new Set(), depth: 0 },
 ): Promise<{ segments: Segment[]; resolvedUrl: string }> {
+  const { url } = mergeFetchOptions(
+    getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(adapter, options),
+    options,
+  );
+  if (state.depth > 8 || state.visited.has(url)) {
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.MANIFEST_INVALID,
+      state.depth > 8
+        ? 'Master playlist recursion limit exceeded'
+        : 'Master playlist cycle detected',
+      { adapter: adapter.name, url },
+    );
+  }
+  const visited = new Set(state.visited).add(url);
   const result = await parseHls.call(adapter, options as HlsDownloaderFetchOptions);
 
   if (result.type === 'segment') {
@@ -179,7 +199,9 @@ async function resolveToSegments(
       getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(adapter, options),
       options,
     );
-    return { segments: result.data as Segment[], resolvedUrl: fetchOptions.url };
+    const segments = result.data as Segment[];
+    assertSupportedSegments(segments, adapter.name);
+    return { segments, resolvedUrl: fetchOptions.url };
   }
 
   if (result.type === 'playlist') {
@@ -192,7 +214,21 @@ async function resolveToSegments(
         { adapter: adapter.name },
       );
     }
-    return resolveToSegments(adapter, { ...options, url: best.uri });
+    if (best.hasAlternateRenditions) {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.TRANSMUX_FAILED,
+        'Alternate renditions are not supported by this transmux path',
+        { adapter: adapter.name, url },
+      );
+    }
+    return resolveToSegments(
+      adapter,
+      { ...options, url: best.uri },
+      {
+        visited,
+        depth: state.depth + 1,
+      },
+    );
   }
 
   throw (
@@ -251,7 +287,13 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
 
   const workDir = join(process.cwd(), randomUUID());
   await mkdir(workDir, { recursive: true });
-  const napiSegments = segments.map((s) => ({ uri: s.uri, duration: s.duration ?? 0 }));
+  const napiSegments = segments.map((s) => ({
+    uri: s.uri,
+    duration: s.duration ?? 0,
+    encryptionMethod: typeof s.key?.method === 'string' ? s.key.method : undefined,
+    discontinuity: s.discontinuity === true,
+    isLive: s.isLive === true,
+  }));
 
   const transcodeArgs = needsFfmpegTranscode(transcode) ? buildFfmpegOutputArgs(transcode) : null;
   const shouldUseFfmpeg = !!transcodeArgs || aria2?.enabled;

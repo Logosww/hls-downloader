@@ -9,9 +9,9 @@ use napi::bindgen_prelude::*;
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 
+use hls_core::JobCancelToken;
 use hls_core::download::DownloadProgress;
 use hls_core::hls::ParseHlsResult;
-use hls_core::JobCancelToken;
 
 // ── Cancel token registry ─────────────────────────────────────────────
 // Maps job_id (returned to JS) → Arc<JobCancelToken> shared with the
@@ -64,12 +64,16 @@ pub struct NapiPlaylist {
     pub codecs: Option<String>,
     pub frame_rate: Option<f64>,
     pub is_audio_only: bool,
+    pub has_alternate_renditions: bool,
 }
 
 #[napi(object)]
 pub struct NapiSegment {
     pub uri: String,
     pub duration: f64,
+    pub encryption_method: Option<String>,
+    pub discontinuity: bool,
+    pub is_live: bool,
 }
 
 #[napi(object)]
@@ -148,10 +152,14 @@ pub async fn parse_hls_native(
                         name: p.name,
                         bandwidth: p.bandwidth as u32,
                         uri: p.uri,
-                        resolution: p.resolution.map(|(w, h)| NapiResolution { width: w, height: h }),
+                        resolution: p.resolution.map(|(w, h)| NapiResolution {
+                            width: w,
+                            height: h,
+                        }),
                         codecs: p.codecs,
                         frame_rate: p.frame_rate,
                         is_audio_only: p.is_audio_only,
+                        has_alternate_renditions: p.has_alternate_renditions,
                     })
                     .collect(),
             ),
@@ -167,6 +175,9 @@ pub async fn parse_hls_native(
                     .map(|s| NapiSegment {
                         uri: s.uri,
                         duration: s.duration,
+                        encryption_method: s.encryption_method,
+                        discontinuity: s.discontinuity,
+                        is_live: s.is_live,
                     })
                     .collect(),
             ),
@@ -200,6 +211,9 @@ pub async fn download_and_merge(
         .map(|s| hls_core::Segment {
             uri: s.uri,
             duration: s.duration,
+            encryption_method: s.encryption_method,
+            discontinuity: s.discontinuity,
+            is_live: s.is_live,
         })
         .collect();
 
@@ -367,7 +381,9 @@ pub async fn transmux_hls_streaming_native(
                     let owned = buf[..n].to_vec();
                     on_chunk.call(
                         Ok(Buffer::from(owned)),
-                        ThreadsafeFunctionCallMode::NonBlocking,
+                        // Ensure every chunk reaches JS before the native promise resolves.
+                        // NonBlocking delivery can otherwise leave very short streams empty.
+                        ThreadsafeFunctionCallMode::Blocking,
                     );
                 }
                 Err(_) => break,
@@ -384,7 +400,10 @@ pub async fn transmux_hls_streaming_native(
             DownloadProgress::Downloading { completed, total }
             | DownloadProgress::Merging { completed, total } => (completed as u32, total as u32),
         };
-        on_progress.call(Ok((completed, total)), ThreadsafeFunctionCallMode::NonBlocking);
+        on_progress.call(
+            Ok((completed, total)),
+            ThreadsafeFunctionCallMode::NonBlocking,
+        );
     });
 
     let result = hls_core::transmux_hls_to_stream(

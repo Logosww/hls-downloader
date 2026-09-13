@@ -81,3 +81,54 @@ export async function sendBytes(
   response.writeHead(200, { 'content-type': 'application/octet-stream' });
   response.end(bytes);
 }
+
+export function sendRange(
+  request: FixtureRequest,
+  response: ServerResponse,
+  bytes: Uint8Array,
+): void {
+  const value = request.headers.range;
+  const match = typeof value === 'string' ? /^bytes=(\d+)-(\d+)$/.exec(value) : null;
+  if (!match) {
+    response.writeHead(200, {
+      'content-type': 'application/octet-stream',
+      'content-length': bytes.byteLength,
+      'accept-ranges': 'bytes',
+    });
+    response.end(bytes);
+    return;
+  }
+  const start = Number(match[1]);
+  const end = Math.min(Number(match[2]), bytes.byteLength - 1);
+  if (start < 0 || start > end || start >= bytes.byteLength) {
+    response.writeHead(416, { 'content-range': `bytes */${bytes.byteLength}` }).end();
+    return;
+  }
+  const body = bytes.slice(start, end + 1);
+  response.writeHead(206, {
+    'content-type': 'application/octet-stream',
+    'content-length': body.byteLength,
+    'content-range': `bytes ${start}-${end}/${bytes.byteLength}`,
+    'accept-ranges': 'bytes',
+  });
+  response.end(body);
+}
+
+export async function sendChunked(
+  response: ServerResponse,
+  chunks: Uint8Array[],
+  delayMs = 0,
+): Promise<void> {
+  response.writeHead(200, { 'content-type': 'application/octet-stream' });
+  for (const chunk of chunks) {
+    response.write(chunk);
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  response.end();
+}
+
+export function disconnectResponse(response: ServerResponse, bytes?: Uint8Array): void {
+  response.writeHead(200, { 'content-type': 'application/octet-stream' });
+  if (bytes) response.write(bytes);
+  response.destroy();
+}

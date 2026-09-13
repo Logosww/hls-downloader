@@ -21,8 +21,15 @@ type Playlist = {
   name: string;
   bandwidth: number;
   uri: string;
+  resolution?: { width: number; height: number };
+  codecs?: string;
+  frameRate?: number;
+  isAudioOnly?: boolean;
+  hasAlternateRenditions?: boolean;
 };
 ```
+
+`hasAlternateRenditions` 表示 master 清单声明了当前 transmux 路径无法安全合并的备用轨道。
 
 ## ParseHlsResult
 

@@ -25,10 +25,11 @@ type Playlist = {
   codecs?: string;
   frameRate?: number;
   isAudioOnly?: boolean;
+  hasAlternateRenditions?: boolean;
 };
 ```
 
-A variant stream from a master playlist. `isAudioOnly` is `true` when the variant has no `RESOLUTION` and its `codecs` are audio-only.
+A variant stream from a master playlist. `isAudioOnly` is `true` when the variant has no `RESOLUTION` and its `codecs` are audio-only. `hasAlternateRenditions` reports whether its master declares alternate tracks that the current transmux path cannot safely flatten.
 
 ## VariantSelectOptions
 

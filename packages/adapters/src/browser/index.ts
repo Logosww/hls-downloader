@@ -24,6 +24,7 @@ import {
   type Playlist,
   type Segment,
   type VariantSelectOptions,
+  assertSupportedSegments,
 } from '@hls-downloader/shared';
 import { transcodeHls } from './mediabunny';
 import { extractPosterFromSegmentUrl } from './poster';
@@ -118,6 +119,8 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   const cached = parseResultCache.get(cacheKey);
   if (cached) return cached;
 
+  let fallbackCode: (typeof HlsDownloaderErrorCode)[keyof typeof HlsDownloaderErrorCode] =
+    HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED;
   try {
     let url = new URL(hlsUrl);
 
@@ -130,6 +133,7 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
     });
     url = new URL(response.url || url.href);
     let manifest = await response.text();
+    fallbackCode = HlsDownloaderErrorCode.MANIFEST_INVALID;
 
     const parser = new Parser();
     parser.push(manifest);
@@ -153,7 +157,7 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
     return result;
   } catch (cause: unknown) {
     // error 不缓存，下次调用重新走网络
-    const error = normalizeHlsError(cause, HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED, {
+    const error = normalizeHlsError(cause, fallbackCode, {
       url: hlsUrl,
       adapter: this.name,
     });
@@ -169,7 +173,22 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
 async function resolveToSegments(
   adapter: HlsDownloaderBrowserAdapter,
   options: Record<string, unknown>,
+  state: { visited: Set<string>; depth: number } = { visited: new Set(), depth: 0 },
 ): Promise<{ segments: Segment[]; resolvedUrl: string }> {
+  const { url } = mergeFetchOptions(
+    getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(adapter, options),
+    options,
+  );
+  if (state.depth > 8 || state.visited.has(url)) {
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.MANIFEST_INVALID,
+      state.depth > 8
+        ? 'Master playlist recursion limit exceeded'
+        : 'Master playlist cycle detected',
+      { adapter: adapter.name, url },
+    );
+  }
+  const visited = new Set(state.visited).add(url);
   const result = await parseHls.call(adapter, options as HlsDownloaderFetchOptions);
 
   if (result.type === 'segment') {
@@ -177,7 +196,9 @@ async function resolveToSegments(
       getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(adapter, options),
       options,
     );
-    return { segments: result.data as Segment[], resolvedUrl: fetchOptions.url };
+    const segments = result.data as Segment[];
+    assertSupportedSegments(segments, adapter.name);
+    return { segments, resolvedUrl: fetchOptions.url };
   }
 
   if (result.type === 'playlist') {
@@ -190,7 +211,21 @@ async function resolveToSegments(
         { adapter: adapter.name },
       );
     }
-    return resolveToSegments(adapter, { ...options, url: best.uri });
+    if (best.hasAlternateRenditions) {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.TRANSMUX_FAILED,
+        'Alternate renditions are not supported by this transmux path',
+        { adapter: adapter.name, url },
+      );
+    }
+    return resolveToSegments(
+      adapter,
+      { ...options, url: best.uri },
+      {
+        visited,
+        depth: state.depth + 1,
+      },
+    );
   }
 
   throw (
@@ -320,6 +355,7 @@ type DownloadFileOptions = {
   url: string;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  range?: { offset: number; length: number };
 };
 
 type DownloadAndTransmuxOptions = {
@@ -372,11 +408,18 @@ const downloadSegmentBytesWithRetry = async ({
   maxRetry: number;
   segmentIndex?: number;
 }) => {
+  const requestHeaders = new Headers(options.headers);
+  if (options.range) {
+    requestHeaders.set(
+      'Range',
+      `bytes=${options.range.offset}-${options.range.offset + options.range.length - 1}`,
+    );
+  }
   const response = await fetchWithRetry({
     url: options.url,
     init: {
       method: 'GET',
-      headers: options.headers,
+      headers: requestHeaders,
       mode: 'cors',
       signal: options.signal,
     },
@@ -384,7 +427,35 @@ const downloadSegmentBytesWithRetry = async ({
     errorCode: HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
     segmentIndex,
   });
-  return new Uint8Array(await response.arrayBuffer());
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!options.range) return bytes;
+  if (response.status === 206) {
+    const expectedEnd = options.range.offset + options.range.length - 1;
+    const contentRange = response.headers.get('content-range');
+    const match = contentRange?.match(/^bytes (\d+)-(\d+)\/(?:\d+|\*)$/i);
+    if (
+      bytes.byteLength !== options.range.length ||
+      !match ||
+      Number(match[1]) !== options.range.offset ||
+      Number(match[2]) !== expectedEnd
+    ) {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+        'Range response does not match the requested byte range',
+        { url: options.url, segmentIndex },
+      );
+    }
+    return bytes;
+  }
+  const end = options.range.offset + options.range.length;
+  if (response.status === 200 && bytes.byteLength >= end) {
+    return bytes.slice(options.range.offset, end);
+  }
+  throw new HlsDownloaderError(
+    HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+    `Server did not satisfy byte range request (status ${response.status})`,
+    { url: options.url, status: response.status, segmentIndex },
+  );
 };
 
 type PreloadHlsResourcesOptions = {
@@ -401,11 +472,33 @@ function resolveResourceUrl(path: string, playlistUrl: string): string {
   return new URL(path, playlistUrl).href;
 }
 
-function getSegmentResourceUrls(segment: Segment, playlistUrl: string): string[] {
-  const urls = [segment.uri];
-  if (typeof segment.key?.uri === 'string') urls.push(segment.key.uri);
-  if (typeof segment.map?.uri === 'string') urls.push(segment.map.uri);
-  return urls.map((url) => resolveResourceUrl(url, playlistUrl));
+type ResourceSpec = {
+  url: string;
+  range?: { offset: number; length: number };
+};
+
+function toRange(value: unknown): ResourceSpec['range'] {
+  if (!value || typeof value !== 'object') return undefined;
+  const { offset, length } = value as { offset?: unknown; length?: unknown };
+  return typeof offset === 'number' && typeof length === 'number' && length > 0
+    ? { offset, length }
+    : undefined;
+}
+
+function getSegmentResources(segment: Segment, playlistUrl: string): ResourceSpec[] {
+  const resources: ResourceSpec[] = [
+    {
+      url: resolveResourceUrl(segment.uri, playlistUrl),
+      range: toRange(segment.byterange),
+    },
+  ];
+  if (typeof segment.map?.uri === 'string') {
+    resources.push({
+      url: resolveResourceUrl(segment.map.uri, playlistUrl),
+      range: toRange(segment.map.byterange),
+    });
+  }
+  return resources;
 }
 
 async function fetchPlaylistText({
@@ -438,43 +531,59 @@ async function preloadHlsResources({
   });
   const segmentCounts = new Map<string, number>();
   const resourceSegmentIndexes = new Map<string, number>();
-  const resourceUrls = new Set<string>();
+  const resources = new Map<string, ResourceSpec>();
+
+  const resourceKey = (resource: ResourceSpec) =>
+    resource.range
+      ? `${resource.url}\u0000${resource.range.offset}:${resource.range.length}`
+      : `${resource.url}\u0000full`;
 
   for (const [segmentIndex, segment] of segments.entries()) {
-    const [segmentUrl, ...additionalUrls] = getSegmentResourceUrls(segment, playlistUrl);
-    if (!segmentUrl) continue;
-    segmentCounts.set(segmentUrl, (segmentCounts.get(segmentUrl) ?? 0) + 1);
-    resourceUrls.add(segmentUrl);
-    resourceSegmentIndexes.set(segmentUrl, segmentIndex);
-    for (const resourceUrl of additionalUrls) {
-      resourceUrls.add(resourceUrl);
-      if (!resourceSegmentIndexes.has(resourceUrl)) {
-        resourceSegmentIndexes.set(resourceUrl, segmentIndex);
+    const [segmentResource, ...additionalResources] = getSegmentResources(segment, playlistUrl);
+    if (!segmentResource) continue;
+    const segmentKey = resourceKey(segmentResource);
+    segmentCounts.set(segmentKey, (segmentCounts.get(segmentKey) ?? 0) + 1);
+    resources.set(segmentKey, segmentResource);
+    resourceSegmentIndexes.set(segmentKey, segmentIndex);
+    for (const resource of additionalResources) {
+      const key = resourceKey(resource);
+      resources.set(key, resource);
+      if (!resourceSegmentIndexes.has(key)) {
+        resourceSegmentIndexes.set(key, segmentIndex);
       }
     }
   }
 
   let completed = 0;
   const entries = await promiseWithLimit(
-    [...resourceUrls].map((resourceUrl) => async () => {
+    [...resources.entries()].map(([key, resource]) => async () => {
       const bytes = await downloadSegmentBytesWithRetry({
-        url: resourceUrl,
+        url: resource.url,
+        range: resource.range,
         headers,
         maxRetry,
-        segmentIndex: resourceSegmentIndexes.get(resourceUrl),
+        segmentIndex: resourceSegmentIndexes.get(key),
         signal,
       });
-      completed += segmentCounts.get(resourceUrl) ?? 0;
-      if (segmentCounts.has(resourceUrl)) onProgress(completed);
-      return [resourceUrl, bytes] as const;
+      completed += segmentCounts.get(key) ?? 0;
+      if (segmentCounts.has(key)) onProgress(completed);
+      return { resource, bytes };
     }),
     downloadConcurrency,
   );
 
+  const fullBytes: Record<string, Uint8Array> = {};
+  const ranges: HlsWasmResources['ranges'] = [];
+  for (const { resource, bytes } of entries) {
+    if (resource.range) ranges.push({ url: resource.url, ...resource.range, bytes });
+    else fullBytes[resource.url] = bytes;
+  }
+
   return {
     playlistUrl,
     texts: { [playlistUrl]: mediaPlaylist },
-    bytes: Object.fromEntries(entries),
+    bytes: fullBytes,
+    ranges,
   };
 }
 

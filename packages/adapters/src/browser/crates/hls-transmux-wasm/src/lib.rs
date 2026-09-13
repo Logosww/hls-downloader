@@ -1,12 +1,14 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use hls_transmux::{
-    HlsInput, MemorySource, OutputFormat, SourceLocation, TransmuxOptions, TransmuxReport,
-    transmux_hls_to_mp4_bytes, transmux_hls_to_writer_async,
+    ByteRange, Error as TransmuxError, HlsInput, OutputFormat, Source, SourceLocation,
+    TextResource, TransmuxOptions, TransmuxReport, transmux_hls_to_mp4_bytes,
+    transmux_hls_to_writer_async,
 };
 use js_sys::{Function, Object, Reflect, Uint8Array};
 use tokio::io::AsyncWrite;
@@ -22,7 +24,72 @@ pub fn start() {
     console_error_panic_hook::set_once();
 }
 
-fn parse_resource_map(resources: &JsValue) -> Result<(MemorySource, String), JsValue> {
+#[derive(Debug, Default)]
+struct PreloadedSource {
+    texts: HashMap<String, String>,
+    bytes: HashMap<String, Vec<u8>>,
+    ranges: HashMap<(String, u64, u64), Vec<u8>>,
+}
+
+fn location_key(location: &SourceLocation) -> String {
+    match location {
+        SourceLocation::Url(url) => url.to_string(),
+        SourceLocation::File(path) => path.to_string_lossy().into_owned(),
+    }
+}
+
+impl Source for PreloadedSource {
+    fn read_text<'a>(
+        &'a self,
+        location: &'a SourceLocation,
+    ) -> Pin<Box<dyn Future<Output = Result<TextResource, TransmuxError>> + Send + 'a>> {
+        Box::pin(async move {
+            let key = location_key(location);
+            let content = self.texts.get(&key).ok_or_else(|| {
+                TransmuxError::invalid(format!("PreloadedSource: no text found for {key}"))
+            })?;
+            Ok(TextResource {
+                content: content.clone(),
+                location: location.clone(),
+            })
+        })
+    }
+
+    fn read_bytes<'a>(
+        &'a self,
+        location: &'a SourceLocation,
+        range: Option<&'a ByteRange>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TransmuxError>> + Send + 'a>> {
+        Box::pin(async move {
+            let key = location_key(location);
+            if let Some(range) = range {
+                if let Some(bytes) = self.ranges.get(&(key.clone(), range.offset, range.length)) {
+                    return Ok(bytes.clone());
+                }
+                if let Some(bytes) = self.bytes.get(&key) {
+                    let start = usize::try_from(range.offset)
+                        .map_err(|_| TransmuxError::invalid("byte range offset overflow"))?;
+                    let length = usize::try_from(range.length)
+                        .map_err(|_| TransmuxError::invalid("byte range length overflow"))?;
+                    let end = start
+                        .checked_add(length)
+                        .ok_or_else(|| TransmuxError::invalid("byte range overflow"))?;
+                    return bytes
+                        .get(start..end)
+                        .map(|slice| slice.to_vec())
+                        .ok_or_else(|| {
+                            TransmuxError::invalid("byte range exceeds resource length")
+                        });
+                }
+            }
+            self.bytes.get(&key).cloned().ok_or_else(|| {
+                TransmuxError::invalid(format!("PreloadedSource: no bytes found for {key}"))
+            })
+        })
+    }
+}
+
+fn parse_resource_map(resources: &JsValue) -> Result<(PreloadedSource, String), JsValue> {
     let obj = resources
         .dyn_ref::<Object>()
         .ok_or_else(|| JsValue::from_str("resources must be an object"))?;
@@ -31,6 +98,7 @@ fn parse_resource_map(resources: &JsValue) -> Result<(MemorySource, String), JsV
         .ok_or_else(|| JsValue::from_str("playlistUrl must be a string"))?;
     let texts_value = Reflect::get(obj, &JsValue::from_str("texts"))?;
     let bytes_value = Reflect::get(obj, &JsValue::from_str("bytes"))?;
+    let ranges_value = Reflect::get(obj, &JsValue::from_str("ranges"))?;
     let texts_obj = texts_value
         .dyn_ref::<Object>()
         .ok_or_else(|| JsValue::from_str("texts must be an object"))?;
@@ -59,7 +127,39 @@ fn parse_resource_map(resources: &JsValue) -> Result<(MemorySource, String), JsV
         bytes.insert(key, buffer);
     }
 
-    Ok((MemorySource::with_data(texts, bytes), playlist_url))
+    let mut ranges = HashMap::new();
+    let range_values = js_sys::Array::from(&ranges_value);
+    for index in 0..range_values.length() {
+        let value = range_values.get(index);
+        let range_obj = value
+            .dyn_ref::<Object>()
+            .ok_or_else(|| JsValue::from_str("range entries must be objects"))?;
+        let url = Reflect::get(range_obj, &JsValue::from_str("url"))?
+            .as_string()
+            .ok_or_else(|| JsValue::from_str("range url must be a string"))?;
+        let offset = Reflect::get(range_obj, &JsValue::from_str("offset"))?
+            .as_f64()
+            .ok_or_else(|| JsValue::from_str("range offset must be a number"))?
+            as u64;
+        let length = Reflect::get(range_obj, &JsValue::from_str("length"))?
+            .as_f64()
+            .ok_or_else(|| JsValue::from_str("range length must be a number"))?
+            as u64;
+        let bytes_value = Reflect::get(range_obj, &JsValue::from_str("bytes"))?;
+        let array = Uint8Array::new(&bytes_value);
+        let mut buffer = vec![0_u8; array.length() as usize];
+        array.copy_to(&mut buffer);
+        ranges.insert((url, offset, length), buffer);
+    }
+
+    Ok((
+        PreloadedSource {
+            texts,
+            bytes,
+            ranges,
+        },
+        playlist_url,
+    ))
 }
 
 fn create_input(resources: &JsValue) -> Result<HlsInput, JsValue> {

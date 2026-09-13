@@ -87,12 +87,18 @@ jobs:
       - name: Fast tests
         run: pnpm test
 
+      - name: Build browser WASM for protocol tests
+        run: pnpm --filter @hls-downloader/adapters run build:wasm
+
       - name: HTTP integration tests
         run: pnpm run test:integration
 
       - run: pnpm exec turbo run lint --filter=!@hls-downloader/app-web
 
       - run: pnpm run build
+
+      - name: Node native protocol contract
+        run: pnpm run test:native:contract
 
       - name: Published entrypoint tests
         run: pnpm run test:publish

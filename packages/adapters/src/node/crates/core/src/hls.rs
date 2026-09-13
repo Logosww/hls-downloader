@@ -13,12 +13,16 @@ pub struct Playlist {
     pub codecs: Option<String>,
     pub frame_rate: Option<f64>,
     pub is_audio_only: bool,
+    pub has_alternate_renditions: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct Segment {
     pub uri: String,
     pub duration: f64,
+    pub encryption_method: Option<String>,
+    pub discontinuity: bool,
+    pub is_live: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +50,11 @@ fn build_base_url(url: &Url) -> String {
 fn is_audio_only_codecs(codecs: &Option<String>) -> bool {
     match codecs {
         Some(c) => {
-            let parts: Vec<&str> = c.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+            let parts: Vec<&str> = c
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
             if parts.is_empty() {
                 return false;
             }
@@ -74,12 +82,7 @@ fn is_audio_only_codecs(codecs: &Option<String>) -> bool {
 fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHlsResult, HlsError> {
     match parsed {
         m3u8_rs::Playlist::MasterPlaylist(master) => {
-            if master.variants.is_empty() {
-                return Err(HlsError::Parse(
-                    "No playlists or segments found".to_string(),
-                ));
-            }
-
+            let has_alternate_renditions = !master.alternatives.is_empty();
             let playlists: Vec<Playlist> = master
                 .variants
                 .iter()
@@ -94,8 +97,7 @@ fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHls
                         .as_ref()
                         .map(|r| (r.width as u32, r.height as u32));
                     let frame_rate = v.frame_rate;
-                    let is_audio_only =
-                        v.resolution.is_none() && is_audio_only_codecs(&v.codecs);
+                    let is_audio_only = v.resolution.is_none() && is_audio_only_codecs(&v.codecs);
                     Playlist {
                         name,
                         bandwidth: v.bandwidth,
@@ -104,6 +106,7 @@ fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHls
                         codecs: v.codecs.clone(),
                         frame_rate,
                         is_audio_only,
+                        has_alternate_renditions,
                     }
                 })
                 .collect();
@@ -123,6 +126,13 @@ fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHls
                 .map(|s| Segment {
                     uri: resolve_uri(&s.uri, base),
                     duration: s.duration as f64,
+                    encryption_method: s.key.as_ref().map(|key| key.method.to_string()),
+                    discontinuity: s.discontinuity,
+                    is_live: !media.end_list
+                        || matches!(
+                            media.playlist_type.as_ref(),
+                            Some(m3u8_rs::MediaPlaylistType::Event)
+                        ),
                 })
                 .collect();
 
@@ -192,13 +202,19 @@ mod tests {
 
     #[test]
     fn test_resolve_uri_relative() {
-        assert_eq!(resolve_uri("seg0.ts", BASE), "https://example.com/path/seg0.ts");
+        assert_eq!(
+            resolve_uri("seg0.ts", BASE),
+            "https://example.com/path/seg0.ts"
+        );
     }
 
     #[test]
     fn test_build_base_url() {
         let url = Url::parse("https://example.com/live/stream/manifest.m3u8").unwrap();
-        assert_eq!(build_base_url(&url), "https://example.com/live/stream/{{URL}}");
+        assert_eq!(
+            build_base_url(&url),
+            "https://example.com/live/stream/{{URL}}"
+        );
     }
 
     // ── master playlist fixture 数据驱动 ──
@@ -304,7 +320,10 @@ mod tests {
         };
         assert_eq!(segments.len(), 15);
         let first = &segments[0];
-        assert_eq!(first.uri, "https://example.com/path/20140311T113819-01-338559live.ts");
+        assert_eq!(
+            first.uri,
+            "https://example.com/path/20140311T113819-01-338559live.ts"
+        );
         assert!((first.duration - 2.002).abs() < 1e-6);
     }
 
@@ -325,7 +344,9 @@ mod tests {
     #[test]
     fn media_playlist_without_segments_errors() {
         let result = parse_and_map(fixture!("media-playlist-without-segments.m3u8"), BASE);
-        assert!(matches!(result, Err(HlsError::Parse(ref msg)) if msg.contains("No playlists or segments")));
+        assert!(
+            matches!(result, Err(HlsError::Parse(ref msg)) if msg.contains("No playlists or segments"))
+        );
     }
 
     #[test]
@@ -333,6 +354,8 @@ mod tests {
         // 构造一个空 master playlist
         let content = "#EXTM3U\n#EXT-X-VERSION:3\n";
         let result = parse_and_map(content, BASE);
-        assert!(matches!(result, Err(HlsError::Parse(ref msg)) if msg.contains("No playlists or segments")));
+        assert!(
+            matches!(result, Err(HlsError::Parse(ref msg)) if msg.contains("No playlists or segments"))
+        );
     }
 }

@@ -8,6 +8,22 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [3.4.0] - 2026-09-13
+
+### 新增
+
+- 新增 `Playlist.hasAlternateRenditions`，供消费方识别声明了备用轨道的 master 清单。
+
+### 变更
+
+- Browser 的 `BYTERANGE` 与 `EXT-X-MAP` 资源改用经过校验的真实范围请求；服务端返回完整 `200` 响应时仍通过本地切片保持兼容。
+- Browser 和 Node 遇到不支持的加密、live/event、discontinuity 或 alternate rendition 时，会在下载媒体资源前返回既有的结构化错误。
+
+### 修复
+
+- Browser 对同一 URL 的不同字节范围分别进行缓存和重试，避免错误复用其他范围的数据。
+- 确保 `NodeAdapter.downloadToStream()` 在 Promise 完成前交付全部分块，包括很短的 fMP4 流。
+
 ## [3.3.0] - 2026-09-05
 
 ### 新增

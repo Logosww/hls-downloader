@@ -6,7 +6,9 @@ import type {
   ParseHlsResult,
   Playlist,
   VariantSelector,
+  Segment,
 } from './types';
+import { HlsDownloaderError, HlsDownloaderErrorCode } from './errors';
 
 const ADAPTER_BRAND = Symbol('hls-downloader.adapter');
 const ADAPTER_INTERNAL = Symbol('hls-downloader.adapter.internal');
@@ -137,6 +139,30 @@ export function isAudioOnlyCodecs(codecs?: string): boolean {
   return parts.every((c) => AUDIO_CODEC_RE.test(c));
 }
 
+/** Reject media features that the current transmux path cannot preserve safely. */
+export function assertSupportedSegments(segments: Segment[], adapter: string): void {
+  for (const [segmentIndex, segment] of segments.entries()) {
+    const method =
+      typeof segment.key?.method === 'string' ? segment.key.method.toUpperCase() : undefined;
+    if (method && method !== 'NONE') {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.UNSUPPORTED_ENCRYPTION,
+        `Unsupported HLS encryption method: ${method}`,
+        { adapter, segmentIndex },
+      );
+    }
+    if (segment.discontinuity === true || segment.isLive === true) {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.TRANSMUX_FAILED,
+        segment.discontinuity === true
+          ? 'HLS discontinuities are not supported by this transmux path'
+          : 'Live and event playlists are not supported by this transmux path',
+        { adapter, segmentIndex },
+      );
+    }
+  }
+}
+
 function codecMatches(codecs: string | undefined, prefix: string): boolean {
   if (!codecs) return false;
   const lower = prefix.toLowerCase();
@@ -218,6 +244,9 @@ type ManifestSegment = { uri: string; [key: string]: any };
 type M3u8Manifest = {
   playlists?: ManifestPlaylist[];
   segments?: ManifestSegment[];
+  endList?: boolean;
+  playlistType?: string;
+  mediaGroups?: Record<string, Record<string, unknown>>;
 };
 
 /**
@@ -229,6 +258,9 @@ type M3u8Manifest = {
  * 从 browser adapter 的 `parseHls` 中抽出，使其可在 node/vitest 中被单元测试。
  */
 export function mapManifest(manifest: M3u8Manifest, base: string): ParseHlsResult {
+  const hasAlternateRenditions = Object.values(manifest.mediaGroups ?? {}).some(
+    (group) => Object.keys(group ?? {}).length > 0,
+  );
   if (manifest.playlists?.length) {
     const groups = manifest.playlists
       .filter((g) => g && g.attributes)
@@ -258,6 +290,7 @@ export function mapManifest(manifest: M3u8Manifest, base: string): ParseHlsResul
           codecs,
           frameRate,
           isAudioOnly,
+          hasAlternateRenditions,
         } as Playlist;
       });
 
@@ -269,12 +302,20 @@ export function mapManifest(manifest: M3u8Manifest, base: string): ParseHlsResul
     }
   }
 
+  if (hasAlternateRenditions && !manifest.segments?.length) {
+    return { type: 'playlist', data: [] };
+  }
+
   if (manifest.segments?.length) {
     const resolveUri = (uri: string) =>
       uri.startsWith('http') ? uri : base.replace('{{URL}}', uri);
 
     const segments = manifest.segments.map((s) => {
-      const mapped: Record<string, unknown> = { ...s, uri: resolveUri(s.uri) };
+      const mapped: Record<string, unknown> = {
+        ...s,
+        uri: resolveUri(s.uri),
+        isLive: manifest.endList !== true || manifest.playlistType?.toUpperCase() === 'EVENT',
+      };
       if (s.map && typeof s.map === 'object' && 'uri' in s.map) {
         mapped.map = { ...s.map, uri: resolveUri((s.map as { uri: string }).uri) };
       }

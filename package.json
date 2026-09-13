@@ -1,6 +1,6 @@
 {
   "name": "@logosw/hls-downloader",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -60,6 +60,8 @@
     "test:e2e:publish": "pnpm --filter @hls-downloader/test run test:e2e:publish",
     "test:publish": "pnpm --filter @hls-downloader/test run test:publish",
     "test:native": "pnpm --filter @hls-downloader/test run test:native",
+    "test:native:contract": "pnpm --filter @hls-downloader/test run test:native:contract",
+    "test:app-bun": "pnpm --filter @hls-downloader/app-bun run test:app-bun",
     "lint": "turbo run lint",
     "changelog": "node scripts/changelog.ts",
     "changelog:append": "node scripts/changelog.ts append",
@@ -81,13 +83,13 @@
     "typescript": "^7.0.2"
   },
   "devDependencies": {
-    "oxfmt": "^0.61.0",
-    "oxlint": "^1.81.0",
-    "tsdown": "^0.22.14",
+    "oxfmt": "^0.67.0",
+    "oxlint": "^1.82.0",
+    "tsdown": "^0.23.0",
     "turbo": "^2.10.12"
   },
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@11.25.0"
+  "packageManager": "pnpm@12.4.1"
 }
