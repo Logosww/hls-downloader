@@ -45,6 +45,12 @@ async function prepare(page: Page, supported = true) {
         value: supported
           ? async () => {
               state.activeGestures.push(navigator.userActivation.isActive);
+              if (state.mode === 'pending') {
+                await new Promise<void>((resolve) => {
+                  state.releases.picker = resolve;
+                });
+                throw new DOMException('Picker cancelled', 'AbortError');
+              }
               if (state.mode === 'cancel') throw new DOMException('Picker cancelled', 'AbortError');
               if (state.mode === 'denied')
                 throw new DOMException('Permission denied', 'NotAllowedError');
@@ -110,6 +116,33 @@ try {
     'true',
   );
   assert.equal(await page.getByRole('button', { name: 'H.264', exact: true }).isDisabled(), true);
+  const dialog = page.getByRole('alertdialog');
+  await dialog.evaluate(async (el) => {
+    await Promise.all(el.getAnimations().map((animation) => animation.finished));
+  });
+  assert.equal(Math.round((await dialog.boundingBox())!.width), 672);
+  await page.evaluate(() => {
+    (window as any).fileTest.mode = 'pending';
+  });
+  await page.getByRole('button', { name: '选择位置并下载' }).click();
+  const pendingDownload = page.getByRole('button', { name: '正在选择保存位置…' });
+  await pendingDownload.waitFor();
+  assert.equal(await pendingDownload.locator('.animate-spin').count(), 1);
+  assert.equal(
+    await page.getByRole('button', { name: '直接播放' }).locator('.animate-spin').count(),
+    0,
+  );
+  await page.evaluate(() => {
+    (window as any).fileTest.releases.picker();
+  });
+  await page.getByRole('button', { name: '选择位置并下载' }).waitFor();
+  await page.evaluate(() => {
+    delete (window as any).fileTest.releases.picker;
+    (window as any).fileTest.mode = 'ok';
+  });
+  results.push(
+    'Confirmation is 672px wide; only the download button spins while the picker is pending.',
+  );
   const before = await page.evaluate(() => (window as any).fileTest.blobCount);
   await page.getByRole('button', { name: '选择位置并下载' }).click();
   await page.getByRole('button', { name: '已保存', exact: true }).waitFor();
@@ -152,6 +185,16 @@ try {
   for (let i = 0; i < 4; i++) await selectFile(page);
   await page.waitForFunction(() => Object.keys((window as any).fileTest.releases).length === 3);
   assert.equal(await page.evaluate(() => (window as any).fileTest.opened.length), 4); // first success + 3 active
+  const cancel = page.getByRole('button', { name: '取消 app-writable-2.mp4' });
+  const geometry = await cancel.evaluate((button) => {
+    const row = button.parentElement!.parentElement!;
+    return {
+      rightGap: row.getBoundingClientRect().right - button.getBoundingClientRect().right,
+      progressWidth: row.querySelector('[data-slot=progress]')!.getBoundingClientRect().width,
+    };
+  });
+  assert.ok(geometry.rightGap < 2);
+  assert.ok(geometry.progressWidth > 50);
   await page.getByRole('button', { name: '取消 app-writable-5.mp4' }).click();
   await page.getByRole('button', { name: '取消 app-writable-2.mp4' }).click();
   await page.evaluate(() => {
@@ -176,6 +219,10 @@ try {
   await page.getByRole('alert').filter({ hasText: '文件写入失败' }).waitFor();
   assert.equal(await page.getByRole('button', { name: '保存', exact: true }).count(), 0);
   results.push('Write failure is visible and does not offer a misleading Save action.');
+
+  // Let the expected write-error toast dismiss before opening another modal.
+  await page.mouse.move(0, 0);
+  await page.waitForFunction(() => document.querySelectorAll('[data-sonner-toast]').length === 0);
 
   // Preserve legacy mode and its transcode controls.
   await page.evaluate(() => {

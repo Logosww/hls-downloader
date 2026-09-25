@@ -41,8 +41,8 @@ const DownloadProgress = ({
   onCancel,
 }: Pick<IDownloadListItemProps, 'item' | 'onCancel'>) => (
   <div className="w-full sm:w-44 shrink-0 flex items-center gap-2">
-    <Progress value={item.percentage} />
-    <span className="text-xs text-muted-foreground tabular-nums">
+    <Progress className="min-w-0 flex-1" value={item.percentage} />
+    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
       {Math.floor(item.percentage)}%
     </span>
     <Button
@@ -93,12 +93,16 @@ const DownloadListItem = ({ item, onSave, onCancel, onRemove }: IDownloadListIte
   const isPending =
     item.status === 'queued' || item.status === 'downloading' || item.status === 'saving';
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div className="flex items-center gap-2 min-w-0">
+    <div className="flex w-full min-w-0 flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-1 items-center gap-2 min-w-0">
         {item.previewSrc ? (
-          <img className="rounded-md h-12 w-20 object-cover" src={item.previewSrc} alt="poster" />
+          <img
+            className="rounded-md h-12 w-20 shrink-0 object-cover"
+            src={item.previewSrc}
+            alt="poster"
+          />
         ) : (
-          <div className="rounded-md h-12 w-20 bg-muted" />
+          <div className="rounded-md h-12 w-20 shrink-0 bg-muted" />
         )}
         <div className="min-w-0">
           <div className="truncate text-sm">{item.title}</div>

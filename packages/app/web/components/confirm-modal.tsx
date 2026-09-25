@@ -37,6 +37,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Field,
   FieldContent,
+  FieldGroup,
   FieldDescription,
   FieldLabel,
   FieldTitle,
@@ -95,7 +96,7 @@ export const ConfirmModal = ({
   canWriteToFile = false,
 }: IConfirmModalProps) => {
   const { filename, previewSrc, playlist } = metadata || {};
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const isLoading = Boolean(open && !previewSrc);
   const form = useForm<ConfirmFormValues>({
     resolver: zodResolver(confirmFormSchema),
@@ -114,17 +115,17 @@ export const ConfirmModal = ({
   const showBitrateFields = transcodePreset !== 'none';
 
   const handleConfirm = async (values: ConfirmFormValues) => {
-    setIsSubmitting(true);
+    setIsDownloading(true);
     try {
       if (await onConfirm?.(values)) onOpenChange?.(false);
     } catch {
       toast.error('无法创建下载任务，请重试');
     }
-    setIsSubmitting(false);
+    setIsDownloading(false);
   };
 
   const submitDownload = () => {
-    if (isSubmitting) return;
+    if (isDownloading) return;
     // Validate synchronously so the native picker opens in the click gesture.
     const result = confirmFormSchema.safeParse(form.getValues());
     if (result.success) void handleConfirm(result.data);
@@ -136,70 +137,78 @@ export const ConfirmModal = ({
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={(value) => !isSubmitting && onOpenChange?.(value)}>
-      <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto gap-3 sm:max-w-[520px]">
+    <AlertDialog open={open} onOpenChange={(value) => !isDownloading && onOpenChange?.(value)}>
+      <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto gap-5 data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle>确认下载</AlertDialogTitle>
           <AlertDialogDescription>确认视频信息并选择下载设置</AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="overflow-hidden rounded-xl">
-          {isLoading ? (
-            <Skeleton className="h-40 w-full" />
-          ) : (
-            previewSrc && <img className="h-40 w-full object-cover" src={previewSrc} alt="poster" />
-          )}
-        </div>
         <Form {...form}>
           <form
             id="confirm-modal-form"
-            className="flex flex-col gap-2"
+            className="flex flex-col gap-5"
             onSubmit={(event) => {
               event.preventDefault();
               submitDownload();
             }}
           >
-            <div className="grid gap-2 sm:grid-cols-2">
-              <FormField
-                name="title"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="gap-1">
-                    <FormLabel className="text-xs">文件标题</FormLabel>
-                    <FormControl>
-                      <Input {...field} className="h-8" type="text" placeholder="output" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+            <FieldGroup className="grid items-start gap-4 sm:grid-cols-2">
+              <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
+                {isLoading ? (
+                  <Skeleton className="absolute inset-0 size-full" />
+                ) : (
+                  previewSrc && (
+                    <img
+                      className="absolute inset-0 size-full object-contain"
+                      src={previewSrc}
+                      alt="视频封面"
+                    />
+                  )
                 )}
-              />
-              {playlist && playlist.length > 0 && (
+              </div>
+              <FieldGroup className="min-w-0">
                 <FormField
-                  name="quality"
+                  name="title"
                   control={form.control}
                   render={({ field }) => (
-                    <FormItem className="gap-1">
-                      <FormLabel className="text-xs">视频质量</FormLabel>
+                    <FormItem className="gap-2">
+                      <FormLabel>文件标题</FormLabel>
                       <FormControl>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger className="w-full" size="sm">
-                            <SelectValue placeholder="选择视频质量" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              {playlist.map(({ name, bandwidth }) => (
-                                <SelectItem key={`${name}-${bandwidth}`} value={name}>
-                                  {name}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
+                        <Input {...field} type="text" placeholder="output" />
                       </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
-            </div>
+                {playlist && playlist.length > 0 && (
+                  <FormField
+                    name="quality"
+                    control={form.control}
+                    render={({ field }) => (
+                      <FormItem className="gap-2">
+                        <FormLabel>视频质量</FormLabel>
+                        <FormControl>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="选择视频质量" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                {playlist.map(({ name, bandwidth }) => (
+                                  <SelectItem key={`${name}-${bandwidth}`} value={name}>
+                                    {name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </FieldGroup>
+            </FieldGroup>
             <FormField
               name="outputMode"
               control={form.control}
@@ -210,8 +219,8 @@ export const ConfirmModal = ({
                     <RadioGroup
                       aria-label="保存方式"
                       value={field.value}
-                      disabled={isSubmitting}
-                      className="grid gap-2 sm:grid-cols-2"
+                      disabled={isDownloading}
+                      className="grid gap-4 sm:grid-cols-2"
                       onValueChange={(value) => {
                         field.onChange(value);
                         if (value === 'file') form.setValue('transcodePreset', 'none');
@@ -224,9 +233,7 @@ export const ConfirmModal = ({
                         <Field orientation="horizontal">
                           <FieldContent>
                             <FieldTitle>大文件直存</FieldTitle>
-                            <FieldDescription>
-                              先选位置，边下载边写入，降低内存占用。
-                            </FieldDescription>
+                            <FieldDescription>边下载边写入，节省内存。</FieldDescription>
                           </FieldContent>
                           <RadioGroupItem
                             id="output-file"
@@ -240,7 +247,7 @@ export const ConfirmModal = ({
                         <Field orientation="horizontal">
                           <FieldContent>
                             <FieldTitle>普通下载</FieldTitle>
-                            <FieldDescription>下载完成后手动保存，可选择转码。</FieldDescription>
+                            <FieldDescription>下载后保存，支持转码。</FieldDescription>
                           </FieldContent>
                           <RadioGroupItem id="output-browser" value="browser" />
                         </Field>
@@ -249,10 +256,10 @@ export const ConfirmModal = ({
                   </FormControl>
                   <p id="file-output-note" className="text-xs text-muted-foreground">
                     {!canWriteToFile
-                      ? '此浏览器暂不支持文件直存，请使用普通下载；也可在安全连接下使用支持文件选择器的浏览器。'
+                      ? '此浏览器暂不支持文件直存，请使用普通下载。'
                       : outputMode === 'file'
-                        ? '直接保存为 MP4，保留原始编码。需要转码时，请选择普通下载。'
-                        : '普通下载会在内存中保留完整视频，大文件建议使用直存。'}
+                        ? '保存为原编码 MP4；如需转码，请选普通下载。'
+                        : '完整视频保留在内存中，大文件建议直存。'}
                   </p>
                 </FormItem>
               )}
@@ -261,13 +268,13 @@ export const ConfirmModal = ({
               name="transcodePreset"
               control={form.control}
               render={({ field }) => (
-                <FormItem className="gap-1">
-                  <FormLabel className="text-xs">转码预设</FormLabel>
+                <FormItem className="gap-2">
+                  <FormLabel>转码预设</FormLabel>
                   <FormControl>
                     <ToggleGroup
                       variant="outline"
                       size="sm"
-                      disabled={outputMode === 'file' || isSubmitting}
+                      disabled={outputMode === 'file' || isDownloading}
                       className="w-full"
                       value={field.value ? [field.value] : []}
                       onValueChange={(value) => value[0] && field.onChange(value[0])}
@@ -290,17 +297,16 @@ export const ConfirmModal = ({
               )}
             />
             {showBitrateFields ? (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <FieldGroup className="grid gap-4 sm:grid-cols-2">
                 <FormField
                   name="videoBitrate"
                   control={form.control}
                   render={({ field }) => (
-                    <FormItem className="gap-1">
-                      <FormLabel className="text-xs">视频码率（可选）</FormLabel>
+                    <FormItem className="gap-2">
+                      <FormLabel>视频码率（可选）</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          className="h-8"
                           type="text"
                           placeholder="如 4M"
                           value={field.value ?? ''}
@@ -314,12 +320,11 @@ export const ConfirmModal = ({
                   name="audioBitrate"
                   control={form.control}
                   render={({ field }) => (
-                    <FormItem className="gap-1">
-                      <FormLabel className="text-xs">音频码率（可选）</FormLabel>
+                    <FormItem className="gap-2">
+                      <FormLabel>音频码率（可选）</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          className="h-8"
                           type="text"
                           placeholder="如 128k"
                           value={field.value ?? ''}
@@ -329,14 +334,14 @@ export const ConfirmModal = ({
                     </FormItem>
                   )}
                 />
-              </div>
+              </FieldGroup>
             ) : null}
           </form>
           <AlertDialogFooter>
             <AlertDialogCancel
               className="cursor-pointer"
               size="sm"
-              disabled={isSubmitting}
+              disabled={isDownloading}
               onClick={() => onOpenChange?.(false)}
             >
               取消
@@ -345,10 +350,9 @@ export const ConfirmModal = ({
               variant="outline"
               size="sm"
               type="button"
-              disabled={isSubmitting}
+              disabled={isDownloading}
               onClick={form.handleSubmit(handleStreamPreview)}
             >
-              {isSubmitting && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
               直接播放
             </Button>
             <Button
@@ -356,11 +360,13 @@ export const ConfirmModal = ({
               className="cursor-pointer"
               size="sm"
               type="submit"
-              disabled={isSubmitting}
+              disabled={isDownloading}
             >
-              {isSubmitting && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
-              {isSubmitting
-                ? '正在选择保存位置…'
+              {isDownloading && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
+              {isDownloading
+                ? outputMode === 'file'
+                  ? '正在选择保存位置…'
+                  : '正在创建下载…'
                 : outputMode === 'file'
                   ? '选择位置并下载'
                   : '下载'}
