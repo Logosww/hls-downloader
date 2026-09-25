@@ -3,13 +3,13 @@
  * 在 GitHub Actions 下写入 GITHUB_ENV：VCPKG_ROOT、PKG_CONFIG、PKG_CONFIG_PATH、PKG_CONFIG_ALL_STATIC。
  *
  * Usage: node scripts/setup-vcpkg-ffmpeg.ts <triplet>
- * Env: VCPKG_ROOT（可选，默认 os.homedir()/vcpkg）、VCPKG_TAG（可选；默认同 workflow，为含 FFmpeg 9.0.1 的 vcpkg commit SHA）
+ * Env: VCPKG_ROOT（可选，默认 os.homedir()/vcpkg）、VCPKG_TAG（可选；默认同 workflow，为含 FFmpeg 9.0.2 的 vcpkg commit SHA）
  *
  * GitHub Actions：缓存路径不要用 `~`，应与 Node 的 homedir 一致（Linux/macOS 用 $HOME/vcpkg，
  * Windows 用 Join-Path $env:USERPROFILE vcpkg）；workflow 里在 cache 前先解析并写入 VCPKG_ROOT。
  */
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,8 +19,8 @@ if (!triplet) {
   process.exit(1);
 }
 
-/** 含 ports/ffmpeg 9.0.1；pin master commit（PR #53386, 2026-08-13），尚未进入 release tag。 */
-const DEFAULT_VCPKG_REF = '36677bbd0b3bf11da7376e62e14bffcc54d2eaeb';
+/** 含 ports/ffmpeg 9.0.2；固定官方提交（PR #53975）。 */
+const DEFAULT_VCPKG_REF = 'dc1dbc7d46ceb78858f26d21fd22ee4d530e30ea';
 const VCPKG_REMOTE = 'https://github.com/microsoft/vcpkg.git';
 const VCPKG_TAG = process.env.VCPKG_TAG ?? DEFAULT_VCPKG_REF;
 const root = process.env.VCPKG_ROOT ?? join(homedir(), 'vcpkg');
@@ -58,6 +58,22 @@ if (!existsSync(join(root, '.git'))) {
       stdio: 'inherit',
     });
   }
+}
+
+// A restored cache or an existing local checkout may point at another baseline.
+const currentRef = execFileSync('git', ['rev-parse', 'HEAD'], {
+  cwd: root,
+  encoding: 'utf8',
+}).trim();
+if (isPinnedFullSha && currentRef.toLowerCase() !== VCPKG_TAG.toLowerCase()) {
+  run('git', ['fetch', '--depth', '1', 'origin', VCPKG_TAG], root);
+  run('git', ['checkout', '--detach', VCPKG_TAG], root);
+}
+const ffmpegPort = JSON.parse(readFileSync(join(root, 'ports', 'ffmpeg', 'vcpkg.json'), 'utf8'));
+const ffmpegVersion =
+  ffmpegPort.version ?? ffmpegPort['version-semver'] ?? ffmpegPort['version-string'];
+if (ffmpegVersion !== '9.0.2') {
+  throw new Error(`Expected FFmpeg 9.0.2, found ${ffmpegVersion} in vcpkg ${VCPKG_TAG}`);
 }
 
 const vcpkgExe = isWin ? join(root, 'vcpkg.exe') : join(root, 'vcpkg');

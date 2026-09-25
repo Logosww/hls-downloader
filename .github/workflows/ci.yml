@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # microsoft/vcpkg 36677bb (2026-08-13, PR #53386)：ports/ffmpeg 9.0.1
-  VCPKG_TAG: '36677bbd0b3bf11da7376e62e14bffcc54d2eaeb'
+  # microsoft/vcpkg dc1dbc7 (PR #53975)：ports/ffmpeg 9.0.2
+  VCPKG_TAG: 'dc1dbc7d46ceb78858f26d21fd22ee4d530e30ea'
 
 jobs:
   ci:
@@ -49,9 +49,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
-          key: vcpkg-ff901-Linux-x64-linux-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-Linux-x64-linux-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff901-Linux-x64-linux-
+            vcpkg-ff902-Linux-x64-linux-
 
       - name: Setup vcpkg + static FFmpeg (Linux x64)
         run: node scripts/setup-vcpkg-ffmpeg.ts x64-linux
@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
-          key: vcpkg-ff901-Linux-x64-linux-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-Linux-x64-linux-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config)
         run: |
@@ -243,9 +243,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff901-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff901-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
@@ -253,9 +253,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff901-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff901-Windows-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-
 
       - name: Setup vcpkg + static FFmpeg (Unix)
         if: runner.os != 'Windows' && matrix.install_ffmpeg
@@ -270,14 +270,14 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff901-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && matrix.install_ffmpeg && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff901-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config, Unix)
         if: matrix.install_ffmpeg && runner.os != 'Windows'
