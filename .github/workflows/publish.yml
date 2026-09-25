@@ -24,7 +24,18 @@ env:
   HLS_FFMPEG_STATIC: '1'
 
 jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Assert package versions match the release tag
+        run: node scripts/assert-release-version.ts
+
   build-adapters-native:
+    needs: validate-release
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
     name: Build adapters native (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -253,8 +264,8 @@ jobs:
           done
 
   publish:
-    needs: publish-rust-native
-    if: ${{ always() && ((github.event_name == 'workflow_dispatch' && inputs.publish_scope == 'root-only') || needs.publish-rust-native.result == 'success') }}
+    needs: [validate-release, publish-rust-native]
+    if: ${{ always() && needs.validate-release.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.publish_scope == 'root-only') || needs.publish-rust-native.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:

@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// State tests do not execute downloads or require built browser/WASM artifacts.
+vi.mock('@hls-downloader/adapters/browser', () => ({ BrowserAdapter: vi.fn() }));
 import {
   downloadTaskReducer,
   selectQueuedTasks,
