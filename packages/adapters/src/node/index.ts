@@ -523,6 +523,7 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
     aes128: false,
     liveRecording: false,
     persistentOutput: true,
+    writableOutput: false,
   },
   chunkDownloadConcurrency: 10,
   segmentRetryAttempts: 10,

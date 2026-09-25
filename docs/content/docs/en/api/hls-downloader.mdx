@@ -311,3 +311,49 @@ await downloader.download({
 ```
 
 See [VariantSelectOptions](/api/types#variantselectoptions) for the full option shape. `selectBestVariant` and the `VariantSelector` type are exported from `@hls-downloader/shared` for custom strategies.
+
+### `downloadToWritable()`
+
+```ts
+async downloadToWritable(
+  options: HlsDownloaderWritableOptions,
+  writable: WritableStream<Uint8Array>,
+): Promise<HlsDownloaderStreamResult>
+```
+
+Browser-only, incremental fMP4 output with backpressure. Source codecs are preserved; per-call `transcode` is rejected and global transcode settings are ignored. Check `downloader.capabilities.writableOutput === true`; Node and adapters without this optional capability reject with `UNSUPPORTED_OUTPUT` before acquiring the writer.
+
+The SDK owns the acquired writer: it awaits each write and closes it on success. `READY_FOR_DOWNLOAD` and promise resolution occur only after close succeeds. Failure/cancellation aborts the writer and releases its lock. Writer acquisition, write and close errors use `OUTPUT_WRITE_FAILED`; cancellation uses `ABORTED` with `name === 'AbortError'`. Each failed operation emits one `ERROR`. A custom sink may retain partial output; arbitrary external writes cannot be rolled back. An uncooperative pending write does not prevent the SDK promise from rejecting on cancellation; its eventual abort is observed asynchronously.
+
+The prefetch window holds at most `downloadConcurrency` in-flight/ready segments, plus the segment being processed and initialization data. Media buffers do not grow with total video length. Playlist metadata still grows with segment count, a large individual segment may require substantial memory, and WASM memory retains its allocation high-water mark. This is not a fixed RSS limit. The fMP4 output omits the trailing `mfra` index.
+
+`download()` still produces a complete Blob URL; callback-based `downloadToStream()` still preloads Browser media and does not await callback promises. Neither has the new bounded-media-buffer guarantee. `persistentOutput` describes the default `download()` result and remains false for Browser; `writableOutput` describes this separate caller-owned destination.
+
+#### Save directly to a file
+
+The caller opens the picker during user activation and passes its writable stream. File System Access availability and permissions are application concerns; the SDK never opens a picker or silently falls back to buffering a Blob. The example assumes `#save` and `#cancel` buttons and a browser with `showSaveFilePicker`; a cancelled controller is one-shot, so create a new one for another operation.
+
+```js
+import { HlsDownloader } from '@hls-downloader/core';
+import { BrowserAdapter } from '@hls-downloader/adapters/browser';
+
+const downloader = new HlsDownloader({ adapter: BrowserAdapter });
+const controller = new AbortController();
+// Invoke directly from a user click; do not await SDK initialization first.
+document.querySelector('#save').addEventListener('click', async () => {
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: 'video.mp4',
+      types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }],
+    });
+    const writable = await handle.createWritable();
+    await downloader.downloadToWritable(
+      { url: 'https://example.com/video.m3u8', signal: controller.signal },
+      writable,
+    );
+  } catch (error) {
+    console.error('Download or saving failed', error);
+  }
+});
+document.querySelector('#cancel').addEventListener('click', () => controller.abort());
+```

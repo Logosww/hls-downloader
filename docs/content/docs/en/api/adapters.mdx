@@ -82,3 +82,11 @@ When `maxConcurrentDownloads` is omitted, the effective concurrency follows `dow
 ### Platform Support
 
 The native addon must match your operating system and Node.js ABI. Pre-built binaries are published for common platforms.
+
+## Writable output
+
+| Capability | Browser | Node |
+| --- | --- | --- |
+| `writableOutput` | true | false |
+
+Use `downloadToWritable()` for bounded media buffers and an asynchronous destination. Existing callback streaming behavior is unchanged.

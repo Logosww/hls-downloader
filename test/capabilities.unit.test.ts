@@ -4,6 +4,7 @@ import { getInternalAdapter } from '@hls-downloader/shared';
 
 const evidence = {
   BrowserAdapter: {
+    writableOutput: 'writable-output.integration: real WASM, backpressure and ffprobe',
     download: 'hls-http.integration: BYTERANGE download',
     stream: 'hls-http.integration: EXT-X-MAP stream',
     configurableRetry: 'hls-http.integration: transient segment retry',
@@ -16,7 +17,13 @@ describe('capability evidence', () => {
   it('maps every enabled BrowserAdapter capability to an automated test', () => {
     const capabilities = getInternalAdapter(BrowserAdapter).capabilities;
     const mapped = evidence.BrowserAdapter;
-    for (const key of ['download', 'stream', 'configurableRetry', 'byteRange'] as const) {
+    for (const key of [
+      'download',
+      'stream',
+      'configurableRetry',
+      'byteRange',
+      'writableOutput',
+    ] as const) {
       if (capabilities[key] === true) expect(mapped[key]).toBeTruthy();
     }
     for (const preset of capabilities.transcodePresets) {

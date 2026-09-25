@@ -3,12 +3,14 @@
 export function start(): void;
 export function transmux_preloaded_to_mp4_report(resources: any): Promise<any>;
 export function transmux_preloaded_to_fmp4_stream(resources: any, on_chunk: Function): Promise<any>;
+export function transmux_demand_to_fmp4(playlist_url: string, playlist: string, read: Function, write: Function): Promise<any>;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly start: () => void;
+  readonly transmux_demand_to_fmp4: (a: number, b: number, c: number, d: number, e: any, f: any) => any;
   readonly transmux_preloaded_to_fmp4_stream: (a: any, b: any) => any;
   readonly transmux_preloaded_to_mp4_report: (a: any) => any;
   readonly __wbindgen_exn_store: (a: number) => void;
@@ -18,8 +20,8 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_6: WebAssembly.Table;
-  readonly closure53_externref_shim: (a: number, b: number, c: any) => void;
-  readonly closure77_externref_shim: (a: number, b: number, c: any, d: any) => void;
+  readonly closure73_externref_shim: (a: number, b: number, c: any) => void;
+  readonly closure102_externref_shim: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_start: () => void;
 }
 

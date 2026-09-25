@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Add Browser `downloadToWritable(options, writable)` for incremental fMP4 output with bounded media buffers, asynchronous backpressure, cancellation and caller-provided file streams. Completion waits for the destination to close.
+- Add `HlsDownloaderWritableOptions`, optional `capabilities.writableOutput`, and structured `UNSUPPORTED_OUTPUT` / `OUTPUT_WRITE_FAILED` errors. Node does not support writable output; per-call transcoding is rejected and global transcode settings are ignored on this path.
+
 ## [3.4.0] - 2026-09-13
 
 ### Added

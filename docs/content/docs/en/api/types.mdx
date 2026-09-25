@@ -222,3 +222,12 @@ type NodeAdapterDownloadResult = {
 ```
 
 TypeScript infers the correct result type from the adapter passed to `HlsDownloader`.
+
+## HlsDownloaderWritableOptions
+
+```ts
+export type HlsDownloaderWritableOptions = HlsDownloaderFetchOptions &
+  Omit<HlsDownloaderDownloadOptions, 'transcode'> & { transcode?: never };
+```
+
+Options for `downloadToWritable()`. Returns `HlsDownloaderStreamResult` including `operationId`. `AdapterCapabilities.writableOutput?: boolean` defaults to unsupported when absent.

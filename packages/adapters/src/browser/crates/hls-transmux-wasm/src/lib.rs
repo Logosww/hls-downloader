@@ -270,3 +270,198 @@ pub async fn transmux_preloaded_to_fmp4_stream(
     let report = result.map_err(|error| JsValue::from_str(&error.to_string()))?;
     report_to_js(None, &report)
 }
+
+// JavaScript values stay on the local executor. Only owned Rust data and oneshot
+// receivers cross the Send futures required by Source/AsyncWrite.
+fn invoke_local(
+    id: u32,
+    args: Vec<JsValue>,
+) -> tokio::sync::oneshot::Receiver<Result<JsValueResult, String>> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let call = CALLBACKS.with(|callbacks| {
+        let callback = callbacks
+            .borrow()
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| "operation has ended".to_string())?;
+        let array = js_sys::Array::new();
+        for arg in args {
+            array.push(&arg);
+        }
+        callback
+            .apply(&JsValue::NULL, &array)
+            .map_err(|e| format!("{e:?}"))
+    });
+    wasm_bindgen_futures::spawn_local(async move {
+        let result = match call {
+            Ok(value) => wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&value))
+                .await
+                .map(|value| {
+                    if value.is_undefined() {
+                        JsValueResult::Written
+                    } else {
+                        JsValueResult::Bytes(Uint8Array::new(&value).to_vec())
+                    }
+                })
+                .map_err(|e| format!("{e:?}")),
+            Err(error) => Err(error),
+        };
+        let _ = tx.send(result);
+    });
+    rx
+}
+
+enum JsValueResult {
+    Bytes(Vec<u8>),
+    Written,
+}
+
+#[derive(Debug)]
+struct DemandSource {
+    id: u32,
+    playlist_url: String,
+    playlist: String,
+}
+
+impl Source for DemandSource {
+    fn read_text<'a>(
+        &'a self,
+        location: &'a SourceLocation,
+    ) -> Pin<Box<dyn Future<Output = Result<TextResource, TransmuxError>> + Send + 'a>> {
+        Box::pin(async move {
+            if location_key(location) != self.playlist_url {
+                return Err(TransmuxError::invalid("unexpected playlist request"));
+            }
+            Ok(TextResource {
+                content: self.playlist.clone(),
+                location: location.clone(),
+            })
+        })
+    }
+    fn read_bytes<'a>(
+        &'a self,
+        location: &'a SourceLocation,
+        range: Option<&'a ByteRange>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TransmuxError>> + Send + 'a>> {
+        let receiver = invoke_local(
+            self.id,
+            vec![
+                JsValue::from_str(&location_key(location)),
+                range
+                    .map(|r| JsValue::from_f64(r.offset as f64))
+                    .unwrap_or(JsValue::UNDEFINED),
+                range
+                    .map(|r| JsValue::from_f64(r.length as f64))
+                    .unwrap_or(JsValue::UNDEFINED),
+            ],
+        );
+        Box::pin(async move {
+            match receiver
+                .await
+                .map_err(|_| TransmuxError::invalid("resource bridge closed"))?
+                .map_err(TransmuxError::invalid)?
+            {
+                JsValueResult::Bytes(bytes) => Ok(bytes),
+                _ => Err(TransmuxError::invalid("resource bridge returned no bytes")),
+            }
+        })
+    }
+}
+
+struct DemandWriter {
+    id: u32,
+    pending: Option<(
+        usize,
+        tokio::sync::oneshot::Receiver<Result<JsValueResult, String>>,
+    )>,
+}
+impl AsyncWrite for DemandWriter {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        data: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        if self.pending.is_none() {
+            self.pending = Some((
+                data.len(),
+                invoke_local(self.id, vec![Uint8Array::from(data).into()]),
+            ));
+        }
+        let (len, receiver) = self.pending.as_mut().unwrap();
+        let len = *len;
+        match Pin::new(receiver).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                self.pending = None;
+                Poll::Ready(match result {
+                    Ok(Ok(_)) => Ok(len),
+                    Ok(Err(error)) => Err(std::io::Error::other(error)),
+                    Err(_) => Err(std::io::Error::other("writer bridge closed")),
+                })
+            }
+        }
+    }
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+struct CallbackRegistration(u32);
+impl CallbackRegistration {
+    fn new(callback: Function) -> Self {
+        let id = NEXT_CALLBACK_ID.with(|next| {
+            let id = next.get();
+            next.set(id.wrapping_add(1).max(1));
+            id
+        });
+        CALLBACKS.with(|callbacks| {
+            callbacks.borrow_mut().insert(id, callback);
+        });
+        Self(id)
+    }
+}
+impl Drop for CallbackRegistration {
+    fn drop(&mut self) {
+        CALLBACKS.with(|callbacks| {
+            callbacks.borrow_mut().remove(&self.0);
+        });
+    }
+}
+
+#[wasm_bindgen]
+pub async fn transmux_demand_to_fmp4(
+    playlist_url: String,
+    playlist: String,
+    read: Function,
+    write: Function,
+) -> Result<JsValue, JsValue> {
+    let read = CallbackRegistration::new(read);
+    let write = CallbackRegistration::new(write);
+    let location = SourceLocation::Url(
+        url::Url::parse(&playlist_url).map_err(|e| JsValue::from_str(&e.to_string()))?,
+    );
+    let source = DemandSource {
+        id: read.0,
+        playlist_url,
+        playlist,
+    };
+    let mut writer = DemandWriter {
+        id: write.0,
+        pending: None,
+    };
+    let report = transmux_hls_to_writer_async(
+        HlsInput::custom(Arc::new(source), location),
+        &mut writer,
+        TransmuxOptions {
+            output_format: OutputFormat::FragmentedMp4,
+            write_mfra: false,
+            ..Default::default()
+        },
+    )
+    .await
+    .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    report_to_js(None, &report)
+}

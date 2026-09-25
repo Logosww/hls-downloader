@@ -29,7 +29,8 @@ interface IDownloadListProps {
 const statusLabels: Record<DownloadTask['status'], string> = {
   queued: '排队中',
   downloading: '下载中',
-  completed: '已完成',
+  saving: '正在完成保存',
+  completed: '待保存',
   failed: '失败',
   saved: '已保存',
   cancelled: '已取消',
@@ -39,7 +40,7 @@ const DownloadProgress = ({
   item,
   onCancel,
 }: Pick<IDownloadListItemProps, 'item' | 'onCancel'>) => (
-  <div className="w-40 flex items-center gap-2">
+  <div className="w-full sm:w-44 shrink-0 flex items-center gap-2">
     <Progress value={item.percentage} />
     <span className="text-xs text-muted-foreground tabular-nums">
       {Math.floor(item.percentage)}%
@@ -89,9 +90,10 @@ const DownloadActions = ({
 };
 
 const DownloadListItem = ({ item, onSave, onCancel, onRemove }: IDownloadListItemProps) => {
-  const isPending = item.status === 'queued' || item.status === 'downloading';
+  const isPending =
+    item.status === 'queued' || item.status === 'downloading' || item.status === 'saving';
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-center gap-2 min-w-0">
         {item.previewSrc ? (
           <img className="rounded-md h-12 w-20 object-cover" src={item.previewSrc} alt="poster" />
@@ -100,7 +102,17 @@ const DownloadListItem = ({ item, onSave, onCancel, onRemove }: IDownloadListIte
         )}
         <div className="min-w-0">
           <div className="truncate text-sm">{item.title}</div>
-          <div className="text-xs text-muted-foreground">{statusLabels[item.status]}</div>
+          <div className="text-xs text-muted-foreground" role="status">
+            {item.outputMode === 'file' ? '大文件直存 · ' : '普通下载 · '}
+            {item.outputMode === 'file' && item.status === 'downloading'
+              ? '下载并写入中'
+              : statusLabels[item.status]}
+          </div>
+          {item.error ? (
+            <p className="text-xs text-destructive" role="alert">
+              {item.error}
+            </p>
+          ) : null}
         </div>
       </div>
       {isPending ? (
@@ -121,11 +133,11 @@ export const DownloadList = ({
 }: IDownloadListProps) => {
   if (!floatButton)
     return (
-      <Card>
+      <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>下载列表</CardTitle>
         </CardHeader>
-        <CardContent className="w-2xl">
+        <CardContent className="w-full">
           <ScrollArea className="max-h-72">
             {items.length ? (
               items.map((item, index) => (

@@ -1,0 +1,43 @@
+<!doctype html><html><body><video muted controls></video><script type="module">
+import { HlsDownloader } from '/packages/core/src/index.ts';
+import { BrowserAdapter } from '/packages/adapters/src/browser/index.ts';
+import { ensureWasm } from '/packages/adapters/src/browser/wasm.ts';
+import init from '/packages/adapters/src/browser/generated/hls_transmux_browser_wasm.js';
+window.runWritable = async (count, playback) => {
+  await ensureWasm();
+  const wasm = await init();
+  const directory = playback ? await navigator.storage.getDirectory() : undefined;
+  const handle = directory ? await directory.getFileHandle("writable-smoke.mp4", { create: true }) : undefined;
+  const file = handle ? await handle.createWritable() : undefined;
+  let bytes = 0, writes = 0, heapPeak = 0, wasmPeak = 0, parsedHeap = 0;
+  const measure = () => {
+    heapPeak = Math.max(heapPeak, performance.memory?.usedJSHeapSize ?? 0);
+    wasmPeak = Math.max(wasmPeak, wasm.memory.buffer.byteLength);
+  };
+  const timer = setInterval(measure, 10);
+  const downloader = new HlsDownloader({ adapter: BrowserAdapter, onEvent(event) {
+    if (event === 'source-parsed') parsedHeap = performance.memory?.usedJSHeapSize ?? 0;
+  }});
+  try {
+    const result = await downloader.downloadToWritable({ url: location.origin + '/fixture/media.m3u8?n=' + count, downloadConcurrency: 3 },
+      new WritableStream({ async write(chunk) {
+        bytes += chunk.length; writes++;
+        if (file) await file.write(chunk);
+        measure();
+      }, async close() { await file?.close(); }, async abort(reason) { await file?.abort(reason); }}));
+    if (playback) {
+      const video = document.querySelector('video');
+      const url = URL.createObjectURL(await handle.getFile());
+      try {
+        video.src = url;
+        await video.play();
+        await new Promise((resolve, reject) => {
+          video.onended = resolve;
+          video.onerror = () => reject(new Error('Playback error: ' + video.error?.message));
+        });
+      } finally { video.removeAttribute('src'); video.load(); URL.revokeObjectURL(url); }
+    }
+    return { segments: result.totalSegments, bytes, writes, heapPeak, wasmPeak, parsedHeap };
+  } finally { clearInterval(timer); if (directory) await directory.removeEntry("writable-smoke.mp4"); }
+};
+</script></body></html>

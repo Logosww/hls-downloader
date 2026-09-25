@@ -269,3 +269,49 @@ async getPosterUrl(
 | --------- | ------------------------ | ---------------- |
 | `url`     | `string`                 | HLS 播放列表地址 |
 | `headers` | `Record<string, string>` | 请求头           |
+
+### `downloadToWritable()`
+
+```ts
+async downloadToWritable(
+  options: HlsDownloaderWritableOptions,
+  writable: WritableStream<Uint8Array>,
+): Promise<HlsDownloaderStreamResult>
+```
+
+仅 Browser 支持，按需下载并通过背压输出 fMP4，保留源编码。拒绝单次调用的 `transcode`，忽略全局转码设置。请检查 `downloader.capabilities.writableOutput === true`；Node 或缺少此可选能力的 adapter 在获取 writer 前报 `UNSUPPORTED_OUTPUT`。
+
+SDK 获取并管理 writer，等待每次写入，成功时关闭流；关闭完成后才发出 `READY_FOR_DOWNLOAD` 并 resolve。失败或取消会 abort writer 并释放锁。获取、写入、关闭失败使用 `OUTPUT_WRITE_FAILED`；取消使用 `ABORTED`，且 `name === 'AbortError'`。失败 operation 仅发一次 `ERROR`。自定义目标可能保留部分输出，SDK 无法回滚任意外部写入；未结束的自定义 write 不会阻止 SDK 在取消时 reject，其后续 abort 结果会被异步处理。
+
+预取窗口最多保留 `downloadConcurrency` 个在途或待消费分片，另有当前处理分片及初始化数据。媒体缓冲不随视频总长度增长；playlist 元数据仍随分片数量增长，超大单分片仍需较多内存，WASM 内存会保留分配高水位。这不是固定 RSS 上限。fMP4 输出不包含尾部 `mfra` 索引。
+
+现有 `download()` 仍返回全量 Blob URL；Browser 回调式 `downloadToStream()` 仍预加载媒体且不等待回调 Promise，均不具备新接口的媒体缓冲保证。`persistentOutput` 描述默认 `download()` 的结果，Browser 仍为 false；`writableOutput` 单独描述写入调用方目标的能力。
+
+#### 直接保存文件
+
+调用方在用户点击时打开选择器并传入写入流。应用自行检查 File System Access 可用性与权限；SDK 不弹窗，也不自动回退为全量 Blob。以下示例假定页面有 `#save`、`#cancel` 按钮且浏览器提供 `showSaveFilePicker`；AbortController 取消后不可复用，新 operation 应创建新的 controller。
+
+```js
+import { HlsDownloader } from '@hls-downloader/core';
+import { BrowserAdapter } from '@hls-downloader/adapters/browser';
+
+const downloader = new HlsDownloader({ adapter: BrowserAdapter });
+const controller = new AbortController();
+// Invoke directly from a user click; do not await SDK initialization first.
+document.querySelector('#save').addEventListener('click', async () => {
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: 'video.mp4',
+      types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }],
+    });
+    const writable = await handle.createWritable();
+    await downloader.downloadToWritable(
+      { url: 'https://example.com/video.m3u8', signal: controller.signal },
+      writable,
+    );
+  } catch (error) {
+    console.error('Download or saving failed', error);
+  }
+});
+document.querySelector('#cancel').addEventListener('click', () => controller.abort());
+```

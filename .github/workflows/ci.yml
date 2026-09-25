@@ -33,7 +33,7 @@ jobs:
       - name: Install vcpkg host dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev ffmpeg
 
       # actions/cache does not expand ~ reliably; path must match Node os.homedir()/vcpkg.
       - name: Resolve VCPKG_ROOT (Linux)
@@ -87,15 +87,40 @@ jobs:
       - name: Fast tests
         run: pnpm test
 
-      - name: Build browser WASM for protocol tests
-        run: pnpm --filter @hls-downloader/adapters run build:wasm
+      - name: Build browser WASM from source for protocol tests
+        run: |
+          node -e "require('node:fs').rmSync('packages/adapters/src/browser/generated', { recursive: true, force: true })"
+          pnpm --filter @hls-downloader/adapters run build:wasm
 
       - name: HTTP integration tests
         run: pnpm run test:integration
 
+      - name: Install Chromium for writable output tests
+        run: pnpm --filter @hls-downloader/test exec playwright install --with-deps chromium
+
+      - name: Browser writable playback and memory
+        run: pnpm run test:browser:writable
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: writable-memory
+          path: test-results/writable-memory.json
+
       - run: pnpm exec turbo run lint --filter=!@hls-downloader/app-web
 
       - run: pnpm run build
+
+      - name: App-web writable flow
+        run: |
+          pnpm --filter @hls-downloader/app-web build
+          pnpm --filter @hls-downloader/app-web start --port 3100 > /tmp/hls-app-web.log 2>&1 &
+          APP_WEB_PID=$!
+          trap 'kill "$APP_WEB_PID" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3100 > /dev/null; then break; fi
+            sleep 1
+          done
+          pnpm run test:app-web:writable
 
       - name: Node native protocol contract
         run: pnpm run test:native:contract

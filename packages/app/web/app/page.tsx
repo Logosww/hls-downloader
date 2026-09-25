@@ -78,18 +78,20 @@ export default function HomePage() {
 
   const onConfirmDownload = async (values: ConfirmFormValues) => {
     const selection = getSelection(values);
-    if (!selection) return;
+    if (!selection) return false;
     const transcode = buildBrowserTranscodeOptions(values);
     const extension = transcode?.preset === 'vp9' ? 'webm' : 'mp4';
-    downloads.enqueue({
+    const task = {
       url: selection.selected.uri,
       filename: selection.filename,
       title: `${selection.filename}.${extension}`,
       previewSrc: metadata?.previewSrc ?? '',
       headers: requestHeaders,
       transcode,
-    });
-    setModalOpen(false);
+    };
+    if (values.outputMode === 'file') return downloads.enqueueToFile(task);
+    downloads.enqueue({ ...task, outputMode: 'browser' });
+    return true;
   };
 
   const onStreamPreview = (values: ConfirmFormValues) => {
@@ -100,7 +102,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="absolute flex h-screen w-screen select-none flex-col items-center justify-center">
+    <div className="flex min-h-svh w-full select-none flex-col items-center justify-center px-4 py-20">
       {platform === Platform.web ? (
         <div className="fixed top-6 right-6">
           <ModeToggle />
@@ -112,7 +114,7 @@ export default function HomePage() {
         <code className="text-background bg-foreground rounded-sm border px-1">.m3u8</code> 资源。
       </h2>
       <Form {...form}>
-        <form className="mb-2" onSubmit={form.handleSubmit(onSubmit)}>
+        <form className="mb-2 w-full max-w-2xl" onSubmit={form.handleSubmit(onSubmit)}>
           <FormField
             name="url"
             control={form.control}
@@ -122,7 +124,7 @@ export default function HomePage() {
                   <FormControl>
                     <InputGroup>
                       <InputGroupInput
-                        className="inline-block w-lg"
+                        className="min-w-0 w-full"
                         type="url"
                         placeholder="请输入 HLS 链接"
                         {...field}
@@ -162,6 +164,7 @@ export default function HomePage() {
         onOpenChange={setModalOpen}
         metadata={metadata}
         onConfirm={onConfirmDownload}
+        canWriteToFile={downloads.canWriteToFile}
         onStreamPreview={onStreamPreview}
       />
       <HeadersModal

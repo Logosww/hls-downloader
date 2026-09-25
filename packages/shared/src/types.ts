@@ -84,6 +84,8 @@ export type AdapterCapabilities = Readonly<{
   aes128: boolean | 'unknown';
   liveRecording: boolean;
   persistentOutput: boolean;
+  /** Supports backpressured fMP4 output to a caller-provided writable stream. */
+  writableOutput?: boolean;
 }>;
 
 export type HlsDownloaderFetchOptions = {
@@ -145,6 +147,10 @@ export type HlsDownloaderDownloadOptions = {
   variant?: VariantSelectOptions;
 };
 
+/** fMP4 passthrough only; global transcode settings are not applied. */
+export type HlsDownloaderWritableOptions = HlsDownloaderFetchOptions &
+  Omit<HlsDownloaderDownloadOptions, 'transcode'> & { transcode?: never };
+
 export type HlsDownloaderStreamResult = {
   operationId: string;
   totalSegments: number;
@@ -166,6 +172,11 @@ export interface HlsDownloaderAdapterInternal<
   downloadToStream(
     options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
     onChunk: (bytes: Uint8Array) => void,
+  ): Promise<Omit<HlsDownloaderStreamResult, 'operationId'>>;
+  /** Internal producer: await every write; the core owns sink close/abort and completion. */
+  downloadToWritable?(
+    options: HlsDownloaderWritableOptions,
+    write: (bytes: Uint8Array) => Promise<void>,
   ): Promise<Omit<HlsDownloaderStreamResult, 'operationId'>>;
   /** 清空 adapter 内部的 parseHls / poster 缓存。可选实现。 */
   clearCache?(): void;

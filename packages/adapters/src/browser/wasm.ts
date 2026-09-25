@@ -1,5 +1,6 @@
 import init, {
   transmux_preloaded_to_fmp4_stream,
+  transmux_demand_to_fmp4,
   transmux_preloaded_to_mp4_report,
 } from './generated/hls_transmux_browser_wasm.js';
 
@@ -46,4 +47,14 @@ export async function transmuxPreloadedToFmp4Stream(
 ): Promise<HlsWasmReport> {
   await ensureWasm();
   return (await transmux_preloaded_to_fmp4_stream(resources, onChunk)) as HlsWasmReport;
+}
+
+export async function transmuxDemandToFmp4(
+  url: string,
+  playlist: string,
+  read: (url: string, offset?: number, length?: number) => Promise<Uint8Array>,
+  write: (bytes: Uint8Array) => Promise<void>,
+): Promise<HlsWasmReport> {
+  await ensureWasm();
+  return (await transmux_demand_to_fmp4(url, playlist, read, write)) as HlsWasmReport;
 }

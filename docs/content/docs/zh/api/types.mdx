@@ -188,3 +188,12 @@ type NodeAdapterDownloadResult = {
 ```
 
 TypeScript 会根据传入 `HlsDownloader` 的适配器类型推断具体结果类型。
+
+## HlsDownloaderWritableOptions
+
+```ts
+export type HlsDownloaderWritableOptions = HlsDownloaderFetchOptions &
+  Omit<HlsDownloaderDownloadOptions, 'transcode'> & { transcode?: never };
+```
+
+`downloadToWritable()` 专用选项；返回含 `operationId` 的 `HlsDownloaderStreamResult`。`AdapterCapabilities.writableOutput?: boolean` 缺省视为不支持。

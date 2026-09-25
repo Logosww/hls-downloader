@@ -32,10 +32,18 @@ import { promiseWithLimit } from './utils';
 import { fetchWithRetry } from './retry';
 import {
   ensureWasm,
+  transmuxDemandToFmp4,
   transmuxPreloadedToFmp4Stream,
   transmuxPreloadedToMp4,
   type HlsWasmResources,
 } from './wasm';
+
+import {
+  createResourceWindow,
+  readResource,
+  resolveWritablePlaylist,
+  checkSignal,
+} from './writable';
 
 type DownloadResult = {
   blobURL: string;
@@ -648,6 +656,86 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
   return { totalSegments: segments.length };
 };
 
+const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWritable']> =
+  async function (this: HlsDownloaderBrowserAdapter, options, write) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
+    // This path never merges global transcode settings.
+    const { url, headers } = mergeFetchOptions(globalOptions, options);
+    const maxRetry =
+      options.maxRetry ?? globalOptions?.download?.maxRetry ?? this.segmentRetryAttempts;
+    const concurrency =
+      options.downloadConcurrency ??
+      globalOptions?.download?.concurrency ??
+      this.chunkDownloadConcurrency;
+    const controller = new AbortController();
+    const forwardAbort = () => controller.abort(options.signal?.reason);
+    options.signal?.addEventListener('abort', forwardAbort, { once: true });
+    if (options.signal?.aborted) forwardAbort();
+    const signal = controller.signal;
+    let window: ReturnType<typeof createResourceWindow> | undefined;
+    let originalError: unknown;
+    // Preserve JS structured errors across the string-valued WASM error boundary.
+    const guard =
+      <A extends unknown[], R>(fn: (...args: A) => Promise<R>) =>
+      async (...args: A) => {
+        let onAbort: (() => void) | undefined;
+        try {
+          checkSignal(signal);
+          const cancelled = new Promise<never>((_, reject) => {
+            onAbort = () => reject(signal.reason);
+            signal.addEventListener('abort', onAbort, { once: true });
+          });
+          return await Promise.race([fn(...args), cancelled]);
+        } catch (error) {
+          originalError ??= error;
+          controller.abort(error);
+          throw error;
+        } finally {
+          if (onAbort) signal.removeEventListener('abort', onAbort);
+        }
+      };
+    try {
+      checkSignal(signal);
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+      const {
+        playlist,
+        url: resolvedUrl,
+        segments,
+      } = await resolveWritablePlaylist({
+        ...options,
+        url,
+        headers,
+        maxRetry,
+        signal,
+      });
+      emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+      window = createResourceWindow(
+        segments,
+        concurrency,
+        guard(async (resource) => (await readResource(resource, headers, maxRetry, signal)).bytes),
+        signal,
+        (completed) =>
+          emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+            total: segments.length,
+            completed,
+          }),
+      );
+      await transmuxDemandToFmp4(resolvedUrl, playlist, guard(window.read), guard(write));
+      checkSignal(signal);
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
+        total: segments.length,
+        completed: segments.length,
+      });
+      return { totalSegments: segments.length };
+    } catch (cause) {
+      throw originalError ?? (signal.aborted ? signal.reason : cause);
+    } finally {
+      controller.abort();
+      window?.dispose();
+      options.signal?.removeEventListener('abort', forwardAbort);
+    }
+  };
+
 const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   name: 'BrowserAdapter',
   capabilities: {
@@ -659,6 +747,7 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
     aes128: false,
     liveRecording: false,
     persistentOutput: false,
+    writableOutput: true,
   },
   chunkDownloadConcurrency: 10,
   segmentRetryAttempts: 10,
@@ -667,6 +756,7 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   getPosterUrl,
   download,
   downloadToStream,
+  downloadToWritable,
   clearCache: () => parseResultCache.clear(),
 }) as HlsDownloaderBrowserAdapter;
 

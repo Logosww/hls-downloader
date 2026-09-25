@@ -17,6 +17,6 @@
     "target": "ESNext",
     "outDir": "dist"
   },
-  "exclude": ["node_modules", "dist"],
+  "exclude": ["src/browser/crates", "node_modules", "dist"],
   "include": ["src/**/*"]
 }

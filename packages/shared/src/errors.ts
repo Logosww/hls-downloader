@@ -7,6 +7,8 @@ export const HlsDownloaderErrorCode = {
   TRANSMUX_FAILED: 'TRANSMUX_FAILED',
   TRANSCODE_FAILED: 'TRANSCODE_FAILED',
   ABORTED: 'ABORTED',
+  UNSUPPORTED_OUTPUT: 'UNSUPPORTED_OUTPUT',
+  OUTPUT_WRITE_FAILED: 'OUTPUT_WRITE_FAILED',
 } as const;
 
 export type HlsDownloaderErrorCode =

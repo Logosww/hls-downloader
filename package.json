@@ -74,7 +74,9 @@
     "adapters:publish-native:current-platform": "node scripts/publish-rust-native-current-platform.ts",
     "docs:dev": "turbo run dev --filter=@hls-downloader/docs",
     "docs:build": "turbo run build --filter=@hls-downloader/docs",
-    "docs:preview": "turbo run preview --filter=@hls-downloader/docs"
+    "docs:preview": "turbo run preview --filter=@hls-downloader/docs",
+    "test:browser:writable": "pnpm --filter @hls-downloader/test run test:browser:writable",
+    "test:app-web:writable": "pnpm --filter @hls-downloader/test run test:app-web:writable"
   },
   "dependencies": {
     "@hls-downloader/adapters": "workspace:*",

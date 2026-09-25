@@ -95,7 +95,7 @@ await downloader.init();
 
 ### 边下边推流（BrowserAdapter 与 NodeAdapter）
 
-`downloadToStream()` 通过 `onChunk` 输出 fMP4，适合 HTTP 转发或浏览器 MSE。NodeAdapter 会边下载边输出；BrowserAdapter 先有界并发预取资源，再由 WASM writer 输出分块。**库本身不落盘**。
+`downloadToStream()` 通过 `onChunk` 输出 fMP4，适合 HTTP 转发或浏览器 MSE。NodeAdapter 会边下载边输出；BrowserAdapter 先预加载全部媒体资源，再由 WASM writer 输出分块（并发请求有界，媒体总缓冲不受此限制）。**库本身不落盘**。
 
 ```ts
 import { createServer } from 'node:http';
@@ -173,6 +173,7 @@ server.listen(3000);
 | Byte range         | 是              | 是              |
 | AES-128            | 否              | 否              |
 | 持久输出           | 否（Blob URL）  | 是（文件路径）  |
+| `writableOutput` | true | false |
 | Live recording     | 否              | 否              |
 
 ### NodeAdapter 专有选项
@@ -294,7 +295,7 @@ await downloader.init();
 
 ### Stream-as-you-go (BrowserAdapter & NodeAdapter)
 
-`downloadToStream()` emits fMP4 through `onChunk` for HTTP forwarding or browser MSE. NodeAdapter downloads and emits concurrently; BrowserAdapter first performs bounded concurrent prefetching, then its WASM writer emits chunks. **The library itself does not write to disk.**
+`downloadToStream()` emits fMP4 through `onChunk` for HTTP forwarding or browser MSE. NodeAdapter downloads and emits concurrently; BrowserAdapter first preloads all media resources with bounded request concurrency, then its WASM writer emits chunks; this does not bound total media memory. **The library itself does not write to disk.**
 
 ```ts
 import { createServer } from 'node:http';
@@ -373,6 +374,7 @@ The same data is available at runtime through `downloader.capabilities`.
 | Byte range             | yes             | yes             |
 | AES-128                | no              | no              |
 | Persistent output      | no (Blob URL)   | yes (file path) |
+| `writableOutput` | true | false |
 | Live recording         | no              | no              |
 
 ### NodeAdapter options
@@ -394,3 +396,11 @@ Only use streams you are allowed to access, and follow the source site’s terms
 ### License
 
 [MIT](LICENSE).
+
+## Browser 大文件直写 / Large-file writable output
+
+新增 `downloadToWritable(options, writable)`：Browser 按需读取分片并等待异步写入，输出 fMP4。`writableOutput` 为 true；Node 暂不支持。现有 Blob 和回调接口不变。
+
+`downloadToWritable(options, writable)` incrementally emits fMP4 with backpressure. Browser supports it; Node currently rejects it. Existing Blob and callback APIs remain compatible.
+
+详见 [中文 API](docs/content/docs/zh/api/hls-downloader.mdx#downloadtowritable) / [English API](docs/content/docs/en/api/hls-downloader.mdx#downloadtowritable).

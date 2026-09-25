@@ -64,3 +64,6 @@ vercel.json
 
 # local planning
 ROADMAP.md
+
+# browser test measurements
+test-results/

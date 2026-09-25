@@ -36,3 +36,29 @@ describe('web download manager state', () => {
     expect(downloadTaskReducer(updated, { type: 'remove', id: 'one' })).toEqual([initial[1]]);
   });
 });
+
+// Terminal task state must survive late progress from asynchronous output cleanup.
+describe('file output task lifecycle', () => {
+  it.each(['saved', 'failed', 'cancelled'] as const)('does not revive %s tasks', (status) => {
+    const initial = [task('one', status)];
+    expect(
+      downloadTaskReducer(initial, {
+        type: 'update',
+        id: 'one',
+        patch: { status: 'downloading', percentage: 50 },
+      }),
+    ).toEqual(initial);
+  });
+
+  it('keeps saving active until close resolves', () => {
+    const initial = [task('one', 'saving')];
+    expect(selectQueuedTasks(initial, 1, 3)).toEqual([]);
+    expect(
+      downloadTaskReducer(initial, {
+        type: 'update',
+        id: 'one',
+        patch: { status: 'saved', percentage: 100 },
+      })[0],
+    ).toMatchObject({ status: 'saved', percentage: 100 });
+  });
+});

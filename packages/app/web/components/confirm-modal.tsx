@@ -1,6 +1,5 @@
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogDescription,
@@ -12,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import {
   Form,
@@ -33,6 +33,14 @@ import {
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Loader2Icon } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+} from '@/components/ui/field';
 
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/adapters/browser';
 import type { Playlist } from '@hls-downloader/shared';
@@ -40,6 +48,7 @@ import type { Playlist } from '@hls-downloader/shared';
 export const confirmFormSchema = z.object({
   quality: z.string(),
   title: z.string(),
+  outputMode: z.enum(['browser', 'file']),
   transcodePreset: z.enum(['none', 'h264', 'hevc', 'vp9']),
   videoBitrate: z.string().optional(),
   audioBitrate: z.string().optional(),
@@ -72,7 +81,8 @@ export interface IConfirmModalProps {
     playlist: Playlist[];
   };
   onOpenChange?: (open: boolean) => void;
-  onConfirm?: (form: ConfirmFormValues) => Promise<void>;
+  canWriteToFile?: boolean;
+  onConfirm?: (form: ConfirmFormValues) => Promise<boolean>;
   onStreamPreview?: (form: ConfirmFormValues) => void;
 }
 
@@ -82,6 +92,7 @@ export const ConfirmModal = ({
   onOpenChange,
   onConfirm,
   onStreamPreview,
+  canWriteToFile = false,
 }: IConfirmModalProps) => {
   const { filename, previewSrc, playlist } = metadata || {};
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,23 +102,33 @@ export const ConfirmModal = ({
     values: {
       title: filename || '',
       quality: playlist?.[0]?.name ?? '',
+      outputMode: canWriteToFile ? 'file' : 'browser',
       transcodePreset: 'none',
       videoBitrate: '',
       audioBitrate: '',
     },
   });
 
-  const transcodePreset = form.watch('transcodePreset');
+  const outputMode = useWatch({ control: form.control, name: 'outputMode' });
+  const transcodePreset = useWatch({ control: form.control, name: 'transcodePreset' });
   const showBitrateFields = transcodePreset !== 'none';
 
   const handleConfirm = async (values: ConfirmFormValues) => {
     setIsSubmitting(true);
     try {
-      await onConfirm?.(values);
-      onOpenChange?.(false);
-    } finally {
-      setIsSubmitting(false);
+      if (await onConfirm?.(values)) onOpenChange?.(false);
+    } catch {
+      toast.error('无法创建下载任务，请重试');
     }
+    setIsSubmitting(false);
+  };
+
+  const submitDownload = () => {
+    if (isSubmitting) return;
+    // Validate synchronously so the native picker opens in the click gesture.
+    const result = confirmFormSchema.safeParse(form.getValues());
+    if (result.success) void handleConfirm(result.data);
+    else void form.trigger();
   };
 
   const handleStreamPreview = (values: ConfirmFormValues) => {
@@ -115,8 +136,8 @@ export const ConfirmModal = ({
   };
 
   return (
-    <AlertDialog open={open}>
-      <AlertDialogContent className="gap-3 sm:max-w-[520px]">
+    <AlertDialog open={open} onOpenChange={(value) => !isSubmitting && onOpenChange?.(value)}>
+      <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto gap-3 sm:max-w-[520px]">
         <AlertDialogHeader>
           <AlertDialogTitle>确认下载</AlertDialogTitle>
           <AlertDialogDescription>确认视频信息并选择下载设置</AlertDialogDescription>
@@ -132,7 +153,10 @@ export const ConfirmModal = ({
           <form
             id="confirm-modal-form"
             className="flex flex-col gap-2"
-            onSubmit={form.handleSubmit(handleConfirm)}
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitDownload();
+            }}
           >
             <div className="grid gap-2 sm:grid-cols-2">
               <FormField
@@ -177,6 +201,63 @@ export const ConfirmModal = ({
               )}
             </div>
             <FormField
+              name="outputMode"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem className="gap-2">
+                  <FormLabel>保存方式</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      aria-label="保存方式"
+                      value={field.value}
+                      disabled={isSubmitting}
+                      className="grid gap-2 sm:grid-cols-2"
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        if (value === 'file') form.setValue('transcodePreset', 'none');
+                      }}
+                    >
+                      <FieldLabel
+                        htmlFor="output-file"
+                        className={!canWriteToFile ? 'opacity-60' : undefined}
+                      >
+                        <Field orientation="horizontal">
+                          <FieldContent>
+                            <FieldTitle>大文件直存</FieldTitle>
+                            <FieldDescription>
+                              先选位置，边下载边写入，降低内存占用。
+                            </FieldDescription>
+                          </FieldContent>
+                          <RadioGroupItem
+                            id="output-file"
+                            value="file"
+                            disabled={!canWriteToFile}
+                            aria-describedby="file-output-note"
+                          />
+                        </Field>
+                      </FieldLabel>
+                      <FieldLabel htmlFor="output-browser">
+                        <Field orientation="horizontal">
+                          <FieldContent>
+                            <FieldTitle>普通下载</FieldTitle>
+                            <FieldDescription>下载完成后手动保存，可选择转码。</FieldDescription>
+                          </FieldContent>
+                          <RadioGroupItem id="output-browser" value="browser" />
+                        </Field>
+                      </FieldLabel>
+                    </RadioGroup>
+                  </FormControl>
+                  <p id="file-output-note" className="text-xs text-muted-foreground">
+                    {!canWriteToFile
+                      ? '此浏览器暂不支持文件直存，请使用普通下载；也可在安全连接下使用支持文件选择器的浏览器。'
+                      : outputMode === 'file'
+                        ? '直接保存为 MP4，保留原始编码。需要转码时，请选择普通下载。'
+                        : '普通下载会在内存中保留完整视频，大文件建议使用直存。'}
+                  </p>
+                </FormItem>
+              )}
+            />
+            <FormField
               name="transcodePreset"
               control={form.control}
               render={({ field }) => (
@@ -186,6 +267,7 @@ export const ConfirmModal = ({
                     <ToggleGroup
                       variant="outline"
                       size="sm"
+                      disabled={outputMode === 'file' || isSubmitting}
                       className="w-full"
                       value={field.value ? [field.value] : []}
                       onValueChange={(value) => value[0] && field.onChange(value[0])}
@@ -254,6 +336,7 @@ export const ConfirmModal = ({
             <AlertDialogCancel
               className="cursor-pointer"
               size="sm"
+              disabled={isSubmitting}
               onClick={() => onOpenChange?.(false)}
             >
               取消
@@ -268,7 +351,7 @@ export const ConfirmModal = ({
               {isSubmitting && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
               直接播放
             </Button>
-            <AlertDialogAction
+            <Button
               form="confirm-modal-form"
               className="cursor-pointer"
               size="sm"
@@ -276,8 +359,12 @@ export const ConfirmModal = ({
               disabled={isSubmitting}
             >
               {isSubmitting && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
-              下载
-            </AlertDialogAction>
+              {isSubmitting
+                ? '正在选择保存位置…'
+                : outputMode === 'file'
+                  ? '选择位置并下载'
+                  : '下载'}
+            </Button>
           </AlertDialogFooter>
         </Form>
       </AlertDialogContent>

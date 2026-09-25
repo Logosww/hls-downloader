@@ -281,3 +281,13 @@ describe('NodeAdapter protocol contract', () => {
     });
   });
 });
+
+it('rejects writable output before acquiring a Node destination', async () => {
+  const d = new HlsDownloader({ adapter: NodeAdapter });
+  expect(d.capabilities.writableOutput).toBe(false);
+  const sink = new WritableStream<Uint8Array>();
+  await expect(
+    d.downloadToWritable({ url: 'http://127.0.0.1:1/never-requested' }, sink),
+  ).rejects.toMatchObject({ code: 'UNSUPPORTED_OUTPUT' });
+  expect(sink.locked).toBe(false);
+});

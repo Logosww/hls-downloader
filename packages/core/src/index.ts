@@ -5,6 +5,7 @@ import {
   HlsDownloaderErrorCode,
   HlsDownloaderEvent,
   normalizeHlsError,
+  HlsDownloaderError,
   ParseHlsResult,
 } from '@hls-downloader/shared';
 
@@ -17,6 +18,7 @@ import type {
   HlsDownloaderFetchOptions,
   HlsDownloaderDownloadOptions,
   HlsDownloaderStreamResult,
+  HlsDownloaderWritableOptions,
   HlsDownloaderTranscodeOptions,
   HlsDownloaderEventPayload,
 } from '@hls-downloader/shared';
@@ -170,6 +172,102 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       });
       context.emit?.(HlsDownloaderEvent.ERROR, { error });
       throw error;
+    }
+  }
+  /** Write fMP4 with backpressure. Owns the writer until close, failure or cancellation. */
+  async downloadToWritable(
+    options: HlsDownloaderWritableOptions,
+    writable: WritableStream<Uint8Array>,
+  ): Promise<HlsDownloaderStreamResult> {
+    const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    const context = this.#createOperationContext(operationId);
+    const controller = new AbortController();
+    const aborted = () =>
+      new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Operation aborted');
+    const onAbort = () => controller.abort(aborted());
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    if (options.signal?.aborted) onAbort();
+    let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
+    const wait = async <R>(promise: Promise<R>): Promise<R> => {
+      const signal = controller.signal;
+      let listener: (() => void) | undefined;
+      const cancellation = new Promise<never>((_, reject) => {
+        listener = () => reject(signal.reason);
+        signal.addEventListener('abort', listener, { once: true });
+        if (signal.aborted) listener();
+      });
+      try {
+        return await Promise.race([promise, cancellation]);
+      } finally {
+        if (listener) signal.removeEventListener('abort', listener);
+      }
+    };
+    const output = async (action: () => Promise<void>) => {
+      try {
+        await wait(action());
+      } catch (cause) {
+        if (controller.signal.aborted) throw controller.signal.reason;
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
+          'Writable output failed',
+          { cause, adapter: this.#adapter.name },
+        );
+      }
+    };
+    try {
+      if (controller.signal.aborted) throw controller.signal.reason;
+      if (
+        !this.capabilities.writableOutput ||
+        !this.#adapter.downloadToWritable ||
+        options.transcode !== undefined
+      ) {
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'This output requires a writable-capable adapter and does not support transcoding',
+        );
+      }
+      try {
+        writer = writable.getWriter();
+      } catch (cause) {
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
+          'Cannot acquire output writer',
+          { cause },
+        );
+      }
+      // Observe asynchronous sink failures even while waiting for a network request.
+      void writer.closed.catch((cause) => {
+        if (!controller.signal.aborted)
+          controller.abort(
+            new HlsDownloaderError(
+              HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
+              'Writable output failed',
+              { cause },
+            ),
+          );
+      });
+      await wait(this.init());
+      const result = await this.#adapter.downloadToWritable(
+        injectContext({ ...options, signal: controller.signal }, context),
+        (bytes) => output(() => writer!.write(bytes)),
+      );
+      await output(() => writer!.close());
+      context.emit?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+      return { ...result, operationId };
+    } catch (cause) {
+      const error = normalizeHlsError(cause, HlsDownloaderErrorCode.TRANSMUX_FAILED, {
+        adapter: this.#adapter.name,
+        url: options.url,
+      });
+      controller.abort(error);
+      // A user sink may never settle its in-flight write. Do not make cancellation
+      // depend on that sink; observe abort rejection without delaying cleanup.
+      if (writer) void writer.abort(error).catch(() => {});
+      context.emit?.(HlsDownloaderEvent.ERROR, { error });
+      throw error;
+    } finally {
+      options.signal?.removeEventListener('abort', onAbort);
+      writer?.releaseLock();
     }
   }
   /** 清空 adapter 内部的 parseHls / poster 缓存。adapter 未实现时为 no-op。 */

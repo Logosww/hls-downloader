@@ -82,3 +82,11 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 ### 平台支持
 
 原生模块必须匹配你的操作系统和 Node.js ABI。常见平台已发布预构建二进制文件。
+
+## Writable output
+
+| Capability | Browser | Node |
+| --- | --- | --- |
+| `writableOutput` | true | false |
+
+使用 `downloadToWritable()` 获得有界媒体缓冲与异步写入目标。现有回调流式接口行为不变。
