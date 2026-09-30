@@ -1,5 +1,7 @@
 # HLS Downloader
 
+[![logosww/hls-downloader, explained in a one-minute video](https://gitdiagram.com/api/video/file?username=logosww&repo=hls-downloader&format=poster)](https://gitdiagram.com/logosww/hls-downloader/video)
+
 随时随地下载你喜爱的任何 HLS 视频流。Downloads HLS stream whatever and wherever you want.
 
 [![npm version](https://img.shields.io/npm/v/@logosw/hls-downloader?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/@logosw/hls-downloader)
@@ -173,7 +175,7 @@ server.listen(3000);
 | Byte range         | 是              | 是              |
 | AES-128            | 否              | 否              |
 | 持久输出           | 否（Blob URL）  | 是（文件路径）  |
-| `writableOutput` | true | false |
+| `writableOutput`   | true            | false           |
 | Live recording     | 否              | 否              |
 
 ### NodeAdapter 专有选项
@@ -374,7 +376,7 @@ The same data is available at runtime through `downloader.capabilities`.
 | Byte range             | yes             | yes             |
 | AES-128                | no              | no              |
 | Persistent output      | no (Blob URL)   | yes (file path) |
-| `writableOutput` | true | false |
+| `writableOutput`       | true            | false           |
 | Live recording         | no              | no              |
 
 ### NodeAdapter options
