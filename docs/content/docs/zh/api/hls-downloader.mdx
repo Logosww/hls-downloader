@@ -315,3 +315,39 @@ document.querySelector('#save').addEventListener('click', async () => {
 });
 document.querySelector('#cancel').addEventListener('click', () => controller.abort());
 ```
+
+### Node 可恢复下载（v3.6）
+
+```ts
+import { HlsDownloader } from '@logosw/hls-downloader/core';
+import { NodeAdapter, type NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
+
+const downloader = new HlsDownloader({ adapter: NodeAdapter });
+const resume: NodeAdapterResumeOptions = { directory: './download-jobs/video' };
+const result = await downloader.download({
+  url: 'https://example.com/media.m3u8',
+  filename: 'video',
+  resume,
+  signal: new AbortController().signal,
+});
+// After interruption, call download again with the same options and a new signal.
+```
+
+`resume` 仅用于 Node 单次 `download()`。相对目录及输出文件名按调用时工作目录解析，每个任务使用独立空目录。支持普通 VOD TS/fMP4，以及 BYTERANGE 和 MAP；与单次或全局转码、启用的 aria2 组合时返回 `UNSUPPORTED_OUTPUT`。Browser、回调流和 writable 输出不支持恢复。
+
+中断后保持原始 URL（包含签名参数）、实际请求头、variant 选择及输出目标不变，再次调用即可恢复；可以修改 `operationId`、signal、重试次数和并发数。下载阶段会重新获取播放列表，要求内容和解析后的地址不变；不一致时返回 `RESUME_INVALID` 并保留现场。需要更换输入时使用新目录。已进入 finalize 或已完成的任务使用本地数据恢复，不请求 manifest。
+
+缓存命中会校验长度和 SHA-256，损坏项重新下载。哈希验证本地数据完整性，不保证远端同一 URL 的内容不变，因此要求输入为稳定 VOD。进度完成数包含已提交分片，最终文件交付后才发出 `READY_FOR_DOWNLOAD` 并完成 Promise。
+
+失败或取消保留有效恢复数据并释放目录锁。成功后清理分片缓存及 partial 输出，保留锁文件和少量完成凭据；再次调用会验证并返回已完成文件，不重新下载。清理失败不会使已交付的输出变成失败。`clearCache()` 不清理恢复目录；放弃或遗忘任务时由调用方删除专用目录。持久化保证受操作系统和文件系统限制。
+
+| 错误码 | 含义 |
+| --- | --- |
+| `RESUME_CONFLICT` | 其他进程或 operation 正在使用恢复目录。 |
+| `RESUME_INVALID` | 目录或 checkpoint 无效、输入身份变化、已完成输出丢失或被修改。 |
+| `RESUME_IO_FAILED` | 恢复存储、checkpoint 保存或输出交付失败。 |
+| `ABORTED` | 下载取消，保留 `name === 'AbortError'`。 |
+
+## 浏览器请求选项
+
+BrowserAdapter 的五个媒体方法均接受 `browserRequest`，单次配置整体替换实例 `options.browserRequest`，`{}` 恢复原生默认值。播放列表和封面结果不跨调用复用，`clearCache()` 对浏览器为 no-op。详见 [Adapter API](/api/adapters#浏览器媒体请求上下文)。

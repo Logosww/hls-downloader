@@ -30,6 +30,52 @@ Reference CPU micro-benchmarks (8-segment fixture, Chrome 150 / macOS, median of
 | `blobURL`       | `string` |
 | `totalSegments` | `number` |
 
+### Browser media request context
+
+`options.browserRequest` supplies BrowserAdapter defaults. `parseHls`, `getPosterUrl`, `download`, `downloadToStream`, and `downloadToWritable` accept a per-call `browserRequest` that **replaces the entire instance configuration**. `{}` selects native fetch defaults; omitted values inherit the instance configuration. NodeAdapter does not support this option.
+
+The optional `fetch(url, init): Promise<Response>` performs **one attempt** and may asynchronously prepare extension context before sending. It receives the actual URL, existing headers (including Range), credentials and cancellation signal. Return a standard Response preserving status, headers, streaming body and final URL; honor the signal during preparation, transmission and body consumption. Synthetic responses without a final URL use the requested URL as the relative-resource base. The library retains its retry policy, retries failed body reads without publishing partial bytes, and discards late results after cancellation. Do not add another retry loop inside the transport.
+
+All media reads, including posters and transcoding, use the selected transport. WASM uses its independent local resource loader. Without configuration, fetch and credential defaults remain unchanged. HTTP 401/403 retain status metadata without retries; network failures and cancellation remain distinguishable. Poster transport failures now reject with structured errors; undecodable video still returns `undefined`.
+
+Each operation snapshots the request configuration and headers. Browser playlist and poster results are **not cached between public calls**, including calls on the same instance; changing login state takes effect on the next call. `clearCache()` remains available and is a no-op for BrowserAdapter. Repeated parsing/poster calls therefore perform new requests. Transport closures must themselves keep a stable context for an in-flight operation.
+
+```ts
+import { HlsDownloader } from '@logosw/hls-downloader/core';
+import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
+
+const mediaOrigin = 'https://media.example.com';
+const downloader = new HlsDownloader({
+  adapter: BrowserAdapter,
+  options: {
+    browserRequest: {
+      credentials: 'include',
+      async fetch(url, init) {
+        const trusted = new URL(url).origin === mediaOrigin;
+        const headers = new Headers(init.headers);
+        if (trusted) headers.set('Authorization', 'Bearer <token>');
+        init.signal?.throwIfAborted();
+        return fetch(url, {
+          ...init,
+          headers,
+          credentials: trusted ? init.credentials : 'omit',
+          redirect: 'error',
+        });
+      },
+    },
+  },
+});
+
+await downloader.parseHls({ url: mediaOrigin + '/video.m3u8' });
+await downloader.parseHls({ url: mediaOrigin + '/public.m3u8', browserRequest: {} });
+```
+
+In this example the transport permits credentials only for the chosen origin and rejects redirects. Applications that allow redirects must enforce their own destination policy; native fetch does not expose every intermediate redirect to the callback. Existing explicit `headers` apply to media requests as before, so supply target-specific credentials in the transport instead of global headers.
+
+The extension owns permissions, tab/source associations, asynchronous rule setup and cleanup. Cookie, Referer and Origin cannot reliably be replayed using ordinary headers. Browser cookie policies, partitioned cookies and site authorization can still prevent downloads. The library neither reads browser cookies nor installs Chrome-specific request rules. Avoid logging credentials or throwing exceptions that contain them.
+
+For WXT Manifest V3 pages, import the public `/core` and `/adapters/browser` subpaths. Production builds bundle the shipped WASM locally; the extension CSP must allow `script-src 'self' 'wasm-unsafe-eval'`. WASM initialization is independent of media transport and does not receive site credentials. No resource-path override is required by the acceptance build.
+
 ## NodeAdapter
 
 ```ts
@@ -88,5 +134,8 @@ The native addon must match your operating system and Node.js ABI. Pre-built bin
 | Capability | Browser | Node |
 | --- | --- | --- |
 | `writableOutput` | true | false |
+| `resumableDownload` | false | true |
 
 Use `downloadToWritable()` for bounded media buffers and an asynchronous destination. Existing callback streaming behavior is unchanged.
+
+Node recovery requires per-call `resume: { directory }` and plain VOD file output. It cannot be combined with transcoding, enabled aria2, or streaming APIs. See [download recovery](./hls-downloader).

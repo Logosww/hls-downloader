@@ -1,0 +1,13 @@
+{
+  "name": "hls-extension-acceptance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wxt build",
+    "build:edge": "wxt build -b edge"
+  },
+  "devDependencies": {
+    "wxt": "0.21.4"
+  }
+}

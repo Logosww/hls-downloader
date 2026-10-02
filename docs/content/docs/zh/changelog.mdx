@@ -8,6 +8,19 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [Unreleased]
+
+### 新增
+
+- **BrowserAdapter**：新增实例及单次操作 `browserRequest` 传输与凭据选项，覆盖封面和转码在内的全部媒体请求；WASM 仍独立加载。
+- **NodeAdapter**：新增 `resume: { directory }`，支持跨进程恢复中断的 VOD 下载。仅支持不使用转码或 aria2 的普通文件下载。
+- 新增 `NodeAdapterResumeOptions`、`capabilities.resumableDownload` 及结构化错误 `RESUME_CONFLICT`、`RESUME_INVALID`、`RESUME_IO_FAILED`。
+
+### Changed
+
+- **BrowserAdapter**：播放列表和封面不再跨操作缓存，后续调用使用当前登录上下文；`clearCache()` 保留为 no-op。
+- **BrowserAdapter**：封面网络失败现在返回结构化错误；媒体响应体读取失败会重试且不提交不完整内容，取消后丢弃迟到响应。
+
 ## [3.5.1] - 2026-10-02
 
 ### Changed

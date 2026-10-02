@@ -86,7 +86,21 @@ export type AdapterCapabilities = Readonly<{
   persistentOutput: boolean;
   /** Supports backpressured fMP4 output to a caller-provided writable stream. */
   writableOutput?: boolean;
+  /** Node plain file downloads with explicit persistent recovery storage. */
+  resumableDownload?: boolean;
 }>;
+
+/** Browser media transport only; WASM loading is independent. */
+export type HlsDownloaderBrowserRequestOptions = {
+  /** One attempt. Preserve Response semantics and honor init.signal, including body reads. */
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
+  credentials?: RequestCredentials;
+};
+
+export type HlsDownloaderBrowserOperationOptions = {
+  /** Replaces the instance configuration as a whole; {} selects native fetch defaults. */
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
+};
 
 export type HlsDownloaderFetchOptions = {
   url: string;
@@ -159,23 +173,29 @@ export type HlsDownloaderStreamResult = {
 export interface HlsDownloaderAdapterInternal<
   AdditionalOptions extends Record<string, any> = {},
   DownloadResult = unknown,
+  DownloadOnlyOptions extends Record<string, any> = {},
+  RequestOptions extends Record<string, any> = {},
 > extends HlsDownloaderAdapter {
   readonly capabilities: AdapterCapabilities;
   chunkDownloadConcurrency: number;
   segmentRetryAttempts: number;
   init(options?: AdditionalOptions): Promise<void>;
-  parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult>;
+  parseHls(options: HlsDownloaderFetchOptions & RequestOptions): Promise<ParseHlsResult>;
   download(
-    options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions & Partial<AdditionalOptions>,
+    options: HlsDownloaderFetchOptions &
+      HlsDownloaderDownloadOptions &
+      Partial<AdditionalOptions> &
+      Partial<DownloadOnlyOptions> &
+      RequestOptions,
   ): Promise<DownloadResult>;
-  getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined>;
+  getPosterUrl(options: HlsDownloaderFetchOptions & RequestOptions): Promise<string | undefined>;
   downloadToStream(
-    options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
+    options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions & RequestOptions,
     onChunk: (bytes: Uint8Array) => void,
   ): Promise<Omit<HlsDownloaderStreamResult, 'operationId'>>;
   /** Internal producer: await every write; the core owns sink close/abort and completion. */
   downloadToWritable?(
-    options: HlsDownloaderWritableOptions,
+    options: HlsDownloaderWritableOptions & RequestOptions,
     write: (bytes: Uint8Array) => Promise<void>,
   ): Promise<Omit<HlsDownloaderStreamResult, 'operationId'>>;
   /** 清空 adapter 内部的 parseHls / poster 缓存。可选实现。 */

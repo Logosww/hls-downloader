@@ -139,8 +139,26 @@ pub fn init_ffmpeg() -> Result<()> {
 pub async fn parse_hls_native(
     url: String,
     headers: Option<HashMap<String, String>>,
+    cancel_job_id: Option<String>,
 ) -> Result<NapiParseHlsResult> {
-    let result = hls_core::parse_hls(&url, headers.as_ref()).await;
+    let token = if let Some(id) = cancel_job_id {
+        Some(
+            registry()
+                .get(&id)
+                .map(|v| Arc::clone(&v))
+                .ok_or_else(|| Error::from_reason("ABORTED: download aborted"))?,
+        )
+    } else {
+        None
+    };
+    let result = if let Some(token) = token {
+        tokio::select! {
+            result = hls_core::parse_hls(&url, headers.as_ref()) => result,
+            _ = token.wait_cancelled() => return Err(Error::from_reason("ABORTED: download aborted")),
+        }
+    } else {
+        hls_core::parse_hls(&url, headers.as_ref()).await
+    };
 
     match result {
         Ok(ParseHlsResult::Playlist(playlists)) => Ok(NapiParseHlsResult {
@@ -427,4 +445,87 @@ pub async fn transmux_hls_streaming_native(
         .map_err(|e| Error::from_reason(format!("streaming pump join error: {e}")))??;
     result.map_err(to_napi_err)?;
     Ok(())
+}
+
+fn resume_registry() -> &'static DashMap<String, Arc<hls_core::resume::ResumeTask>> {
+    static TASKS: OnceLock<DashMap<String, Arc<hls_core::resume::ResumeTask>>> = OnceLock::new();
+    TASKS.get_or_init(DashMap::new)
+}
+#[napi(object)]
+pub struct NapiResumeInfo {
+    pub id: String,
+    pub needs_input: bool,
+}
+#[napi(object)]
+pub struct NapiResumeResult {
+    pub file_path: String,
+    pub total_segments: u32,
+}
+
+#[napi]
+pub async fn open_resume_task(
+    directory: String,
+    identity: String,
+    output: String,
+) -> Result<NapiResumeInfo> {
+    let task = tokio::task::spawn_blocking(move || {
+        hls_core::resume::ResumeTask::open(directory.into(), &identity, output.into())
+    })
+    .await
+    .map_err(|_| Error::from_reason("RESUME_IO_FAILED: recovery initialization failed"))?
+    .map_err(|e| Error::from_reason(e.to_string()))?;
+    let needs_input = task.needs_input();
+    let id = uuid::Uuid::new_v4().to_string();
+    resume_registry().insert(id.clone(), Arc::new(task));
+    Ok(NapiResumeInfo { id, needs_input })
+}
+#[napi]
+pub fn close_resume_task(id: String) {
+    resume_registry().remove(&id);
+}
+
+#[napi]
+pub async fn run_resume_task(
+    id: String,
+    playlist_url: String,
+    headers: Option<HashMap<String, String>>,
+    concurrency: u32,
+    max_retry: u32,
+    cancel_job_id: String,
+    on_progress: ThreadsafeFunction<(String, u32, u32)>,
+) -> Result<NapiResumeResult> {
+    let (_, task) = resume_registry()
+        .remove(&id)
+        .ok_or_else(|| Error::from_reason("RESUME_INVALID: recovery session is closed"))?;
+    let token = registry()
+        .get(&cancel_job_id)
+        .map(|v| Arc::clone(&v))
+        .ok_or_else(|| Error::from_reason("ABORTED: download aborted"))?;
+    let progress: hls_core::download::ProgressCallback = Arc::new(move |p| {
+        let (phase, completed, total) = match p {
+            DownloadProgress::Downloading { completed, total } => ("downloading", completed, total),
+            DownloadProgress::Merging { completed, total } => ("merging", completed, total),
+        };
+        on_progress.call(
+            Ok((phase.into(), completed as u32, total as u32)),
+            ThreadsafeFunctionCallMode::NonBlocking,
+        );
+    });
+    let result = task
+        .clone()
+        .run(
+            &playlist_url,
+            headers.unwrap_or_default(),
+            concurrency as usize,
+            max_retry as usize,
+            token,
+            Some(progress),
+        )
+        .await;
+    registry().remove(&cancel_job_id);
+    let output = result.map_err(|e| Error::from_reason(e.to_string()))?;
+    Ok(NapiResumeResult {
+        file_path: output.to_string_lossy().into_owned(),
+        total_segments: task.total_segments() as u32,
+    })
 }

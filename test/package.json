@@ -6,7 +6,7 @@
   "scripts": {
     "test": "pnpm run test:unit && pnpm run test:e2e",
     "test:unit": "vitest run parse-hls.unit.test.ts retry.unit.test.ts web-download-manager.unit.test.ts capabilities.unit.test.ts",
-    "test:integration": "vitest run hls-http.integration.test.ts writable-output.integration.test.ts",
+    "test:integration": "vitest run hls-http.integration.test.ts writable-output.integration.test.ts browser-request.integration.test.ts",
     "test:native:unit": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --lib hls",
     "test:e2e": "vitest run library-api.e2e.test.ts",
     "test:e2e:publish": "pnpm run test:publish",
@@ -15,7 +15,9 @@
     "test:native:contract": "vitest run node-adapter-contract.test.ts",
     "test:watch": "vitest",
     "test:browser:writable": "node browser/writable-smoke.ts",
-    "test:app-web:writable": "node browser/app-web-writable.ts"
+    "test:app-web:writable": "node browser/app-web-writable.ts",
+    "test:native:resume": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --lib resume && cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --test resume_upstream && vitest run node-resume.integration.test.ts",
+    "test:browser:extension": "node browser/extension-smoke.ts"
   },
   "dependencies": {
     "@hls-downloader/core": "workspace:*",

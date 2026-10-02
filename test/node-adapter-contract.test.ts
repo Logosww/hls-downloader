@@ -100,6 +100,8 @@ describe('NodeAdapter protocol contract', () => {
       configurableRetry: 'transient BYTERANGE retry',
       byteRange: 'recorded Range requests',
       persistentOutput: 'download file ffprobe contract',
+      resumableDownload:
+        'node-resume.integration: persistent caches, process exit, media verification',
       transcodePresets: 'node-adapter-transcode suite',
     } as const;
     for (const key of [
@@ -108,6 +110,7 @@ describe('NodeAdapter protocol contract', () => {
       'configurableRetry',
       'byteRange',
       'persistentOutput',
+      'resumableDownload',
     ] as const) {
       if (capabilities[key] === true) expect(evidence[key]).toBeTruthy();
     }

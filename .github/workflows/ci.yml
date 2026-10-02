@@ -110,6 +110,14 @@ jobs:
 
       - run: pnpm run build
 
+      - name: WXT published-package extension acceptance (Chrome)
+        run: HLS_EXTENSION_CHANNEL=chrome pnpm run test:browser:extension
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-acceptance
+          path: test-results/extension/acceptance-*.json
+
       - name: App-web writable flow
         run: |
           pnpm --filter @hls-downloader/app-web build
@@ -124,6 +132,12 @@ jobs:
 
       - name: Node native protocol contract
         run: pnpm run test:native:contract
+
+      - name: Node recovery contracts (native module required)
+        run: pnpm run test:native:resume
+
+      - name: Recovery API type boundaries
+        run: pnpm run test:types:resume
 
       - name: Published entrypoint tests
         run: pnpm run test:publish

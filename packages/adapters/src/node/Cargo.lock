@@ -578,6 +578,9 @@ dependencies = [
  "hls-transmux",
  "m3u8-rs",
  "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
  "tempfile",
  "thiserror",
  "tokio",
@@ -607,6 +610,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d251fcefac3a7cd683b1344217b31ea49ae133cba07d0beb6d744bc8fb8a1d0"
 dependencies = [
  "reqwest 0.13.4",
+ "serde",
  "sha2",
  "tokio",
  "url",
@@ -1647,6 +1651,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]

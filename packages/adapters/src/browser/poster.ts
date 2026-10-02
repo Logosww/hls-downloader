@@ -1,18 +1,46 @@
+import { readResource } from './writable';
+import { assertActive } from './request';
+import {
+  HlsDownloaderError,
+  HlsDownloaderErrorCode,
+  type Segment,
+  type HlsDownloaderBrowserRequestOptions,
+} from '@hls-downloader/shared';
 import { ALL_FORMATS, BufferSource, CanvasSink, EncodedPacketSink, Input } from 'mediabunny';
 
 export type ExtractPosterFromSegmentOptions = {
-  segmentUrl: string;
+  segment: Segment;
+  maxRetry: number;
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
   headers?: Record<string, string>;
   signal?: AbortSignal;
 };
 
 export async function extractPosterFromSegmentUrl({
-  segmentUrl,
+  segment,
+  maxRetry,
+  browserRequest,
   headers,
   signal,
 }: ExtractPosterFromSegmentOptions): Promise<string | undefined> {
-  const segmentBuffer = await fetchSegmentBuffer(segmentUrl, headers, signal);
-  if (!segmentBuffer) return undefined;
+  const activeSignal = signal ?? new AbortController().signal;
+  const read = async (resource: { uri: string; byterange?: { offset: number; length: number } }) =>
+    (
+      await readResource(
+        { url: resource.uri, range: resource.byterange },
+        headers,
+        maxRetry,
+        activeSignal,
+        HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+        browserRequest,
+      )
+    ).bytes;
+  const init = segment.map ? await read(segment.map) : new Uint8Array();
+  const media = await read(segment);
+  const segmentBuffer = new Uint8Array(init.length + media.length);
+  segmentBuffer.set(init);
+  segmentBuffer.set(media, init.length);
+  assertActive(signal);
 
   const input = new Input({
     formats: ALL_FORMATS,
@@ -31,8 +59,11 @@ export async function extractPosterFromSegmentUrl({
     const result = await sink.getCanvas(timestamp);
     if (!result?.canvas) return undefined;
 
+    assertActive(signal);
     return canvasToJpegDataUrl(result.canvas);
-  } catch {
+  } catch (error) {
+    assertActive(signal);
+    if (error instanceof HlsDownloaderError) throw error;
     return undefined;
   } finally {
     input.dispose();
@@ -46,27 +77,6 @@ async function resolvePosterTimestamp(
   const startTimestamp = await videoTrack.getFirstTimestamp();
   const keyPacket = await packetSink.getKeyPacket(startTimestamp);
   return keyPacket?.timestamp ?? startTimestamp;
-}
-
-async function fetchSegmentBuffer(
-  url: string,
-  headers?: Record<string, string>,
-  signal?: AbortSignal,
-): Promise<ArrayBuffer | undefined> {
-  try {
-    const combinedSignal = signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
-      : AbortSignal.timeout(15_000);
-    const response = await fetch(url, {
-      headers,
-      mode: 'cors',
-      signal: combinedSignal,
-    });
-    if (!response.ok) return undefined;
-    return await response.arrayBuffer();
-  } catch {
-    return undefined;
-  }
 }
 
 function canvasToJpegDataUrl(

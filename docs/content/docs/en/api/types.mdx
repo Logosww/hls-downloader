@@ -231,3 +231,27 @@ export type HlsDownloaderWritableOptions = HlsDownloaderFetchOptions &
 ```
 
 Options for `downloadToWritable()`. Returns `HlsDownloaderStreamResult` including `operationId`. `AdapterCapabilities.writableOutput?: boolean` defaults to unsupported when absent.
+
+### `NodeAdapterResumeOptions`
+
+```ts
+import type { NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
+// { directory: string }
+```
+
+Node-only per-call `download()` option. `AdapterCapabilities.resumableDownload?: boolean` is false when absent. Recovery errors add `RESUME_CONFLICT`, `RESUME_INVALID`, and `RESUME_IO_FAILED`.
+
+## HlsDownloaderBrowserRequestOptions
+
+```ts
+type HlsDownloaderBrowserRequestOptions = {
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
+  credentials?: RequestCredentials;
+};
+
+type HlsDownloaderBrowserOperationOptions = {
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
+};
+```
+
+Exported from shared/root and browser adapter entrypoints. BrowserAdapter methods accept `HlsDownloaderFetchOptions & HlsDownloaderBrowserOperationOptions` (plus their existing download/writable options). NodeAdapter does not accept browser request options.

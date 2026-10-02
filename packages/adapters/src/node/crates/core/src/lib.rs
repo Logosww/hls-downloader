@@ -1,4 +1,5 @@
 pub mod cancel;
+pub mod resume;
 pub mod download;
 pub mod hls;
 pub mod poster;

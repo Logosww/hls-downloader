@@ -30,6 +30,52 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 | `blobURL`       | `string` |
 | `totalSegments` | `number` |
 
+### 浏览器媒体请求上下文
+
+`options.browserRequest` 设置 BrowserAdapter 的实例默认值。`parseHls`、`getPosterUrl`、`download`、`downloadToStream` 和 `downloadToWritable` 均支持单次 `browserRequest`，其值**整体替换实例配置**。传入 `{}` 使用原生 fetch 默认值；省略则继承实例配置。NodeAdapter 不支持此选项。
+
+可选的 `fetch(url, init): Promise<Response>` 只负责**一次传输**，可在发送前异步准备扩展上下文。参数包含真实 URL、现有请求头（含 Range）、凭据选项及取消信号。返回标准 Response，保留状态码、响应头、流式响应体和最终 URL；准备、传输和响应体消费均须响应取消。没有最终 URL 的合成响应使用请求 URL 解析相对资源。库继续管理重试，读取失败时丢弃不完整内容，取消后丢弃迟到结果；不要在适配函数内叠加重试循环。
+
+封面、转码等全部媒体读取均使用该传输；WASM 继续使用独立的本地资源加载器。未配置时保持原生 fetch 和凭据默认行为。HTTP 401/403 保留状态信息且不重试，网络失败和取消可区分。封面网络失败现在抛出结构化错误，无可解码视频时仍返回 `undefined`。
+
+每次操作固定请求配置和请求头。浏览器播放列表和封面结果**不在公开调用之间缓存**，同实例也不复用；登录态变化在下次调用生效。保留 `clearCache()`，对 BrowserAdapter 为 no-op。因此重复解析或取封面会重新请求。传输函数闭包中的上下文仍须由调用方保证在操作期间稳定。
+
+```ts
+import { HlsDownloader } from '@logosw/hls-downloader/core';
+import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
+
+const mediaOrigin = 'https://media.example.com';
+const downloader = new HlsDownloader({
+  adapter: BrowserAdapter,
+  options: {
+    browserRequest: {
+      credentials: 'include',
+      async fetch(url, init) {
+        const trusted = new URL(url).origin === mediaOrigin;
+        const headers = new Headers(init.headers);
+        if (trusted) headers.set('Authorization', 'Bearer <token>');
+        init.signal?.throwIfAborted();
+        return fetch(url, {
+          ...init,
+          headers,
+          credentials: trusted ? init.credentials : 'omit',
+          redirect: 'error',
+        });
+      },
+    },
+  },
+});
+
+await downloader.parseHls({ url: mediaOrigin + '/video.m3u8' });
+await downloader.parseHls({ url: mediaOrigin + '/public.m3u8', browserRequest: {} });
+```
+
+示例仅向指定来源提供凭据并拒绝重定向。允许重定向的应用须自行实施目标域策略；原生 fetch 不会让回调观察每一个中间跳转。现有显式 `headers` 仍按原契约用于媒体请求，因此按目标域变化的凭据应在传输函数中设置，不宜放入全局请求头。
+
+扩展负责权限、网页和标签页关联、异步请求规则准备及清理。普通请求头无法可靠重放 Cookie、Referer 和 Origin；浏览器 Cookie 策略、分区 Cookie 和站点授权仍可能阻止下载。库不读取浏览器 Cookie，不安装 Chrome 专属规则。不要记录凭据或将其放入异常消息。
+
+WXT Manifest V3 页面应从公开的 `/core` 和 `/adapters/browser` 子路径导入。生产构建将包内 WASM 打包为本地资源；扩展 CSP 需允许 `script-src 'self' 'wasm-unsafe-eval'`。WASM 初始化独立于媒体传输，不接收站点凭据；验收构建无需资源路径覆盖接口。
+
 ## NodeAdapter
 
 ```ts
@@ -88,5 +134,8 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 | Capability | Browser | Node |
 | --- | --- | --- |
 | `writableOutput` | true | false |
+| `resumableDownload` | false | true |
 
 使用 `downloadToWritable()` 获得有界媒体缓冲与异步写入目标。现有回调流式接口行为不变。
+
+Node 恢复下载使用单次调用选项 `resume: { directory }`，仅支持普通 VOD 文件输出，不能与转码、启用的 aria2 或流式 API 组合。详见[恢复下载](./hls-downloader)。

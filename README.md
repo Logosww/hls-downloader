@@ -176,6 +176,7 @@ server.listen(3000);
 | AES-128            | 否              | 否              |
 | 持久输出           | 否（Blob URL）  | 是（文件路径）  |
 | `writableOutput`   | true            | false           |
+| `resumableDownload` | false           | true            |
 | Live recording     | 否              | 否              |
 
 ### NodeAdapter 专有选项
@@ -377,6 +378,7 @@ The same data is available at runtime through `downloader.capabilities`.
 | AES-128                | no              | no              |
 | Persistent output      | no (Blob URL)   | yes (file path) |
 | `writableOutput`       | true            | false           |
+| `resumableDownload`     | false           | true            |
 | Live recording         | no              | no              |
 
 ### NodeAdapter options
@@ -406,3 +408,64 @@ Only use streams you are allowed to access, and follow the source site’s terms
 `downloadToWritable(options, writable)` incrementally emits fMP4 with backpressure. Browser supports it; Node currently rejects it. Existing Blob and callback APIs remain compatible.
 
 详见 [中文 API](docs/content/docs/zh/api/hls-downloader.mdx#downloadtowritable) / [English API](docs/content/docs/en/api/hls-downloader.mdx#downloadtowritable).
+
+## Node resumable downloads / Node 可恢复下载（v3.6）
+
+```ts
+import { HlsDownloader } from '@logosw/hls-downloader/core';
+import { NodeAdapter, type NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
+
+const downloader = new HlsDownloader({ adapter: NodeAdapter });
+const resume: NodeAdapterResumeOptions = { directory: './download-jobs/video' };
+const result = await downloader.download({
+  url: 'https://example.com/media.m3u8',
+  filename: 'video',
+  resume,
+  signal: new AbortController().signal,
+});
+// After interruption, call download again with the same options and a new signal.
+```
+
+Use the same URL, headers, variant and output target after interruption. Node plain VOD downloads support verified segment caching and cross-process recovery; transcoding, aria2 and streaming output are excluded. Check `downloader.capabilities.resumableDownload`. Success removes media recovery data and keeps a small completion receipt and lock file. `clearCache()` does not delete the recovery directory.
+
+中断后使用相同 URL、请求头、variant 和输出目标再次调用。仅支持 Node 普通 VOD 下载，不支持转码、aria2 和流式输出。失败保留恢复数据；成功清理媒体缓存，保留完成凭据和锁文件。`clearCache()` 不删除恢复目录。输入变化报 `RESUME_INVALID`，目录占用报 `RESUME_CONFLICT`，存储失败报 `RESUME_IO_FAILED`。
+
+## Browser request context / 浏览器请求上下文
+
+BrowserAdapter accepts instance `options.browserRequest` and per-call `browserRequest` on parsing, posters, downloading, streaming and writable output. Per-call values replace the whole instance configuration; `{}` selects native fetch defaults. The transport performs one attempt and returns a standard `Response`; the library owns retries and cancellation. WASM loading stays independent. Playlist and poster results are not cached between calls; `clearCache()` is a no-op for BrowserAdapter. Poster network failures expose structured errors, while undecodable video still returns `undefined`.
+
+BrowserAdapter 支持实例和单次 `browserRequest`，用于解析、封面、下载和两种流式输出；单次配置整体替换实例配置，`{}` 使用原生默认值。传输函数返回标准 `Response`，只负责一次传输，库管理重试和取消；WASM 独立加载。播放列表和封面不跨调用缓存，`clearCache()` 保留为 no-op。封面网络错误抛出结构化错误，无可解码视频仍返回 `undefined`。
+
+```ts
+import { HlsDownloader } from '@logosw/hls-downloader/core';
+import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
+
+const mediaOrigin = 'https://media.example.com';
+const downloader = new HlsDownloader({
+  adapter: BrowserAdapter,
+  options: {
+    browserRequest: {
+      credentials: 'include',
+      async fetch(url, init) {
+        const trusted = new URL(url).origin === mediaOrigin;
+        const headers = new Headers(init.headers);
+        if (trusted) headers.set('Authorization', 'Bearer <token>');
+        init.signal?.throwIfAborted();
+        return fetch(url, {
+          ...init,
+          headers,
+          credentials: trusted ? init.credentials : 'omit',
+          redirect: 'error',
+        });
+      },
+    },
+  },
+});
+
+await downloader.parseHls({ url: mediaOrigin + '/video.m3u8' });
+await downloader.parseHls({ url: mediaOrigin + '/public.m3u8', browserRequest: {} });
+```
+
+Extensions own permissions, restricted-header rules and credential destination policies. Cookie/Referer/Origin cannot simply be replayed as ordinary headers; browser policies and site authorization may still prevent access. Do not attach site credentials unconditionally to CDN URLs or redirects. Explicit shared headers keep their existing behavior.
+
+扩展负责权限、受限头规则及凭据目标域策略。Cookie/Referer/Origin 不能仅依赖普通 headers 重放；浏览器策略和站点授权仍可能阻止访问。不要无条件向 CDN 或重定向目标扩散凭据。详见中英文 Adapter API 文档。

@@ -55,3 +55,57 @@ WASM plus local media fixtures. It verifies user activation, direct file output
 without a Blob URL, queue isolation/cancellation, permission/write failures,
 legacy manual save, and unsupported-browser mobile layout. Screenshots go to
 `test-results/app-web-*.png`. Native OS picker dialogs remain a manual check.
+
+## 3.6.0 extension request-context acceptance
+
+After building the library (`pnpm run build`), run:
+
+```sh
+HLS_EXTENSION_CHANNEL=chrome pnpm run test:browser:extension
+HLS_EXTENSION_CHANNEL=msedge pnpm run test:browser:extension
+```
+
+The selected browser must be installed. With no channel override, the runner uses
+Playwright's installed Chromium. `HLS_TEST_CHROMIUM_PATH` can override the executable;
+when using it, set `HLS_EXTENSION_CHANNEL` to the browser's actual identity so reports
+are correctly labelled. Each run uses a test-only profile under `test-results/extension`.
+It enables extension debugging only in that profile and loads the unpacked extension
+with CDP `Extensions.loadUnpacked` over Playwright's debugging pipe; it does not touch
+the user's normal browser profile.
+
+The runner installs locked WXT tooling in an isolated project, creates and extracts
+actual `npm pack --ignore-scripts` tarballs for the root package and its three workspace
+dependencies, then builds Chrome and Edge MV3 production outputs. It does not import
+private source, patch node_modules, rewrite resource URLs, or replace global fetch.
+Tarballs and built extensions remain in `test-results/extension` for inspection.
+
+The extension page uses public `/core` and `/adapters/browser` entrypoints, local WASM
+and an extension CSP with `wasm-unsafe-eval`. A controlled loopback server requires a
+real HttpOnly session cookie, an Authorization header and a Referer applied by an
+asynchronously installed `declarativeNetRequest` session rule. Every manifest/init/media
+request must pass those checks. The rule is removed in `finally`. TS, fMP4 and byte-range
+fixtures write to OPFS, and the test verifies completion and the MP4 signature. H.264
+transcoding and fMP4 poster extraction exercise the WebCodecs media path as well.
+OPFS validates FileSystemWritableFileStream behavior; native save-picker UI remains a
+manual browser check and is not exercised by this fixture.
+
+Reports are written to `test-results/extension/acceptance-<channel>.json`. Building an
+Edge target or running Chromium is **not** equivalent to executing Edge acceptance.
+Do not mark 3.6.0 ready for publication until both real-browser runs have passed.
+
+### Local verification — 2026-10-03
+
+- Chrome 154.0.8037.98 on macOS arm64: passed, including cookie/header/rule checks,
+  TS/fMP4/Range OPFS output, H.264 transcode, poster extraction and local WASM.
+- WXT 0.21.4: Chrome and Edge production builds passed; WASM is emitted as a local
+  hashed asset without additional library configuration.
+- Long-video Chrome regression: passed 2, 100, 1,000 and 10,000 segments; 10,000-segment
+  output is 291,896,114 bytes, peak observed JS heap 180,690,432 bytes and WASM high-water
+  6,029,312 bytes. These counters include metadata and GC slack; deterministic
+  backpressure/resource-window tests provide the buffer-bound assertions.
+- **Release blocker: real Edge execution is pending because Edge is not installed on
+  this machine.** Run the `msedge` command above on a machine with Edge before release.
+
+References: [WXT entrypoints](https://wxt.dev/guide/essentials/entrypoints),
+[WXT manifest configuration](https://wxt.dev/guide/essentials/config/manifest),
+[Chromium extension debugging protocol](https://chromium.googlesource.com/chromium/src.git/+/225b2eaa7f23c33b7c4e30c1bfc58f1bd99cbe1c).

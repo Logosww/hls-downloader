@@ -12,12 +12,15 @@ import {
 } from 'mediabunny';
 import { HlsDownloaderError, HlsDownloaderErrorCode } from '@hls-downloader/shared';
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/shared';
-import { fetchWithRetry } from './retry';
+import { readResource } from './writable';
+import type { HlsDownloaderBrowserRequestOptions } from '@hls-downloader/shared';
 
 export type TranscodeHlsOptions = {
   url: string;
+  playlist: string;
   transcode: HlsDownloaderBrowserTranscodeOptions;
   headers?: Record<string, string>;
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
   maxRetry: number;
   signal?: AbortSignal;
   onSegmentLoaded?: (loaded: number) => void;
@@ -55,6 +58,8 @@ function parseBitrate(value: string | number | undefined): number | undefined {
 
 function createHlsSource(
   url: string,
+  browserRequest: HlsDownloaderBrowserRequestOptions | undefined,
+  playlist: string,
   headers: Record<string, string> | undefined,
   signal: AbortSignal | undefined,
   maxRetry: number,
@@ -63,13 +68,17 @@ function createHlsSource(
 ) {
   const normalizedSegments = new Set(segmentUrls.map((segmentUrl) => resolveUrl(segmentUrl, url)));
   const loadedSegments = new Set<string>();
-  const sourceCache = new Map<string, Promise<ArrayBuffer>>();
+  const sourceCache = new Map<string, Promise<ArrayBuffer>>([
+    [url, Promise.resolve(new TextEncoder().encode(playlist).buffer)],
+  ]);
 
   return new CustomPathedSource(url, async ({ path }) => {
     const resolvedUrl = resolveUrl(String(path), url);
     const bufferPromise =
-      sourceCache.get(resolvedUrl) ?? fetchBuffer(resolvedUrl, headers, signal, maxRetry);
+      sourceCache.get(resolvedUrl) ??
+      fetchBuffer(resolvedUrl, headers, signal, maxRetry, browserRequest);
     sourceCache.set(resolvedUrl, bufferPromise);
+    void bufferPromise.catch(() => sourceCache.delete(resolvedUrl));
     const buffer = await bufferPromise;
 
     if (normalizedSegments.has(resolvedUrl) && !loadedSegments.has(resolvedUrl)) {
@@ -84,7 +93,9 @@ function createHlsSource(
 export async function transcodeHls({
   url,
   transcode,
+  playlist,
   headers,
+  browserRequest,
   maxRetry,
   signal,
   onSegmentLoaded,
@@ -92,7 +103,16 @@ export async function transcodeHls({
   segmentUrls = [],
 }: TranscodeHlsOptions): Promise<TranscodeHlsResult> {
   const preset = TRANSCODE_PRESETS[transcode.preset];
-  const source = createHlsSource(url, headers, signal, maxRetry, segmentUrls, onSegmentLoaded);
+  const source = createHlsSource(
+    url,
+    browserRequest,
+    playlist,
+    headers,
+    signal,
+    maxRetry,
+    segmentUrls,
+    onSegmentLoaded,
+  );
   const input = new Input({ source, formats: HLS_FORMATS });
   const target = new BufferTarget();
   const output = new Output({
@@ -165,14 +185,17 @@ async function fetchBuffer(
   headers?: Record<string, string>,
   signal?: AbortSignal,
   maxRetry = 1,
+  browserRequest?: HlsDownloaderBrowserRequestOptions,
 ): Promise<ArrayBuffer> {
-  const response = await fetchWithRetry({
-    url,
-    init: { headers, signal },
-    maxAttempts: maxRetry,
-    errorCode: HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
-  });
-  return await response.arrayBuffer();
+  const response = await readResource(
+    { url },
+    headers,
+    maxRetry,
+    signal ?? new AbortController().signal,
+    HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+    browserRequest,
+  );
+  return Uint8Array.from(response.bytes).buffer;
 }
 
 function resolveUrl(path: string, baseUrl: string): string {

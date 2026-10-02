@@ -7,7 +7,7 @@ import { resolve, join } from 'node:path';
 describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
   'publish entrypoints e2e',
   () => {
-    it('type-checks the writable API from actual package tarballs', () => {
+    it('type-checks writable and recovery APIs from actual package tarballs', () => {
       const root = resolve(import.meta.dirname, '..');
       const dir = mkdtempSync(join(tmpdir(), 'hls-tarballs-'));
       try {
@@ -39,8 +39,34 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
           join(dir, 'consumer.ts'),
           `
           import { HlsDownloader, HlsDownloaderErrorCode, type HlsDownloaderWritableOptions } from '@logosw/hls-downloader';
-          import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
+          import { BrowserAdapter, type HlsDownloaderBrowserRequestOptions } from '@logosw/hls-downloader/adapters/browser';
+          import { NodeAdapter, type NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
+          import type { NodeAdapterResumeOptions as RootResume } from '@logosw/hls-downloader';
+          import type { NodeAdapterResumeOptions as SubpackageResume } from '@hls-downloader/adapters/node';
+          const resume: NodeAdapterResumeOptions & RootResume & SubpackageResume = { directory: './job' };
+          const node = new HlsDownloader({ adapter: NodeAdapter });
+          node.download({ url: 'https://example.test/media.m3u8', resume });
+          const recoveryCapable: boolean | undefined = node.capabilities.resumableDownload;
+          const recoveryError: 'RESUME_INVALID' = HlsDownloaderErrorCode.RESUME_INVALID;
+          // @ts-expect-error recovery is not a global option
+          new HlsDownloader({ adapter: NodeAdapter, options: { resume } });
           const downloader = new HlsDownloader({ adapter: BrowserAdapter });
+          // @ts-expect-error recovery is Node-only
+          downloader.download({ url: 'https://example.test/media.m3u8', resume });
+          const browserRequest: HlsDownloaderBrowserRequestOptions = { fetch: async (url, init) => fetch(url, init), credentials: 'include' };
+          const configured = new HlsDownloader({ adapter: BrowserAdapter, options: { browserRequest } });
+          const request = { url: 'https://example.test/list.m3u8', browserRequest };
+          configured.parseHls(request);
+          configured.getPosterUrl(request);
+          configured.download(request);
+          configured.downloadToStream(request, () => {});
+          configured.downloadToWritable(request, new WritableStream<Uint8Array>());
+          // @ts-expect-error browser transport is not a Node option
+          new HlsDownloader({ adapter: NodeAdapter, options: { browserRequest } });
+          // @ts-expect-error browser transport is not a Node operation option
+          node.parseHls({ url: request.url, browserRequest });
+          // @ts-expect-error browser transport is not a Node download option
+          node.download({ url: request.url, browserRequest });
           const options: HlsDownloaderWritableOptions = { url: 'https://example.test/media.m3u8', operationId: 'typed' };
           const capable: boolean | undefined = downloader.capabilities.writableOutput;
           const result: Promise<{ operationId: string; totalSegments: number }> = downloader.downloadToWritable(options, new WritableStream<Uint8Array>());

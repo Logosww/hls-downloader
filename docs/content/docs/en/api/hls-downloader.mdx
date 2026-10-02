@@ -288,7 +288,7 @@ Attempt to extract a poster/thumbnail image URL from the stream. Merges `options
 clearCache(): void
 ```
 
-Invalidate the adapter's internal `parseHls` result cache. The next `parseHls()` call for any URL re-fetches from the network. No-op if the adapter has no cache.
+Clear adapter caches where implemented. BrowserAdapter has no cross-call playlist or poster cache, so this method is a no-op there.
 
 ## Variant selection
 
@@ -357,3 +357,39 @@ document.querySelector('#save').addEventListener('click', async () => {
 });
 document.querySelector('#cancel').addEventListener('click', () => controller.abort());
 ```
+
+### Node resumable downloads (v3.6)
+
+```ts
+import { HlsDownloader } from '@logosw/hls-downloader/core';
+import { NodeAdapter, type NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
+
+const downloader = new HlsDownloader({ adapter: NodeAdapter });
+const resume: NodeAdapterResumeOptions = { directory: './download-jobs/video' };
+const result = await downloader.download({
+  url: 'https://example.com/media.m3u8',
+  filename: 'video',
+  resume,
+  signal: new AbortController().signal,
+});
+// After interruption, call download again with the same options and a new signal.
+```
+
+`resume` is available only on a single Node `download()` call. Relative directories and output filenames are resolved against the working directory at call time. Use an empty, dedicated directory for each task. Only plain VOD TS/fMP4 downloads, including BYTERANGE and MAP, are supported. Per-call or global transcoding and enabled aria2 are rejected with `UNSUPPORTED_OUTPUT`; Browser, callback streaming and writable output do not support recovery.
+
+Retry with the same original URL (including signed query parameters), effective headers, variant selection and output target. A new `operationId`, signal, retry count or concurrency is allowed. Download recovery fetches the playlist again and requires unchanged content and resolved location; input changes return `RESUME_INVALID` and preserve the directory. Start with a new directory to change inputs. Finalizing and completed tasks recover locally without fetching manifests.
+
+Verified cached resources avoid repeated media requests; corrupted cache entries are fetched again. Cache hashes detect local corruption, not remote changes at a stable URL. A resumable download still assumes immutable VOD content. Segment progress includes already committed segments. Output is published before `READY_FOR_DOWNLOAD` and promise resolution.
+
+On failure or cancellation, the directory retains valid recovery data and releases its lock. On success, media caches and partial output are removed, while the lock file and a small completion receipt remain. Repeating a completed call validates and returns the existing output without downloading again. Cleanup failure does not invalidate a delivered output. `clearCache()` does not remove recovery data; delete the dedicated directory when abandoning or forgetting the task. Filesystem durability remains subject to the operating system and filesystem guarantees.
+
+| Error | Meaning |
+| --- | --- |
+| `RESUME_CONFLICT` | Another process or operation holds the directory lock. |
+| `RESUME_INVALID` | Invalid directory, changed identity, invalid checkpoint, or missing/changed completed output. |
+| `RESUME_IO_FAILED` | Recovery storage, checkpoint persistence, or output publication failed. |
+| `ABORTED` | Cancelled; the error retains `name === 'AbortError'`. |
+
+## Browser request options
+
+All five media methods accept `browserRequest` for BrowserAdapter. Per-call configuration replaces instance `options.browserRequest`; `{}` restores native defaults. Browser operations do not share playlist/poster results across calls. See [Adapter API](/api/adapters#browser-media-request-context).

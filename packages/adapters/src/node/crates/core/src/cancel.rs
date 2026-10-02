@@ -20,6 +20,10 @@ impl JobCancelToken {
         }
     }
 
+    pub async fn wait_cancelled(&self) {
+        self.token.cancelled().await;
+    }
+
     pub fn cancel(&self) {
         self.token.cancel();
     }

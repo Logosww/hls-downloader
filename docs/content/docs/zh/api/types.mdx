@@ -197,3 +197,27 @@ export type HlsDownloaderWritableOptions = HlsDownloaderFetchOptions &
 ```
 
 `downloadToWritable()` 专用选项；返回含 `operationId` 的 `HlsDownloaderStreamResult`。`AdapterCapabilities.writableOutput?: boolean` 缺省视为不支持。
+
+### `NodeAdapterResumeOptions`
+
+```ts
+import type { NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
+// { directory: string }
+```
+
+仅用于 Node 单次 `download()`。可选 `AdapterCapabilities.resumableDownload?: boolean` 缺省视为不支持。新增恢复错误码 `RESUME_CONFLICT`、`RESUME_INVALID`、`RESUME_IO_FAILED`。
+
+## HlsDownloaderBrowserRequestOptions
+
+```ts
+type HlsDownloaderBrowserRequestOptions = {
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
+  credentials?: RequestCredentials;
+};
+
+type HlsDownloaderBrowserOperationOptions = {
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
+};
+```
+
+从 shared/root 和浏览器适配器入口导出。BrowserAdapter 方法接受 `HlsDownloaderFetchOptions & HlsDownloaderBrowserOperationOptions`（另加原有下载或直写选项），NodeAdapter 不接受浏览器请求选项。

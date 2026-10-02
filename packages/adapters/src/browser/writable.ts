@@ -1,7 +1,13 @@
+import { requestMedia, cancellable, assertActive } from './request';
+import type {
+  HlsDownloaderBrowserRequestOptions,
+  HlsDownloaderBrowserOperationOptions,
+} from '@hls-downloader/shared';
 import { Parser } from 'm3u8-parser';
 import {
   HlsDownloaderError,
   HlsDownloaderErrorCode,
+  isAbortError,
   mapManifest,
   assertSupportedSegments,
   selectBestVariant,
@@ -15,7 +21,7 @@ const failure = (code: HlsDownloaderErrorCode, message: string, url: string, cau
   new HlsDownloaderError(code, message, { url, cause, adapter: 'BrowserAdapter' });
 
 export function checkSignal(signal: AbortSignal): void {
-  if (signal.aborted) throw signal.reason;
+  assertActive(signal);
 }
 
 /** Includes body consumption in the attempt; partial bodies are never published. */
@@ -25,6 +31,7 @@ export async function readResource(
   maxRetry: number,
   signal: AbortSignal,
   code: HlsDownloaderErrorCode = HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+  browserRequest?: HlsDownloaderBrowserRequestOptions,
 ): Promise<{ bytes: Uint8Array; url: string }> {
   const attempts = normalizeMaxAttempts(maxRetry);
   for (let attempt = 1; ; attempt++) {
@@ -36,7 +43,11 @@ export async function readResource(
       const range = resource.range;
       if (range)
         requestHeaders.set('Range', `bytes=${range.offset}-${range.offset + range.length - 1}`);
-      const response = await fetch(resource.url, { headers: requestHeaders, signal, mode: 'cors' });
+      const response = await requestMedia(
+        resource.url,
+        { headers: requestHeaders, signal, mode: 'cors' },
+        browserRequest,
+      );
       reader = response.body?.getReader();
       if (!response.ok) {
         retryable = isRetryableStatus(response.status);
@@ -71,7 +82,7 @@ export async function readResource(
       // Range responses use a fixed allocation; full bodies retain only this segment.
       const rangedBytes = range ? new Uint8Array(range.length) : undefined;
       while (reader) {
-        const { done, value } = await reader.read();
+        const { done, value } = await cancellable(reader.read(), signal);
         checkSignal(signal);
         if (done) break;
         const start = Math.max(0, skip - position);
@@ -102,18 +113,28 @@ export async function readResource(
       return { bytes, url: response.url || resource.url };
     } catch (cause) {
       checkSignal(signal);
+      if (isAbortError(cause))
+        throw failure(HlsDownloaderErrorCode.ABORTED, 'Operation aborted', resource.url);
       if (!retryable || attempt >= attempts) {
         if (cause instanceof HlsDownloaderError) throw cause;
-        throw failure(code, 'Resource download failed', resource.url, cause);
+        throw new HlsDownloaderError(code, 'Resource download failed', {
+          url: resource.url,
+          attempt,
+          adapter: 'BrowserAdapter',
+        });
       }
     } finally {
       if (reader) {
         try {
-          await reader.cancel();
+          await cancellable(reader.cancel(), signal);
         } catch {
           /* connection already terminated */
         }
-        reader.releaseLock();
+        try {
+          reader.releaseLock();
+        } catch {
+          /* pending read after cancellation */
+        }
       }
     }
     await waitForRetry(attempt, signal);
@@ -122,7 +143,8 @@ export async function readResource(
 
 /** Resolve once, keeping the exact validated media snapshot used by the WASM parser. */
 export async function resolveWritablePlaylist(
-  options: HlsDownloaderWritableOptions & { maxRetry: number; signal: AbortSignal },
+  options: HlsDownloaderWritableOptions &
+    HlsDownloaderBrowserOperationOptions & { maxRetry: number; signal: AbortSignal },
 ): Promise<{ playlist: string; url: string; segments: Segment[] }> {
   let url = options.url;
   const visited = new Set<string>();
@@ -136,6 +158,7 @@ export async function resolveWritablePlaylist(
       options.maxRetry,
       options.signal,
       HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
+      options.browserRequest,
     );
     url = resource.url;
     visited.add(url);

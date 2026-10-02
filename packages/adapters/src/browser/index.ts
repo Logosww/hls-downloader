@@ -4,10 +4,7 @@ import {
   emitAdapterEvent,
   getAdapterGlobalOptionsFromInternal,
   HlsDownloaderEvent,
-  selectBestVariant,
   stripContext,
-  ParseHlsCache,
-  buildParseHlsCacheKey,
   mapManifest,
   type HlsDownloaderAdapterInternal,
   type HlsDownloaderDownloadOptions,
@@ -21,15 +18,16 @@ import {
   normalizeHlsError,
   type HlsDownloaderBrowserTranscodeOptions,
   type ParseHlsResult,
-  type Playlist,
   type Segment,
-  type VariantSelectOptions,
-  assertSupportedSegments,
 } from '@hls-downloader/shared';
 import { transcodeHls } from './mediabunny';
 import { extractPosterFromSegmentUrl } from './poster';
 import { promiseWithLimit } from './utils';
-import { fetchWithRetry } from './retry';
+import type {
+  HlsDownloaderBrowserRequestOptions,
+  HlsDownloaderBrowserOperationOptions,
+} from '@hls-downloader/shared';
+import { assertActive, cancellable } from './request';
 import {
   ensureWasm,
   transmuxDemandToFmp4,
@@ -50,16 +48,22 @@ type DownloadResult = {
   totalSegments: number;
 };
 
-type BrowserAdditionalOptions = {
+type BrowserAdditionalOptions = HlsDownloaderBrowserOperationOptions & {
   transcode?: HlsDownloaderBrowserTranscodeOptions;
 };
 
 export type HlsDownloaderBrowserAdapter = HlsDownloaderAdapterInternal<
   BrowserAdditionalOptions,
-  DownloadResult
+  DownloadResult,
+  {},
+  HlsDownloaderBrowserOperationOptions
 >;
 
-export type { HlsDownloaderBrowserTranscodeOptions };
+export type {
+  HlsDownloaderBrowserTranscodeOptions,
+  HlsDownloaderBrowserRequestOptions,
+  HlsDownloaderBrowserOperationOptions,
+};
 
 type BrowserGlobalOptions = {
   download?: HlsDownloaderGlobalDownloadOptions;
@@ -68,13 +72,15 @@ type BrowserGlobalOptions = {
 function mergeFetchOptions(
   globalOptions: BrowserGlobalOptions | null,
   options: Record<string, unknown>,
-): HlsDownloaderFetchOptions {
-  const callOptions = stripContext(options) as HlsDownloaderFetchOptions;
+): HlsDownloaderFetchOptions & HlsDownloaderBrowserOperationOptions {
+  const callOptions = stripContext(options) as HlsDownloaderFetchOptions &
+    HlsDownloaderBrowserOperationOptions;
 
   return {
     headers: globalOptions?.download?.headers,
     ...callOptions,
     signal: callOptions.signal,
+    browserRequest: { ...(callOptions.browserRequest ?? globalOptions?.browserRequest) },
   };
 }
 
@@ -102,11 +108,9 @@ function mergeDownloadOptions(
       adapter.chunkDownloadConcurrency,
     transcode: mergedTranscode,
     signal: callOptions.signal,
+    browserRequest: { ...(callOptions.browserRequest ?? globalOptions?.browserRequest) },
   };
 }
-
-const parseResultCache = new ParseHlsCache();
-const posterCache: Record<string, string | undefined> = Object.create(null);
 
 const init: HlsDownloaderBrowserAdapter['init'] = async function () {
   // WASM and WebCodecs are initialized lazily by the operation that needs them.
@@ -117,51 +121,46 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   options,
 ) {
   const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
-  const { url: hlsUrl, headers, signal } = mergeFetchOptions(globalOptions, options);
+  const {
+    url: hlsUrl,
+    headers,
+    signal,
+    browserRequest,
+  } = mergeFetchOptions(globalOptions, options);
   const maxRetry =
     (stripContext(options) as HlsDownloaderDownloadOptions).maxRetry ??
     globalOptions?.download?.maxRetry ??
     this.segmentRetryAttempts;
-
-  const cacheKey = buildParseHlsCacheKey(hlsUrl, headers);
-  const cached = parseResultCache.get(cacheKey);
-  if (cached) return cached;
 
   let fallbackCode: (typeof HlsDownloaderErrorCode)[keyof typeof HlsDownloaderErrorCode] =
     HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED;
   try {
     let url = new URL(hlsUrl);
 
-    const response = await fetchWithRetry({
-      url: url.href,
-      init: { headers, mode: 'cors', signal },
-      maxAttempts: maxRetry,
-      errorCode: HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
-      adapter: this.name,
-    });
-    url = new URL(response.url || url.href);
-    let manifest = await response.text();
+    const response = await readResource(
+      { url: url.href },
+      headers,
+      maxRetry,
+      signal ?? new AbortController().signal,
+      HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
+      browserRequest,
+    );
+    url = new URL(response.url);
+    const manifest = new TextDecoder().decode(response.bytes);
     fallbackCode = HlsDownloaderErrorCode.MANIFEST_INVALID;
 
     const parser = new Parser();
     parser.push(manifest);
     parser.end();
 
-    let path = hlsUrl;
-
-    try {
-      let pathBase = url.pathname.split('/');
-      pathBase.pop();
-      pathBase.push('{{URL}}');
-      path = pathBase.join('/');
-    } catch (perror) {
-      console.error(`[Info] Path parse error`, perror);
+    for (const variant of parser.manifest.playlists ?? [])
+      variant.uri = new URL(variant.uri, url).href;
+    for (const segment of parser.manifest.segments ?? []) {
+      segment.uri = new URL(segment.uri, url).href;
+      if (segment.map?.uri) segment.map.uri = new URL(segment.map.uri, url).href;
     }
-
-    let base = url.origin + path;
-
-    const result = mapManifest(parser.manifest, base);
-    parseResultCache.set(cacheKey, result);
+    const result = mapManifest(parser.manifest, new URL('.', url).href + '{{URL}}');
+    assertActive(signal);
     return result;
   } catch (cause: unknown) {
     // error 不缓存，下次调用重新走网络
@@ -181,69 +180,16 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
 async function resolveToSegments(
   adapter: HlsDownloaderBrowserAdapter,
   options: Record<string, unknown>,
-  state: { visited: Set<string>; depth: number } = { visited: new Set(), depth: 0 },
-): Promise<{ segments: Segment[]; resolvedUrl: string }> {
-  const { url } = mergeFetchOptions(
-    getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(adapter, options),
-    options,
-  );
-  if (state.depth > 8 || state.visited.has(url)) {
-    throw new HlsDownloaderError(
-      HlsDownloaderErrorCode.MANIFEST_INVALID,
-      state.depth > 8
-        ? 'Master playlist recursion limit exceeded'
-        : 'Master playlist cycle detected',
-      { adapter: adapter.name, url },
-    );
-  }
-  const visited = new Set(state.visited).add(url);
-  const result = await parseHls.call(adapter, options as HlsDownloaderFetchOptions);
-
-  if (result.type === 'segment') {
-    const fetchOptions = mergeFetchOptions(
-      getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(adapter, options),
-      options,
-    );
-    const segments = result.data as Segment[];
-    assertSupportedSegments(segments, adapter.name);
-    return { segments, resolvedUrl: fetchOptions.url };
-  }
-
-  if (result.type === 'playlist') {
-    const variant = (options as { variant?: VariantSelectOptions }).variant;
-    const best = selectBestVariant(result.data as Playlist[], variant);
-    if (!best) {
-      throw new HlsDownloaderError(
-        HlsDownloaderErrorCode.NO_VARIANT,
-        'Empty master playlist: no variant available',
-        { adapter: adapter.name },
-      );
-    }
-    if (best.hasAlternateRenditions) {
-      throw new HlsDownloaderError(
-        HlsDownloaderErrorCode.TRANSMUX_FAILED,
-        'Alternate renditions are not supported by this transmux path',
-        { adapter: adapter.name, url },
-      );
-    }
-    return resolveToSegments(
-      adapter,
-      { ...options, url: best.uri },
-      {
-        visited,
-        depth: state.depth + 1,
-      },
-    );
-  }
-
-  throw (
-    result.error ??
-    new HlsDownloaderError(
-      HlsDownloaderErrorCode.MANIFEST_INVALID,
-      result.message ?? 'Failed to parse HLS',
-      { adapter: adapter.name },
-    )
-  );
+) {
+  const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(adapter, options);
+  const merged = mergeDownloadOptions(adapter, globalOptions, options);
+  const result = await resolveWritablePlaylist({
+    ...options,
+    ...merged,
+    transcode: undefined,
+    signal: merged.signal ?? new AbortController().signal,
+  });
+  return { segments: result.segments, resolvedUrl: result.url, playlist: result.playlist };
 }
 
 const getPosterUrl: HlsDownloaderBrowserAdapter['getPosterUrl'] = async function (
@@ -255,18 +201,16 @@ const getPosterUrl: HlsDownloaderBrowserAdapter['getPosterUrl'] = async function
     options,
   );
 
-  if (posterCache[fetchOptions.url]) {
-    return posterCache[fetchOptions.url];
-  }
   const { segments } = await resolveToSegments(this, { ...options, ...fetchOptions });
   const index = Math.min(Math.floor(segments.length * 0.25), segments.length - 1);
-  const poster = await extractPosterFromSegmentUrl({
-    segmentUrl: segments[index]!.uri,
+  const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
+  return extractPosterFromSegmentUrl({
+    segment: segments[index]!,
     headers: fetchOptions.headers,
     signal: fetchOptions.signal,
+    browserRequest: fetchOptions.browserRequest,
+    maxRetry: globalOptions?.download?.maxRetry ?? this.segmentRetryAttempts,
   });
-  posterCache[fetchOptions.url] = poster;
-  return poster;
 };
 
 const download: HlsDownloaderBrowserAdapter['download'] = async function (
@@ -274,11 +218,8 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
   options,
 ) {
   const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
-  const { url, headers, maxRetry, downloadConcurrency, transcode, signal } = mergeDownloadOptions(
-    this,
-    globalOptions,
-    options,
-  );
+  const { url, headers, maxRetry, downloadConcurrency, transcode, signal, browserRequest } =
+    mergeDownloadOptions(this, globalOptions, options);
 
   emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
@@ -288,7 +229,12 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
     });
   }
 
-  const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
+  const { segments, resolvedUrl, playlist } = await resolveToSegments(this, {
+    ...options,
+    url,
+    headers,
+    browserRequest,
+  });
   const segmentWithIndex = segments.map((s, i) => ({
     ...s,
     index: i,
@@ -300,11 +246,13 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
   if (!shouldTranscode) {
     const blobURL = await downloadAndTransmux({
       url: resolvedUrl,
+      playlist,
       segments: segmentWithIndex,
       headers,
       maxRetry,
       downloadConcurrency,
       signal,
+      browserRequest,
       onProgress: (completed) => {
         emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
           total: segments.length,
@@ -331,9 +279,11 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
   const result = await transcodeHls({
     url: resolvedUrl,
     transcode: browserTranscode,
+    playlist,
     headers,
     maxRetry,
     signal,
+    browserRequest,
     segmentUrls: segments.map((segment) => segment.uri),
     onSegmentLoaded: (completed) => {
       emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
@@ -351,6 +301,7 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
 
   emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
 
+  assertActive(signal);
   const blobURL = URL.createObjectURL(new Blob([result.buffer], { type: result.mimeType }));
 
   return {
@@ -363,37 +314,44 @@ type DownloadFileOptions = {
   url: string;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
   range?: { offset: number; length: number };
 };
 
 type DownloadAndTransmuxOptions = {
+  playlist: string;
   url: string;
   segments: Array<Segment & { index: number }>;
   headers?: Record<string, string>;
   maxRetry: number;
   downloadConcurrency: number;
   signal?: AbortSignal;
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
   onProgress: (completed: number) => void;
   onMuxProgress: (completed: number) => void;
 };
 
 const downloadAndTransmux = async ({
   url,
+  playlist,
   segments,
   headers,
   maxRetry,
   downloadConcurrency,
   signal,
+  browserRequest,
   onProgress,
   onMuxProgress,
 }: DownloadAndTransmuxOptions) => {
   const resources = await preloadHlsResources({
     playlistUrl: url,
+    playlist,
     segments,
     headers,
     maxRetry,
     downloadConcurrency,
     signal,
+    browserRequest,
     onProgress,
   });
   if (signal?.aborted) {
@@ -403,6 +361,7 @@ const downloadAndTransmux = async ({
     });
   }
   const { buffer } = await transmuxPreloadedToMp4(resources);
+  assertActive(signal);
   onMuxProgress(segments.length);
 
   return URL.createObjectURL(new Blob([Uint8Array.from(buffer).buffer], { type: 'video/mp4' }));
@@ -416,63 +375,39 @@ const downloadSegmentBytesWithRetry = async ({
   maxRetry: number;
   segmentIndex?: number;
 }) => {
-  const requestHeaders = new Headers(options.headers);
-  if (options.range) {
-    requestHeaders.set(
-      'Range',
-      `bytes=${options.range.offset}-${options.range.offset + options.range.length - 1}`,
-    );
-  }
-  const response = await fetchWithRetry({
-    url: options.url,
-    init: {
-      method: 'GET',
-      headers: requestHeaders,
-      mode: 'cors',
-      signal: options.signal,
-    },
-    maxAttempts: maxRetry,
-    errorCode: HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
-    segmentIndex,
-  });
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (!options.range) return bytes;
-  if (response.status === 206) {
-    const expectedEnd = options.range.offset + options.range.length - 1;
-    const contentRange = response.headers.get('content-range');
-    const match = contentRange?.match(/^bytes (\d+)-(\d+)\/(?:\d+|\*)$/i);
-    if (
-      bytes.byteLength !== options.range.length ||
-      !match ||
-      Number(match[1]) !== options.range.offset ||
-      Number(match[2]) !== expectedEnd
-    ) {
-      throw new HlsDownloaderError(
+  try {
+    return (
+      await readResource(
+        options,
+        options.headers,
+        maxRetry,
+        options.signal ?? new AbortController().signal,
         HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
-        'Range response does not match the requested byte range',
-        { url: options.url, segmentIndex },
-      );
-    }
-    return bytes;
+        options.browserRequest,
+      )
+    ).bytes;
+  } catch (error) {
+    if (error instanceof HlsDownloaderError)
+      throw new HlsDownloaderError(error.code, error.message, {
+        url: error.url,
+        status: error.status,
+        attempt: error.attempt,
+        adapter: error.adapter,
+        segmentIndex,
+      });
+    throw error;
   }
-  const end = options.range.offset + options.range.length;
-  if (response.status === 200 && bytes.byteLength >= end) {
-    return bytes.slice(options.range.offset, end);
-  }
-  throw new HlsDownloaderError(
-    HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
-    `Server did not satisfy byte range request (status ${response.status})`,
-    { url: options.url, status: response.status, segmentIndex },
-  );
 };
 
 type PreloadHlsResourcesOptions = {
+  playlist: string;
   playlistUrl: string;
   segments: Segment[];
   headers?: Record<string, string>;
   maxRetry: number;
   downloadConcurrency: number;
   signal?: AbortSignal;
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
   onProgress: (completed: number) => void;
 };
 
@@ -509,34 +444,17 @@ function getSegmentResources(segment: Segment, playlistUrl: string): ResourceSpe
   return resources;
 }
 
-async function fetchPlaylistText({
-  maxRetry,
-  ...options
-}: DownloadFileOptions & { maxRetry: number }): Promise<string> {
-  const response = await fetchWithRetry({
-    url: options.url,
-    init: { headers: options.headers, mode: 'cors', signal: options.signal },
-    maxAttempts: maxRetry,
-    errorCode: HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
-  });
-  return await response.text();
-}
-
 async function preloadHlsResources({
   playlistUrl,
+  playlist,
   segments,
   headers,
   maxRetry,
   downloadConcurrency,
   signal,
+  browserRequest,
   onProgress,
 }: PreloadHlsResourcesOptions): Promise<HlsWasmResources> {
-  const mediaPlaylist = await fetchPlaylistText({
-    url: playlistUrl,
-    headers,
-    maxRetry,
-    signal,
-  });
   const segmentCounts = new Map<string, number>();
   const resourceSegmentIndexes = new Map<string, number>();
   const resources = new Map<string, ResourceSpec>();
@@ -572,6 +490,7 @@ async function preloadHlsResources({
         maxRetry,
         segmentIndex: resourceSegmentIndexes.get(key),
         signal,
+        browserRequest,
       });
       completed += segmentCounts.get(key) ?? 0;
       if (segmentCounts.has(key)) onProgress(completed);
@@ -589,7 +508,7 @@ async function preloadHlsResources({
 
   return {
     playlistUrl,
-    texts: { [playlistUrl]: mediaPlaylist },
+    texts: { [playlistUrl]: playlist },
     bytes: fullBytes,
     ranges,
   };
@@ -601,11 +520,8 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
   onChunk,
 ) {
   const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
-  const { url, headers, maxRetry, downloadConcurrency, signal } = mergeDownloadOptions(
-    this,
-    globalOptions,
-    options,
-  );
+  const { url, headers, maxRetry, downloadConcurrency, signal, browserRequest } =
+    mergeDownloadOptions(this, globalOptions, options);
 
   emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
@@ -617,17 +533,24 @@ const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async 
 
   const wasmReady = ensureWasm();
 
-  const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
+  const { segments, resolvedUrl, playlist } = await resolveToSegments(this, {
+    ...options,
+    url,
+    headers,
+    browserRequest,
+  });
   emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
 
   const [resources] = await Promise.all([
     preloadHlsResources({
       playlistUrl: resolvedUrl,
+      playlist,
       segments,
       headers,
       maxRetry,
       downloadConcurrency,
       signal,
+      browserRequest,
       onProgress: (completed) => {
         emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
           total: segments.length,
@@ -660,7 +583,7 @@ const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWri
   async function (this: HlsDownloaderBrowserAdapter, options, write) {
     const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
     // This path never merges global transcode settings.
-    const { url, headers } = mergeFetchOptions(globalOptions, options);
+    const { url, headers, browserRequest } = mergeFetchOptions(globalOptions, options);
     const maxRetry =
       options.maxRetry ?? globalOptions?.download?.maxRetry ?? this.segmentRetryAttempts;
     const concurrency =
@@ -707,12 +630,25 @@ const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWri
         headers,
         maxRetry,
         signal,
+        browserRequest,
       });
       emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
       window = createResourceWindow(
         segments,
         concurrency,
-        guard(async (resource) => (await readResource(resource, headers, maxRetry, signal)).bytes),
+        guard(
+          async (resource) =>
+            (
+              await readResource(
+                resource,
+                headers,
+                maxRetry,
+                signal,
+                HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+                browserRequest,
+              )
+            ).bytes,
+        ),
         signal,
         (completed) =>
           emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
@@ -736,6 +672,27 @@ const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWri
     }
   };
 
+/** Each operation owns cancellation of outstanding and queued media work. */
+function scopedOperation<A extends HlsDownloaderFetchOptions, R, Rest extends unknown[]>(
+  operation: (this: HlsDownloaderBrowserAdapter, options: A, ...rest: Rest) => Promise<R>,
+) {
+  return async function (this: HlsDownloaderBrowserAdapter, options: A, ...rest: Rest): Promise<R> {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    options.signal?.addEventListener('abort', abort, { once: true });
+    if (options.signal?.aborted) abort();
+    try {
+      return await cancellable(
+        operation.call(this, { ...options, signal: controller.signal }, ...rest),
+        controller.signal,
+      );
+    } finally {
+      controller.abort();
+      options.signal?.removeEventListener('abort', abort);
+    }
+  };
+}
+
 const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   name: 'BrowserAdapter',
   capabilities: {
@@ -748,16 +705,17 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
     liveRecording: false,
     persistentOutput: false,
     writableOutput: true,
+    resumableDownload: false,
   },
   chunkDownloadConcurrency: 10,
   segmentRetryAttempts: 10,
   init,
   parseHls,
-  getPosterUrl,
-  download,
-  downloadToStream,
+  getPosterUrl: scopedOperation(getPosterUrl),
+  download: scopedOperation(download),
+  downloadToStream: scopedOperation(downloadToStream),
   downloadToWritable,
-  clearCache: () => parseResultCache.clear(),
+  clearCache: () => {},
 }) as HlsDownloaderBrowserAdapter;
 
 export const BrowserAdapter: HlsDownloaderBrowserAdapter = browserAdapter;

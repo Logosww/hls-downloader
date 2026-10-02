@@ -10,6 +10,7 @@ const fixture = (name: string) => readFileSync(resolve(root, 'test/fixtures/medi
 const server = await createServer({
   root,
   configFile: false,
+  optimizeDeps: { entries: ['test/browser/writable.html'] },
   server: { host: '127.0.0.1', port: 0 },
   resolve: { alias: { '@hls-downloader/shared': resolve(root, 'packages/shared/src/index.ts') } },
   plugins: [

@@ -24,6 +24,9 @@ import {
   assertSupportedSegments,
 } from '@hls-downloader/shared';
 import {
+  openResumeTask,
+  closeResumeTask,
+  runResumeTask,
   initFfmpeg,
   parseHlsNative,
   downloadAndMerge,
@@ -38,7 +41,10 @@ import {
 import { extractPosterFromSegmentUrl } from './poster';
 import { randomUUID } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+
+export type NodeAdapterResumeOptions = { directory: string };
+type DownloadOnlyOptions = { resume?: NodeAdapterResumeOptions };
 
 export type NodeAdapterAria2Options = NapiAria2Config;
 type AdditionalOptions = {
@@ -50,7 +56,8 @@ type DownloadResult = {
 };
 export type HlsDownloaderNodeAdapter = HlsDownloaderAdapterInternal<
   AdditionalOptions,
-  DownloadResult
+  DownloadResult,
+  DownloadOnlyOptions
 >;
 
 type NodeGlobalOptions = {
@@ -141,7 +148,23 @@ function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
   }
 }
 
-const init: HlsDownloaderNodeAdapter['init'] = async function () {
+const init: HlsDownloaderNodeAdapter['init'] = async function (
+  this: HlsDownloaderNodeAdapter,
+  options,
+) {
+  if (
+    (
+      getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options ?? {}) as Record<
+        string,
+        unknown
+      > | null
+    )?.resume !== undefined
+  ) {
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'Recovery is a per-download option',
+    );
+  }
   // FFmpeg is loaded only by APIs that need it.
 };
 
@@ -163,13 +186,19 @@ const parseHls: HlsDownloaderNodeAdapter['parseHls'] = async function (
   );
 
   const cacheKey = buildParseHlsCacheKey(url, headers);
-  const cached = parseResultCache.get(cacheKey);
+  const cached = (options as Record<string, unknown>).resume
+    ? undefined
+    : parseResultCache.get(cacheKey);
   if (cached) return cached;
 
-  const napiResult = await parseHlsNative(url, headers);
+  const napiResult = await parseHlsNative(
+    url,
+    headers,
+    (options as Record<string, unknown>).__resumeJobId as string | undefined,
+  );
   const result = toParseHlsResult(napiResult);
   // set 内部会跳过 error，不再缓存失败结果
-  parseResultCache.set(cacheKey, result);
+  if (!(options as Record<string, unknown>).resume) parseResultCache.set(cacheKey, result);
   return result;
 };
 
@@ -282,6 +311,19 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
     });
   }
 
+  if (options.resume !== undefined) {
+    return downloadResumable(this, options, {
+      url,
+      headers,
+      filename,
+      maxRetry,
+      downloadConcurrency,
+      aria2,
+      transcode,
+      signal,
+    });
+  }
+
   const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
   emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
 
@@ -374,6 +416,113 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   }
 };
 
+function resumeError(cause: unknown): HlsDownloaderError {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  const code = Object.values(HlsDownloaderErrorCode).find((code) => message.startsWith(`${code}:`));
+  return new HlsDownloaderError(
+    code ?? HlsDownloaderErrorCode.TRANSMUX_FAILED,
+    code ? message : 'Resumable download failed',
+    { adapter: 'NodeAdapter', cause },
+  );
+}
+
+async function downloadResumable(
+  adapter: HlsDownloaderNodeAdapter,
+  options: Parameters<HlsDownloaderNodeAdapter['download']>[0],
+  merged: ReturnType<typeof mergeDownloadOptions>,
+): Promise<DownloadResult> {
+  const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode, signal } =
+    merged;
+  if (transcode !== undefined || aria2?.enabled) {
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'Recovery supports plain Node downloads only',
+      { adapter: adapter.name },
+    );
+  }
+  if (
+    !options.resume ||
+    typeof options.resume.directory !== 'string' ||
+    !options.resume.directory.trim()
+  ) {
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.RESUME_INVALID,
+      'A recovery directory is required',
+    );
+  }
+  if (!filename || filename === '.' || filename.includes('..') || /[/\\]/.test(filename)) {
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.RESUME_INVALID,
+      'Output filename must be a basename',
+    );
+  }
+  const normalizedHeaders = Object.entries(headers ?? {})
+    .map(([key, value]) => [key.toLowerCase(), value])
+    .sort(([a], [b]) => a!.localeCompare(b!));
+  const identity = JSON.stringify({
+    url,
+    headers: normalizedHeaders,
+    variant: options.variant
+      ? Object.fromEntries(Object.entries(options.variant).sort(([a], [b]) => a.localeCompare(b)))
+      : null,
+  });
+  let session: Awaited<ReturnType<typeof openResumeTask>> | undefined;
+  // A token is required even without a user signal: storage failures cancel native work.
+  const directory = resolve(options.resume.directory);
+  const output = resolve(filename);
+  const { jobId, cleanup } = await setupCancelToken(signal ?? new AbortController().signal);
+  let active = true;
+  try {
+    session = await openResumeTask(directory, identity, output);
+    if (signal?.aborted)
+      throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted');
+    let resolvedUrl = '';
+    if (session.needsInput) {
+      ({ resolvedUrl } = await resolveToSegments(adapter, {
+        ...options,
+        url,
+        headers,
+        __resumeJobId: jobId,
+      }));
+    }
+    emitAdapterEvent(adapter, options, HlsDownloaderEvent.SOURCE_PARSED);
+    const result = await runResumeTask(
+      session.id,
+      resolvedUrl,
+      headers ?? null,
+      downloadConcurrency,
+      maxRetry,
+      jobId!,
+      (err: Error | null, progress: [string, number, number]) => {
+        if (err || !active) return;
+        const [phase, completed, total] = progress;
+        emitAdapterEvent(
+          adapter,
+          options,
+          phase === 'merging'
+            ? HlsDownloaderEvent.STITCHING_SEGMENTS
+            : HlsDownloaderEvent.DOWNLOADING_SEGMENTS,
+          { completed, total },
+        );
+      },
+    );
+    active = false;
+    emitAdapterEvent(adapter, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
+      completed: result.totalSegments,
+      total: result.totalSegments,
+    });
+    emitAdapterEvent(adapter, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+    return result;
+  } catch (cause) {
+    if (cause instanceof HlsDownloaderError) throw cause;
+    throw resumeError(cause);
+  } finally {
+    active = false;
+    if (session) closeResumeTask(session.id);
+    cleanup();
+  }
+}
+
 type DownloadAndTransmuxOptions = {
   resolvedUrl: string;
   workDir: string;
@@ -409,6 +558,7 @@ async function setupCancelToken(
     } catch {}
   };
   signal.addEventListener('abort', onAbort, { once: true });
+  if (signal.aborted) onAbort();
 
   return {
     jobId,
@@ -470,6 +620,12 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
     });
   }
 
+  if ((options as Record<string, unknown>).resume !== undefined) {
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'Recovery is not supported for streaming output',
+    );
+  }
   // 流式路径只需 resolvedUrl（media playlist URL）；segments 仅用于 totalSegments 计数。
   // resolveToSegments 已返回 segments，直接复用，避免二次 parseHls（cache miss 时多一次 native round-trip）。
   const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
@@ -524,6 +680,7 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
     liveRecording: false,
     persistentOutput: true,
     writableOutput: false,
+    resumableDownload: true,
   },
   chunkDownloadConcurrency: 10,
   segmentRetryAttempts: 10,

@@ -26,10 +26,17 @@ import type {
 export { HlsDownloaderEvent } from '@hls-downloader/shared';
 
 type HlsDownloaderConfigFactory<T> =
-  T extends HlsDownloaderAdapterInternal<infer AdditionalOptions, infer DownloadResult>
+  T extends HlsDownloaderAdapterInternal<
+    infer AdditionalOptions,
+    infer DownloadResult,
+    infer DownloadOnlyOptions,
+    infer RequestOptions
+  >
     ? {
         additionalOptions: AdditionalOptions;
         downloadResult: DownloadResult;
+        downloadOnlyOptions: DownloadOnlyOptions;
+        requestOptions: RequestOptions;
       }
     : never;
 
@@ -87,9 +94,32 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       getGlobalOptions: () => this.globalOptions,
     };
   }
-  #createOperationContext(operationId: string): DownloaderContext {
+  #snapshotContext(): DownloaderContext {
+    const globalOptions = this.#globalOptions;
+    const snapshot = globalOptions
+      ? {
+          ...globalOptions,
+          download: globalOptions.download
+            ? {
+                ...globalOptions.download,
+                headers: globalOptions.download.headers
+                  ? { ...globalOptions.download.headers }
+                  : undefined,
+              }
+            : undefined,
+          ...('browserRequest' in globalOptions
+            ? { browserRequest: { ...(globalOptions.browserRequest as object) } }
+            : {}),
+        }
+      : null;
     return {
       ...this.#context,
+      getGlobalOptions: () => snapshot,
+    };
+  }
+  #createOperationContext(operationId: string): DownloaderContext {
+    return {
+      ...this.#snapshotContext(),
       operationId,
       emit: <E extends import('@hls-downloader/shared').HlsDownloaderEvent>(
         event: E,
@@ -121,18 +151,48 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     if (!isRegisteredAdapter(this.#adapterProxy)) return null;
     return this.#globalOptions;
   }
-  async parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult> {
-    return await this.#adapter.parseHls(injectContext(options, this.#context));
+  #snapshotRequestOptions<O extends HlsDownloaderFetchOptions>(options: O): O {
+    const request = (options as O & { browserRequest?: object }).browserRequest;
+    return {
+      ...options,
+      ...(options.headers ? { headers: { ...options.headers } } : {}),
+      ...(request ? { browserRequest: { ...request } } : {}),
+    };
+  }
+  async parseHls(
+    options: HlsDownloaderFetchOptions & HlsDownloaderConfigFactory<T>['requestOptions'],
+  ): Promise<ParseHlsResult> {
+    return await this.#adapter.parseHls(
+      injectContext(this.#snapshotRequestOptions(options), this.#snapshotContext()),
+    );
   }
   async download(
     options: HlsDownloaderFetchOptions &
       HlsDownloaderDownloadOptions &
-      Partial<HlsDownloaderConfigFactory<T>['additionalOptions']>,
+      Partial<HlsDownloaderConfigFactory<T>['additionalOptions']> &
+      Partial<HlsDownloaderConfigFactory<T>['downloadOnlyOptions']> &
+      HlsDownloaderConfigFactory<T>['requestOptions'],
   ): Promise<HlsDownloaderConfigFactory<T>['downloadResult'] & { operationId: string }> {
+    options = this.#snapshotRequestOptions(options);
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
-    await this.init();
     const context = this.#createOperationContext(operationId);
+    await this.init();
     try {
+      if (
+        (options as Record<string, unknown>).resume !== undefined &&
+        !this.capabilities.resumableDownload
+      ) {
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Recovery is not supported by this adapter',
+        );
+      }
+      if ((this.#globalOptions as Record<string, unknown> | null)?.resume !== undefined) {
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Recovery is a per-download option',
+        );
+      }
       const result = await this.#adapter.download(injectContext(options, context));
       return {
         ...(result as object),
@@ -152,17 +212,30 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       throw error;
     }
   }
-  async getPosterUrl(options: HlsDownloaderFetchOptions): Promise<string | undefined> {
-    return await this.#adapter.getPosterUrl(injectContext(options, this.#context));
+  async getPosterUrl(
+    options: HlsDownloaderFetchOptions & HlsDownloaderConfigFactory<T>['requestOptions'],
+  ): Promise<string | undefined> {
+    return await this.#adapter.getPosterUrl(
+      injectContext(this.#snapshotRequestOptions(options), this.#snapshotContext()),
+    );
   }
   async downloadToStream(
-    options: HlsDownloaderFetchOptions & HlsDownloaderDownloadOptions,
+    options: HlsDownloaderFetchOptions &
+      HlsDownloaderDownloadOptions &
+      HlsDownloaderConfigFactory<T>['requestOptions'],
     onChunk: (bytes: Uint8Array) => void,
   ): Promise<HlsDownloaderStreamResult> {
+    options = this.#snapshotRequestOptions(options);
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
-    await this.init();
     const context = this.#createOperationContext(operationId);
+    await this.init();
     try {
+      if ((options as Record<string, unknown>).resume !== undefined) {
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Recovery is not supported for streaming output',
+        );
+      }
       const result = await this.#adapter.downloadToStream(injectContext(options, context), onChunk);
       return { ...result, operationId };
     } catch (cause) {
@@ -176,9 +249,10 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   }
   /** Write fMP4 with backpressure. Owns the writer until close, failure or cancellation. */
   async downloadToWritable(
-    options: HlsDownloaderWritableOptions,
+    options: HlsDownloaderWritableOptions & HlsDownloaderConfigFactory<T>['requestOptions'],
     writable: WritableStream<Uint8Array>,
   ): Promise<HlsDownloaderStreamResult> {
+    options = this.#snapshotRequestOptions(options);
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
     const context = this.#createOperationContext(operationId);
     const controller = new AbortController();
@@ -219,7 +293,8 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       if (
         !this.capabilities.writableOutput ||
         !this.#adapter.downloadToWritable ||
-        options.transcode !== undefined
+        options.transcode !== undefined ||
+        (options as Record<string, unknown>).resume !== undefined
       ) {
         throw new HlsDownloaderError(
           HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,

@@ -16,14 +16,14 @@ use crate::cancel::JobCancelToken;
 use crate::download::{DownloadProgress, ProgressCallback};
 
 #[derive(Debug)]
-struct RetryingSource {
+pub(crate) struct RetryingSource {
     inner: ReqwestSource,
     max_attempts: usize,
     cancel: Option<Arc<JobCancelToken>>,
 }
 
 impl RetryingSource {
-    fn new(
+    pub(crate) fn new(
         concurrency: usize,
         headers: HeaderMap,
         max_attempts: usize,

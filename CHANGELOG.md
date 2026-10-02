@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **BrowserAdapter**: Add instance and per-operation `browserRequest` transport and credentials options for all media requests, including posters and transcoding. WASM loading remains independent.
+- **NodeAdapter**: Add `resume: { directory }` to resume interrupted VOD downloads across processes. Supports plain file downloads without transcoding or aria2.
+- Add `NodeAdapterResumeOptions`, `capabilities.resumableDownload`, and structured `RESUME_CONFLICT`, `RESUME_INVALID`, and `RESUME_IO_FAILED` errors.
+
+### Changed
+
+- **BrowserAdapter**: Playlist and poster results are no longer cached across operations, so subsequent calls use the current login context; `clearCache()` remains available as a no-op.
+- **BrowserAdapter**: Poster network failures now expose structured errors; media body failures retry without publishing partial content, and cancellation discards late responses.
+
 ## [3.5.1] - 2026-10-02
 
 ### Changed

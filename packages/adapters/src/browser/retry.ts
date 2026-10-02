@@ -1,3 +1,5 @@
+import { requestMedia } from './request';
+import type { HlsDownloaderBrowserRequestOptions } from '@hls-downloader/shared';
 import {
   HlsDownloaderError,
   HlsDownloaderErrorCode,
@@ -46,6 +48,7 @@ export async function waitForRetry(
 }
 
 type FetchWithRetryOptions = {
+  browserRequest?: HlsDownloaderBrowserRequestOptions;
   url: string;
   init?: RequestInit;
   maxAttempts: number;
@@ -58,6 +61,7 @@ type FetchWithRetryOptions = {
 export async function fetchWithRetry({
   url,
   init,
+  browserRequest,
   maxAttempts,
   errorCode,
   adapter = 'BrowserAdapter',
@@ -67,7 +71,7 @@ export async function fetchWithRetry({
   const attempts = normalizeMaxAttempts(maxAttempts);
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const response = await fetch(url, init);
+      const response = await requestMedia(url, init ?? {}, browserRequest);
       if (response.ok) return response;
 
       const retryable = isRetryableStatus(response.status);
