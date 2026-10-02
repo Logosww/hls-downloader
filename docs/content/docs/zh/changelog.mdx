@@ -8,6 +8,16 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [3.5.1] - 2026-10-02
+
+### Changed
+
+- **Universal**：浏览器与 Node 转封装现在会拒绝不受支持的 TS 时间戳重置，避免生成不一致的时间轴；TS 分片边界时长会在可用时使用下一分片的时间戳计算。
+
+### Fixed
+
+- **NodeAdapter**：确保 Node 流式下载完成前所有分块回调均已执行，避免短流输出为空或不完整。
+
 ## [3.5.0] - 2026-09-25
 
 ### 新增

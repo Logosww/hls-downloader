@@ -3,6 +3,7 @@ import { chromium } from 'playwright';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
+import { shiftTsTimestamps } from '../fixtures/continuous-ts.ts';
 
 const root = resolve(import.meta.dirname, '../..');
 const fixture = (name: string) => readFileSync(resolve(root, 'test/fixtures/media', name));
@@ -39,8 +40,11 @@ const server = await createServer({
             );
           } else if (url.pathname.startsWith('/fixture/segment-')) {
             res.end(
-              fixture(
-                url.pathname.endsWith('segment-0.ts') ? 'ts/segment-00.ts' : 'ts/segment-01.ts',
+              shiftTsTimestamps(
+                fixture(
+                  url.pathname.endsWith('segment-0.ts') ? 'ts/segment-00.ts' : 'ts/segment-01.ts',
+                ),
+                Math.floor(Number(url.searchParams.get('i')) / 2) * 3,
               ),
             );
           } else next();

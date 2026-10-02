@@ -238,11 +238,11 @@ export function transmux_demand_to_fmp4(playlist_url, playlist, read, write) {
 }
 
 function __wbg_adapter_28(arg0, arg1, arg2) {
-    wasm.closure73_externref_shim(arg0, arg1, arg2);
+    wasm.closure70_externref_shim(arg0, arg1, arg2);
 }
 
 function __wbg_adapter_57(arg0, arg1, arg2, arg3) {
-    wasm.closure102_externref_shim(arg0, arg1, arg2, arg3);
+    wasm.closure99_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 async function __wbg_load(module, imports) {
@@ -444,8 +444,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper202 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 74, __wbg_adapter_28);
+    imports.wbg.__wbindgen_closure_wrapper226 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 71, __wbg_adapter_28);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {

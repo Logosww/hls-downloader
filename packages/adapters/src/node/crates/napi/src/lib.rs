@@ -360,7 +360,7 @@ pub async fn transmux_hls_streaming_native(
     concurrency: u32,
     max_retry: u32,
     cancel_job_id: Option<String>,
-    on_chunk: ThreadsafeFunction<Buffer>,
+    on_chunk: ThreadsafeFunction<Buffer, ()>,
     on_progress: ThreadsafeFunction<(u32, u32)>,
 ) -> Result<()> {
     // 256KB duplex buffer：fragment 一般 100KB-1MB，缓冲足以吸收段间抖动。
@@ -379,16 +379,13 @@ pub async fn transmux_hls_streaming_native(
                 Ok(0) => break,
                 Ok(n) => {
                     let owned = buf[..n].to_vec();
-                    on_chunk.call(
-                        Ok(Buffer::from(owned)),
-                        // Ensure every chunk reaches JS before the native promise resolves.
-                        // NonBlocking delivery can otherwise leave very short streams empty.
-                        ThreadsafeFunctionCallMode::Blocking,
-                    );
+                    // Wait for JS execution; Blocking only waits for queue capacity.
+                    on_chunk.call_async(Ok(Buffer::from(owned))).await?;
                 }
                 Err(_) => break,
             }
         }
+        Ok::<(), Error>(())
     });
 
     let cancel_token = cancel_job_id
@@ -419,14 +416,15 @@ pub async fn transmux_hls_streaming_native(
 
     // drop(tx) 让 rx 读到 EOF（read 返回 0），pump 自然结束
     drop(tx);
-    pump.await
-        .map_err(|e| Error::from_reason(format!("streaming pump join error: {e}")))?;
+    let pump_result = pump.await;
 
     // Clean up registry entry regardless of outcome
     if let Some(id) = cancel_job_id {
         registry().remove(&id);
     }
 
+    pump_result
+        .map_err(|e| Error::from_reason(format!("streaming pump join error: {e}")))??;
     result.map_err(to_napi_err)?;
     Ok(())
 }

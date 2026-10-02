@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.5.1] - 2026-10-02
+
+### Changed
+
+- **Universal**: Browser and Node transmuxing now reject unsupported TS timestamp resets instead of producing an inconsistent timeline. TS fragment boundary durations use the next segment's timestamps when available.
+
+### Fixed
+
+- **NodeAdapter**: Ensure Node streaming completion waits for all chunk callbacks to execute, preventing empty or incomplete output from short streams.
+
 ## [3.5.0] - 2026-09-25
 
 ### Added

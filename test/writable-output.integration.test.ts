@@ -3,6 +3,7 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { shiftTsTimestamps } from './fixtures/continuous-ts';
 import { HlsDownloader } from '../packages/core/src/index';
 import { HlsDownloaderEvent, createAdapter, getInternalAdapter } from '@hls-downloader/shared';
 import { BrowserAdapter } from '../packages/adapters/src/browser/index';
@@ -47,13 +48,33 @@ const playlist = (n: number) =>
 async function server(n = 10) {
   const s = await startFixtureServer({
     '/media.m3u8': (_, res) => sendText(res, playlist(n)),
-    '/segment.ts': (_, res) => sendBytes(res, fixture('ts/segment-00.ts')),
+    '/segment.ts': (req, res) =>
+      sendBytes(
+        res,
+        shiftTsTimestamps(fixture('ts/segment-00.ts'), Number(req.query.get('i') ?? 0) * 2),
+      ),
   });
   servers.push(s);
   return s;
 }
 
 describe('writable output (real WASM)', () => {
+  it('rejects TS timestamp resets with a structured transmux error', async () => {
+    const s = await startFixtureServer({
+      '/media.m3u8': (_, res) => sendText(res, playlist(2)),
+      '/segment.ts': (_, res) => sendBytes(res, fixture('ts/segment-00.ts')),
+    });
+    servers.push(s);
+    const sink = new WritableStream<Uint8Array>({ write() {} });
+    await expect(
+      new HlsDownloader({ adapter: BrowserAdapter }).downloadToWritable(
+        { url: s.origin + '/media.m3u8' },
+        sink,
+      ),
+    ).rejects.toMatchObject({ code: 'TRANSMUX_FAILED' });
+    expect(sink.locked).toBe(false);
+  });
+
   it('starts early, bounds prefetch under backpressure, and waits for close', async () => {
     const s = await server(12);
     const first = deferred();
@@ -84,7 +105,8 @@ describe('writable output (real WASM)', () => {
       });
     await Promise.race([first.promise, task]);
     await new Promise((r) => setTimeout(r, 30));
-    expect(s.requests.filter((r) => r.path === '/segment.ts').length).toBe(3);
+    // Current TS + one lookahead segment + the two-entry resource window.
+    expect(s.requests.filter((r) => r.path === '/segment.ts').length).toBe(4);
     expect(settled).toBe(false);
     release.resolve();
     await Promise.race([closed.promise, task]);
@@ -349,9 +371,13 @@ describe('writable output (real WASM)', () => {
     const writing = deferred();
     const release = deferred();
     const s = await startFixtureServer({
-      '/media.m3u8': (_, res) => sendText(res, playlist(2)),
+      '/media.m3u8': (_, res) => sendText(res, playlist(3)),
       '/segment.ts': async (req, res) => {
-        if (req.query.get('i') === '0') await sendBytes(res, fixture('ts/segment-00.ts'));
+        if (Number(req.query.get('i')) < 2)
+          sendBytes(
+            res,
+            shiftTsTimestamps(fixture('ts/segment-00.ts'), Number(req.query.get('i')) * 2),
+          );
         else {
           await writing.promise;
           res.writeHead(404).end();

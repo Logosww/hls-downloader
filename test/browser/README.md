@@ -13,8 +13,8 @@ CI installs the matching Playwright Chromium and uploads that report.
 
 The two-segment smoke test writes an OPFS file, closes it, and plays it to
 completion. Large runs discard output rather than collecting a Blob. They use
-concurrency 3 and alternate the two synthetic TS fixtures with distinct query
-URLs; these runs measure allocation, not timestamp continuity. Continuous
+concurrency 3 and repeat two synthetic TS fixtures with increasing PES timestamps
+and distinct query URLs. Continuous
 TS/fMP4/BYTERANGE correctness is independently checked with ffprobe in
 `writable-output.integration.test.ts`.
 
@@ -31,7 +31,7 @@ fixed memory budget. Browser GC can change these figures between runs.
 | 10000 | 292256114 | 154388218 | 19570866 | 6029312 |
 
 The JS resource window independently asserts at most C in-flight/ready entries
-for 100, 1,000 and 10,000 segments. One current segment, initialization data,
+for 100, 1,000 and 10,000 segments. One current segment, one demuxed TS lookahead segment, initialization data,
 transmux scratch space and one pending output block are additional. Playlist
 strings/objects grow with segment count. WASM linear memory does not shrink;
 its high-water includes both playlist metadata and media processing. Heap
@@ -40,9 +40,9 @@ media-buffer bytes or treat them as total browser RSS.
 
 The browser harness applies a generous growth regression threshold; the
 resource-window assertions and stalled-writer HTTP test are the deterministic
-backpressure checks. The Browser-only vendored hls-transmux patch prevents
-unused mfra index accumulation. Its source/license and patch rationale live
-beside the WASM crate; Node continues to use the registry dependency.
+backpressure checks. Both Browser WASM and Node use the registry hls-transmux dependency. Since
+0.4.2, upstream skips unused mfra index accumulation when write_mfra is false;
+no local patch is needed.
 
 ## App-web flow
 

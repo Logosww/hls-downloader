@@ -85,13 +85,13 @@
     "typescript": "^7.0.2"
   },
   "devDependencies": {
-    "oxfmt": "^0.70.0",
-    "oxlint": "^1.85.0",
+    "oxfmt": "^0.71.0",
+    "oxlint": "^1.86.0",
     "tsdown": "^0.23.0",
-    "turbo": "^2.11.3"
+    "turbo": "^2.11.6"
   },
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@12.4.1"
+  "packageManager": "pnpm@12.8.1"
 }

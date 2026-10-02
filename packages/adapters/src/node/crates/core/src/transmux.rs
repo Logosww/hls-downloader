@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use hls_transmux::{
     ByteRange, CancelToken, Error as TransmuxError, HlsInput, OutputFormat, ReqwestSource, Source,
-    SourceLocation, TextResource, TransmuxOptions, TransmuxProgress, transmux_hls_to_mp4_async,
-    transmux_hls_to_writer_async,
+    SourceLocation, TextResource, TransmuxOptions, TransmuxProgress, TransmuxStage,
+    transmux_hls_to_mp4_async, transmux_hls_to_writer_async,
 };
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -163,6 +163,11 @@ pub async fn transmux_segments_to_mp4_file(
         let cb = Arc::clone(cb);
         let cb_fn: Arc<dyn Fn(TransmuxProgress) + Send + Sync> =
             Arc::new(move |p: TransmuxProgress| {
+                // 0.4 emits a final lifecycle checkpoint in addition to segment progress.
+                // Completion is reported below as Merging after the operation succeeds.
+                if p.stage == TransmuxStage::Completed {
+                    return;
+                }
                 cb(DownloadProgress::Downloading {
                     completed: p.completed_segments,
                     total: p.total_segments,
@@ -254,6 +259,11 @@ where
         let cb = Arc::clone(cb);
         let cb_fn: Arc<dyn Fn(TransmuxProgress) + Send + Sync> =
             Arc::new(move |p: TransmuxProgress| {
+                // 0.4 emits a final lifecycle checkpoint in addition to segment progress.
+                // Completion is reported below as Merging after the operation succeeds.
+                if p.stage == TransmuxStage::Completed {
+                    return;
+                }
                 cb(DownloadProgress::Downloading {
                     completed: p.completed_segments,
                     total: p.total_segments,
