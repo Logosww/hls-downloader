@@ -45,6 +45,7 @@ import {
 
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/adapters/browser';
 import type { Playlist } from '@hls-downloader/shared';
+import { cn } from '@/lib/utils';
 
 export const confirmFormSchema = z.object({
   quality: z.string(),
@@ -228,7 +229,10 @@ export const ConfirmModal = ({
                     >
                       <FieldLabel
                         htmlFor="output-file"
-                        className={!canWriteToFile ? 'opacity-60' : undefined}
+                        className={cn(
+                          'cursor-pointer transition-colors hover:bg-accent',
+                          !canWriteToFile && 'opacity-60',
+                        )}
                       >
                         <Field orientation="horizontal">
                           <FieldContent>
@@ -243,7 +247,10 @@ export const ConfirmModal = ({
                           />
                         </Field>
                       </FieldLabel>
-                      <FieldLabel htmlFor="output-browser">
+                      <FieldLabel
+                        className="cursor-pointer transition-colors hover:bg-accent"
+                        htmlFor="output-browser"
+                      >
                         <Field orientation="horizontal">
                           <FieldContent>
                             <FieldTitle>普通下载</FieldTitle>

@@ -17,7 +17,8 @@
     "test:browser:writable": "node browser/writable-smoke.ts",
     "test:app-web:writable": "node browser/app-web-writable.ts",
     "test:native:resume": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --lib resume && cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --test resume_upstream && vitest run node-resume.integration.test.ts",
-    "test:browser:extension": "node browser/extension-smoke.ts"
+    "test:browser:extension": "node browser/extension-smoke.ts",
+    "test:app-web:metadata": "node browser/metadata-cancellation.ts"
   },
   "dependencies": {
     "@hls-downloader/core": "workspace:*",

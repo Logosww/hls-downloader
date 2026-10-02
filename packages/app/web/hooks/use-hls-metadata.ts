@@ -19,11 +19,14 @@ export function useHlsMetadata() {
   const downloader = useMemo(() => new HlsDownloader({ adapter: BrowserAdapter }), []);
   const [metadata, setMetadata] = useState<HlsMetadata>();
   const requestId = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
   const previewUrls = useRef(new Set<string>());
 
   useEffect(
     () => () => {
       requestId.current++;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
       for (const url of previewUrls.current) revokeBlobUrl(url);
       previewUrls.current.clear();
     },
@@ -31,33 +34,51 @@ export function useHlsMetadata() {
   );
 
   const resolveMetadata = useCallback(
-    async (url: string, headers?: Record<string, string>): Promise<boolean> => {
+    // null means superseded/unmounted, so callers must not show UI for this result.
+    async (url: string, headers?: Record<string, string>): Promise<boolean | null> => {
       const currentRequest = ++requestId.current;
-      const result = await downloader.parseHls({ url, headers });
-      if (currentRequest !== requestId.current || result.type === 'error') return false;
+      activeRequest.current?.abort();
+      const controller = new AbortController();
+      activeRequest.current = controller;
+      const { signal } = controller;
+      const isCancelled = () => signal.aborted || currentRequest !== requestId.current;
 
-      const playlist =
-        result.type === 'playlist'
-          ? result.data
-          : [{ name: '默认', bandwidth: 0, uri: url } satisfies Playlist];
-      if (playlist.length === 0) return false;
+      const resolve = async (): Promise<boolean | null> => {
+        const result = await downloader.parseHls({ url, headers, signal });
+        if (isCancelled()) return null;
+        if (result.type === 'error') return false;
 
-      setMetadata({ filename: '', previewSrc: '', playlist });
+        const playlist =
+          result.type === 'playlist'
+            ? result.data
+            : [{ name: '默认', bandwidth: 0, uri: url } satisfies Playlist];
+        if (playlist.length === 0) return false;
 
-      try {
-        const previewSrc = await downloader.getPosterUrl({ url: playlist[0]!.uri, headers });
-        if (currentRequest !== requestId.current) {
-          revokeBlobUrl(previewSrc);
-          return true;
+        setMetadata({ filename: '', previewSrc: '', playlist });
+
+        try {
+          const previewSrc = await downloader.getPosterUrl({
+            url: playlist[0]!.uri,
+            headers,
+            signal,
+          });
+          if (isCancelled()) {
+            revokeBlobUrl(previewSrc);
+            return null;
+          }
+          if (previewSrc) {
+            if (previewSrc.startsWith('blob:')) previewUrls.current.add(previewSrc);
+            setMetadata((current) => (current ? { ...current, previewSrc } : current));
+          }
+        } catch {
+          // Poster extraction is optional and must not block a valid download.
         }
-        if (previewSrc) {
-          if (previewSrc.startsWith('blob:')) previewUrls.current.add(previewSrc);
-          setMetadata((current) => (current ? { ...current, previewSrc } : current));
-        }
-      } catch {
-        // Poster extraction is optional and must not block a valid download.
-      }
-      return true;
+        return isCancelled() ? null : true;
+      };
+      return resolve().finally(() => {
+        // An older operation must never clear the newer operation's controller.
+        if (activeRequest.current === controller) activeRequest.current = null;
+      });
     },
     [downloader],
   );

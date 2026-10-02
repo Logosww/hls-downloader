@@ -103,9 +103,27 @@ Do not mark 3.6.0 ready for publication until both real-browser runs have passed
   output is 291,896,114 bytes, peak observed JS heap 180,690,432 bytes and WASM high-water
   6,029,312 bytes. These counters include metadata and GC slack; deterministic
   backpressure/resource-window tests provide the buffer-bound assertions.
-- **Release blocker: real Edge execution is pending because Edge is not installed on
-  this machine.** Run the `msedge` command above on a machine with Edge before release.
+- Edge 154.0.4258.53 on macOS arm64: passed using the actual Edge browser and the
+  WXT Edge MV3 production output. All 17 media requests passed the Cookie,
+  Authorization and extension-applied Referer checks. TS/fMP4/Range OPFS output,
+  H.264 transcode, poster extraction and local WASM passed. Report:
+  `test-results/extension/acceptance-msedge.json`.
+- The real Chrome/Edge extension acceptance requirement is satisfied; the previous
+  Edge release blocker is resolved. The per-channel JSON reports describe only
+  their own run; a pending label for the other browser does not invalidate that
+  browser's separate passing report.
 
 References: [WXT entrypoints](https://wxt.dev/guide/essentials/entrypoints),
 [WXT manifest configuration](https://wxt.dev/guide/essentials/config/manifest),
 [Chromium extension debugging protocol](https://chromium.googlesource.com/chromium/src.git/+/225b2eaa7f23c33b7c4e30c1bfc58f1bd99cbe1c).
+
+## App-web metadata cancellation
+
+Run `pnpm run test:app-web:metadata` with an installed Playwright Chromium, or set
+`HLS_TEST_CHROMIUM_PATH` to an installed Chrome executable. This standalone browser
+fixture mounts the real metadata hook under React StrictMode and uses controlled
+responses to cover replacement during parsing/poster reads, unmount during either
+stage, late results, and optional poster failure. Cancelled operations return `null`;
+actual parse failures return `false`, while valid metadata returns `true` even when
+poster extraction fails. The page ignores cancelled results rather than opening a
+confirmation or displaying a parsing error. The test runs in CI after the library build.

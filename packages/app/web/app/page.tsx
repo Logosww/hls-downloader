@@ -56,7 +56,9 @@ export default function HomePage() {
   const requestHeaders = Object.keys(headers).length > 0 ? headers : undefined;
 
   const onSubmit = async ({ url }: z.infer<typeof formSchema>) => {
-    if (!(await resolveMetadata(url, requestHeaders))) {
+    const resolved = await resolveMetadata(url, requestHeaders);
+    if (resolved === null) return;
+    if (!resolved) {
       toast.error('解析失败，无效的 HLS 资源链接');
       return;
     }

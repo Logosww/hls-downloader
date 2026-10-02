@@ -1,0 +1,34 @@
+<!doctype html><html><body><div id="root"></div><script type="module">
+import { createElement, StrictMode, useLayoutEffect } from 'react';
+import { createRoot } from 'react-dom/client';
+import { useHlsMetadata } from '/packages/app/web/hooks/use-hls-metadata.ts';
+
+const originalFetch = window.fetch.bind(window);
+window.requests = [];
+window.fetch = (url, init) => {
+  if (!String(url).startsWith('https://metadata.test/')) return originalFetch(url, init);
+  return new Promise(resolve => {
+    // Deliberately non-cooperative transport: the library must discard late results.
+    const request = { url: String(url), signal: init.signal, resolve, aborted: false };
+    init.signal.addEventListener('abort', () => { request.aborted = true; }, { once: true });
+    window.requests.push(request);
+  });
+};
+function Harness() {
+  const { metadata, resolveMetadata } = useHlsMetadata();
+  useLayoutEffect(() => { window.resolveMetadata = resolveMetadata; window.metadata = metadata; });
+  return createElement('output', null, metadata?.playlist[0]?.uri ?? 'empty');
+}
+let root;
+window.mount = () => {
+  root = createRoot(document.getElementById('root'));
+  root.render(createElement(StrictMode, null, createElement(Harness)));
+};
+window.unmount = () => root.unmount();
+window.start = (name, path) => {
+  window[name] = 'pending';
+  window.resolveMetadata('https://metadata.test/' + path).then(value => { window[name] = value; });
+};
+window.reply = (index, body, status = 200) => window.requests[index].resolve(new Response(body, { status }));
+window.mount();
+</script></body></html>

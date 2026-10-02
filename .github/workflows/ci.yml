@@ -118,6 +118,9 @@ jobs:
           name: extension-acceptance
           path: test-results/extension/acceptance-*.json
 
+      - name: App-web metadata cancellation
+        run: pnpm run test:app-web:metadata
+
       - name: App-web writable flow
         run: |
           pnpm --filter @hls-downloader/app-web build

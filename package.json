@@ -1,6 +1,6 @@
 {
   "name": "@logosw/hls-downloader",
-  "version": "3.5.1",
+  "version": "3.6.0",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -79,7 +79,8 @@
     "test:app-web:writable": "pnpm --filter @hls-downloader/test run test:app-web:writable",
     "test:native:resume": "pnpm --filter @hls-downloader/test run test:native:resume",
     "test:types:resume": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/resume-api.typecheck.ts",
-    "test:browser:extension": "pnpm --filter @hls-downloader/test run test:browser:extension"
+    "test:browser:extension": "pnpm --filter @hls-downloader/test run test:browser:extension",
+    "test:app-web:metadata": "pnpm --filter @hls-downloader/test run test:app-web:metadata"
   },
   "dependencies": {
     "@hls-downloader/adapters": "workspace:*",
