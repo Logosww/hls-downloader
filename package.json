@@ -96,10 +96,10 @@
     "oxfmt": "^0.71.0",
     "oxlint": "^1.86.0",
     "tsdown": "^0.23.0",
-    "turbo": "^2.11.6"
+    "turbo": "^2.11.7"
   },
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@12.8.1"
+  "packageManager": "pnpm@12.9.1"
 }
