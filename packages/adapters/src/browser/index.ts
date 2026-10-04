@@ -1,3 +1,6 @@
+import { resolveMedia } from '../renditions';
+import { withOperation, executePrepared, exportSubtitles, type Engine } from '../prepared';
+import { prepared_browser } from './wasm';
 import { Parser } from 'm3u8-parser';
 import {
   createAdapter,
@@ -31,7 +34,6 @@ import { assertActive, cancellable } from './request';
 import {
   ensureWasm,
   transmuxDemandToFmp4,
-  transmuxPreloadedToFmp4Stream,
   transmuxPreloadedToMp4,
   type HlsWasmResources,
 } from './wasm';
@@ -229,51 +231,62 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
     });
   }
 
-  const { segments, resolvedUrl, playlist } = await resolveToSegments(this, {
-    ...options,
-    url,
-    headers,
-    browserRequest,
-  });
-  const segmentWithIndex = segments.map((s, i) => ({
-    ...s,
-    index: i,
-  }));
-  emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-
-  const shouldTranscode = needsBrowserTranscode(transcode);
-
-  if (!shouldTranscode) {
-    const blobURL = await downloadAndTransmux({
-      url: resolvedUrl,
-      playlist,
-      segments: segmentWithIndex,
-      headers,
-      maxRetry,
-      downloadConcurrency,
-      signal,
-      browserRequest,
-      onProgress: (completed) => {
-        emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
-          total: segments.length,
-          completed,
-        });
+  if (!needsBrowserTranscode(transcode)) {
+    return withOperation(
+      { ...options, url, headers, maxRetry, downloadConcurrency, signal, browserRequest },
+      async (request) => {
+        const media = await resolveMedia(request, transcode !== undefined);
+        emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+        if (!media.audio) {
+          const blobURL = await downloadAndTransmux({
+            url: media.primary.url,
+            playlist: media.primary.text,
+            segments: media.primary.segments.map((s, index) => ({ ...s, index })),
+            headers,
+            maxRetry,
+            downloadConcurrency,
+            signal: request.signal,
+            browserRequest,
+            onProgress: (completed) =>
+              emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
+                completed,
+                total: media.totalSegments,
+              }),
+            onMuxProgress: (completed) =>
+              emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
+                completed,
+                total: media.totalSegments,
+              }),
+          });
+          emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+          return { blobURL, totalSegments: media.totalSegments };
+        }
+        let buffer: Uint8Array | undefined;
+        const report = await executePrepared(
+          this,
+          request,
+          media,
+          browserEngine,
+          'bytes',
+          async (bytes) => {
+            buffer = bytes;
+          },
+        );
+        assertActive(request.signal);
+        const blobURL = URL.createObjectURL(
+          new Blob([Uint8Array.from(buffer!).buffer], { type: 'video/mp4' }),
+        );
+        emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+        return { blobURL, totalSegments: report.totalSegments };
       },
-      onMuxProgress: (completed) => {
-        emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
-          total: segments.length,
-          completed,
-        });
-      },
-    });
-
-    emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-
-    return {
-      blobURL,
-      totalSegments: segments.length,
-    };
+    );
   }
+  const { primary } = await resolveMedia(
+    { ...options, url, headers, signal, browserRequest, maxRetry },
+    true,
+  );
+  const { segments, url: resolvedUrl, text: playlist } = primary;
+  emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
 
   const browserTranscode = assertBrowserTranscodeOptions(transcode);
   const result = await transcodeHls({
@@ -514,72 +527,7 @@ async function preloadHlsResources({
   };
 }
 
-const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async function (
-  this: HlsDownloaderBrowserAdapter,
-  options,
-  onChunk,
-) {
-  const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
-  const { url, headers, maxRetry, downloadConcurrency, signal, browserRequest } =
-    mergeDownloadOptions(this, globalOptions, options);
-
-  emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
-
-  if (signal?.aborted) {
-    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-      adapter: this.name,
-    });
-  }
-
-  const wasmReady = ensureWasm();
-
-  const { segments, resolvedUrl, playlist } = await resolveToSegments(this, {
-    ...options,
-    url,
-    headers,
-    browserRequest,
-  });
-  emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-
-  const [resources] = await Promise.all([
-    preloadHlsResources({
-      playlistUrl: resolvedUrl,
-      playlist,
-      segments,
-      headers,
-      maxRetry,
-      downloadConcurrency,
-      signal,
-      browserRequest,
-      onProgress: (completed) => {
-        emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
-          total: segments.length,
-          completed,
-        });
-      },
-    }),
-    wasmReady,
-  ]);
-
-  await transmuxPreloadedToFmp4Stream(resources, (chunk) => {
-    if (signal?.aborted) {
-      throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-        adapter: this.name,
-        url,
-      });
-    }
-    onChunk(chunk);
-  });
-  emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
-    total: segments.length,
-    completed: segments.length,
-  });
-
-  emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-  return { totalSegments: segments.length };
-};
-
-const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWritable']> =
+const legacyDownloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWritable']> =
   async function (this: HlsDownloaderBrowserAdapter, options, write) {
     const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
     // This path never merges global transcode settings.
@@ -595,6 +543,9 @@ const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWri
     options.signal?.addEventListener('abort', forwardAbort, { once: true });
     if (options.signal?.aborted) forwardAbort();
     const signal = controller.signal;
+    const snapshot = (
+      options as typeof options & { __media?: import('../renditions').MediaSnapshot }
+    ).__media;
     let window: ReturnType<typeof createResourceWindow> | undefined;
     let originalError: unknown;
     // Preserve JS structured errors across the string-valued WASM error boundary.
@@ -619,20 +570,22 @@ const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWri
       };
     try {
       checkSignal(signal);
-      emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+      if (!snapshot) emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
       const {
         playlist,
         url: resolvedUrl,
         segments,
-      } = await resolveWritablePlaylist({
-        ...options,
-        url,
-        headers,
-        maxRetry,
-        signal,
-        browserRequest,
-      });
-      emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+      } = snapshot
+        ? { playlist: snapshot.text, url: snapshot.url, segments: snapshot.segments }
+        : await resolveWritablePlaylist({
+            ...options,
+            url,
+            headers,
+            maxRetry,
+            signal,
+            browserRequest,
+          });
+      if (!snapshot) emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
       window = createResourceWindow(
         segments,
         concurrency,
@@ -672,6 +625,86 @@ const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWri
     }
   };
 
+const browserEngine: Engine = async (request, read, write, progress, signal) => {
+  await cancellable(ensureWasm(), signal);
+  return (await prepared_browser(request, read, write, progress)) as string;
+};
+const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWritable']> =
+  async function (this: HlsDownloaderBrowserAdapter, options, write) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
+    const merged = mergeDownloadOptions(this, globalOptions, options);
+    return withOperation({ ...options, ...merged }, async (request) => {
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+      const media = await resolveMedia(
+        request,
+        Boolean((options as Record<string, unknown>).__rejectAudio),
+      );
+      emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+      if (!media.audio && !options.audio) {
+        // Preserve the legacy single-input timeline contract while feeding its exact snapshot.
+        return legacyDownloadToWritable.call(
+          this,
+          { ...request, __media: media.primary } as typeof options,
+          write,
+        );
+      }
+      const report = await executePrepared(this, request, media, browserEngine, 'stream', write);
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
+        completed: report.totalSegments,
+        total: report.totalSegments,
+      });
+      return { totalSegments: report.totalSegments };
+    });
+  };
+const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async function (
+  this: HlsDownloaderBrowserAdapter,
+  options,
+  onChunk,
+) {
+  const merged = mergeDownloadOptions(
+    this,
+    getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options),
+    options,
+  );
+  if (options.audio && merged.transcode)
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'Audio selection cannot be transcoded',
+    );
+  const result = await downloadToWritable.call(
+    this,
+    {
+      ...options,
+      transcode: undefined,
+      __rejectAudio: merged.transcode !== undefined,
+    } as Parameters<NonNullable<HlsDownloaderBrowserAdapter['downloadToWritable']>>[0],
+    async (bytes) => {
+      onChunk(bytes);
+    },
+  );
+  emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+  return result;
+};
+const downloadSubtitles: NonNullable<HlsDownloaderBrowserAdapter['downloadSubtitles']> =
+  async function (this: HlsDownloaderBrowserAdapter, options) {
+    const merged = mergeDownloadOptions(
+      this,
+      getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options),
+      options,
+    );
+    return withOperation({ ...options, ...merged }, async (request) => {
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+      const media = await resolveMedia(request);
+      emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+      return exportSubtitles(
+        this,
+        { ...request, subtitle: options.subtitle, filename: options.filename },
+        media,
+        browserEngine,
+      );
+    });
+  };
+
 /** Each operation owns cancellation of outstanding and queued media work. */
 function scopedOperation<A extends HlsDownloaderFetchOptions, R, Rest extends unknown[]>(
   operation: (this: HlsDownloaderBrowserAdapter, options: A, ...rest: Rest) => Promise<R>,
@@ -706,6 +739,8 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
     persistentOutput: false,
     writableOutput: true,
     resumableDownload: false,
+    alternateAudio: true,
+    subtitleExport: true,
   },
   chunkDownloadConcurrency: 10,
   segmentRetryAttempts: 10,
@@ -715,6 +750,7 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   download: scopedOperation(download),
   downloadToStream: scopedOperation(downloadToStream),
   downloadToWritable,
+  downloadSubtitles,
   clearCache: () => {},
 }) as HlsDownloaderBrowserAdapter;
 

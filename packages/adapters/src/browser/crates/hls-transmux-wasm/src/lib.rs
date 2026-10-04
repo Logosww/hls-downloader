@@ -465,3 +465,123 @@ pub async fn transmux_demand_to_fmp4(
     .map_err(|e| JsValue::from_str(&e.to_string()))?;
     report_to_js(None, &report)
 }
+
+#[path = "../../../../rust/session.rs"]
+mod wire;
+
+#[derive(Debug)]
+struct SessionSource {
+    id: u32,
+    texts: HashMap<String, String>,
+}
+impl Source for SessionSource {
+    fn read_text<'a>(
+        &'a self,
+        location: &'a SourceLocation,
+    ) -> Pin<Box<dyn Future<Output = Result<TextResource, TransmuxError>> + Send + 'a>> {
+        Box::pin(async move {
+            Ok(TextResource {
+                content: self
+                    .texts
+                    .get(&location_key(location))
+                    .ok_or_else(|| TransmuxError::invalid("unknown playlist"))?
+                    .clone(),
+                location: location.clone(),
+            })
+        })
+    }
+    fn read_bytes<'a>(
+        &'a self,
+        location: &'a SourceLocation,
+        range: Option<&'a ByteRange>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TransmuxError>> + Send + 'a>> {
+        let receiver = invoke_local(self.id, vec![JsValue::from_str(&serde_json::json!({"url": location_key(location), "offset": range.map(|r| r.offset), "length": range.map(|r| r.length)}).to_string())]);
+        Box::pin(async move {
+            match receiver
+                .await
+                .map_err(|_| TransmuxError::invalid("closed bridge"))?
+                .map_err(TransmuxError::Http)?
+            {
+                JsValueResult::Bytes(b) => Ok(b),
+                _ => Err(TransmuxError::invalid("missing bytes")),
+            }
+        })
+    }
+}
+
+#[wasm_bindgen]
+pub async fn prepared_browser(
+    request: String,
+    read: Function,
+    write: Function,
+    progress: Function,
+) -> Result<JsValue, JsValue> {
+    use hls_transmux::{HlsInputs, PrepareOptions, ResourceBudget, prepare_hls};
+    let request: wire::Request =
+        serde_json::from_str(&request).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let read = CallbackRegistration::new(read);
+    let write = CallbackRegistration::new(write);
+    let progress = CallbackRegistration::new(progress);
+    let mut texts = HashMap::new();
+    texts.insert(request.primary.url.clone(), request.primary.text);
+    if let Some(a) = &request.audio {
+        texts.insert(a.url.clone(), a.text.clone());
+    }
+    let source = Arc::new(SessionSource { id: read.0, texts });
+    let input = |url: &str| -> Result<HlsInput, JsValue> {
+        Ok(HlsInput::custom(
+            source.clone(),
+            SourceLocation::Url(
+                url::Url::parse(url).map_err(|e| JsValue::from_str(&e.to_string()))?,
+            ),
+        ))
+    };
+    let mut inputs = HlsInputs::new(input(&request.primary.url)?);
+    if let Some(a) = request.audio {
+        inputs = inputs.with_audio(input(&a.url)?);
+    }
+    let progress_id = progress.0;
+    let options = PrepareOptions::default()
+        .with_write_mfra(false)
+        .with_budget(ResourceBudget::default().with_max_in_flight_reads(request.concurrency))
+        .with_on_event(Arc::new(move |event| {
+            let callback =
+                CALLBACKS.with(|callbacks| callbacks.borrow().get(&progress_id).cloned());
+            if let Some(cb) = callback {
+                let _ = cb.call1(&JsValue::NULL, &JsValue::from_str(&wire::progress(event)));
+            }
+        }));
+    let prepared = match prepare_hls(inputs, options).await {
+        Ok(p) => p,
+        Err(e) => return Ok(JsValue::from_str(&wire::failure(e).to_string())),
+    };
+    let mapping = wire::timeline(prepared.info().timeline());
+    if request.mode == "probe" {
+        return Ok(JsValue::from_str(
+            &serde_json::json!({"timeline": mapping, "totalSegments": 0}).to_string(),
+        ));
+    }
+    if request.mode == "bytes" {
+        return match prepared.into_mp4_bytes().await {
+            Ok((bytes, report)) => {
+                // Deliver the completed MP4 through the same awaited write bridge.
+                let receiver =
+                    invoke_local(write.0, vec![Uint8Array::from(bytes.as_slice()).into()]);
+                receiver
+                    .await
+                    .map_err(|_| JsValue::from_str("closed writer"))?
+                    .map_err(|e| JsValue::from_str(&e))?;
+                Ok(JsValue::from_str(&serde_json::json!({"timeline": mapping, "totalSegments": report.media().segment_count}).to_string()))
+            }
+            Err(e) => Ok(JsValue::from_str(&wire::failure(e).to_string())),
+        };
+    }
+    let mut writer = DemandWriter {
+        id: write.0,
+        pending: None,
+    };
+    let result = prepared.write_to(&mut writer).await;
+    Ok(JsValue::from_str(&match result {
+        Ok(report) => serde_json::json!({"timeline": mapping, "totalSegments": report.media().segment_count}), Err(e) => wire::failure(e)
+    }.to_string()))
+}

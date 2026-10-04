@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import HlsDownloader from '@hls-downloader/core';
 import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import { toast } from 'sonner';
+import type { VariantSelectOptions } from '@hls-downloader/shared';
+import { createMseWritable } from '../lib/mse-output';
 
 const DIALOG_EXIT_MS = 120;
 const MSE_MIME_TYPE = 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"';
@@ -14,6 +16,7 @@ type StreamPreviewState = {
   title: string;
   loading: boolean;
   headers?: Record<string, string>;
+  variant?: VariantSelectOptions;
 };
 
 const CLOSED_STATE: StreamPreviewState = { open: false, url: '', title: '', loading: false };
@@ -21,7 +24,12 @@ const CLOSED_STATE: StreamPreviewState = { open: false, url: '', title: '', load
 export function useStreamPreview() {
   const downloader = useMemo(() => new HlsDownloader({ adapter: BrowserAdapter }), []);
   const [preview, setPreview] = useState<StreamPreviewState>(CLOSED_STATE);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [hasVideo, setHasVideo] = useState(false);
+  const attachVideo = useCallback((element: HTMLVideoElement | null) => {
+    videoRef.current = element;
+    setHasVideo(element !== null);
+  }, []);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const close = useCallback(() => {
@@ -30,17 +38,25 @@ export function useStreamPreview() {
     setPreview(CLOSED_STATE);
   }, []);
 
-  const open = useCallback((url: string, title: string, headers?: Record<string, string>) => {
-    if (typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(MSE_MIME_TYPE)) {
-      toast.error('当前浏览器不支持该视频编码的流式预览');
-      return;
-    }
-    if (openTimer.current) clearTimeout(openTimer.current);
-    openTimer.current = setTimeout(() => {
-      openTimer.current = null;
-      setPreview({ open: true, url, title, loading: true, headers });
-    }, DIALOG_EXIT_MS);
-  }, []);
+  const open = useCallback(
+    (
+      url: string,
+      title: string,
+      headers?: Record<string, string>,
+      variant?: VariantSelectOptions,
+    ) => {
+      if (typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(MSE_MIME_TYPE)) {
+        toast.error('当前浏览器不支持该视频编码的流式预览');
+        return;
+      }
+      if (openTimer.current) clearTimeout(openTimer.current);
+      openTimer.current = setTimeout(() => {
+        openTimer.current = null;
+        setPreview({ open: true, url, title, loading: true, headers, variant });
+      }, DIALOG_EXIT_MS);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!preview.open || !preview.url) return;
@@ -49,33 +65,13 @@ export function useStreamPreview() {
     const controller = new AbortController();
     const mediaSource = new MediaSource();
     const objectUrl = URL.createObjectURL(mediaSource);
-    const chunks: Uint8Array[] = [];
     let sourceBuffer: SourceBuffer | null = null;
-    let ended = false;
 
     const fail = (error: unknown) => {
       if (controller.signal.aborted) return;
       toast.error(`流式预览失败: ${error instanceof Error ? error.message : String(error)}`);
       setPreview((current) => ({ ...current, loading: false }));
-    };
-    const flush = () => {
-      if (!sourceBuffer || sourceBuffer.updating || chunks.length === 0) return;
-      try {
-        sourceBuffer.appendBuffer(chunks.shift()!.slice());
-      } catch (error) {
-        fail(error);
-      }
-    };
-    const finish = () => {
-      if (!sourceBuffer?.updating && mediaSource.readyState === 'open') {
-        try {
-          mediaSource.endOfStream();
-        } catch {}
-      }
-    };
-    const onUpdateEnd = () => {
-      if (chunks.length > 0) flush();
-      else if (ended) finish();
+      controller.abort();
     };
     const onLoadedData = () =>
       setPreview((current) => (current.open ? { ...current, loading: false } : current));
@@ -83,21 +79,16 @@ export function useStreamPreview() {
     const onSourceOpen = async () => {
       try {
         sourceBuffer = mediaSource.addSourceBuffer(MSE_MIME_TYPE);
-        sourceBuffer.addEventListener('updateend', onUpdateEnd);
-        await downloader.downloadToStream(
+        await downloader.downloadToWritable(
           {
             url: preview.url,
             headers: preview.headers,
+            variant: preview.variant,
             operationId: globalThis.crypto.randomUUID(),
             signal: controller.signal,
           },
-          (bytes) => {
-            chunks.push(bytes);
-            flush();
-          },
+          createMseWritable(mediaSource, sourceBuffer, controller.signal),
         );
-        ended = true;
-        finish();
       } catch (error) {
         fail(error);
       }
@@ -113,7 +104,6 @@ export function useStreamPreview() {
       video.removeEventListener('loadeddata', onLoadedData);
       video.removeEventListener('error', onVideoError);
       mediaSource.removeEventListener('sourceopen', onSourceOpen);
-      sourceBuffer?.removeEventListener('updateend', onUpdateEnd);
       if (mediaSource.readyState === 'open') {
         try {
           mediaSource.endOfStream();
@@ -123,7 +113,7 @@ export function useStreamPreview() {
       video.load();
       URL.revokeObjectURL(objectUrl);
     };
-  }, [downloader, preview.headers, preview.open, preview.url]);
+  }, [downloader, preview.headers, preview.open, preview.url, preview.variant, hasVideo]);
 
   useEffect(
     () => () => {
@@ -132,5 +122,5 @@ export function useStreamPreview() {
     [],
   );
 
-  return { preview, videoRef, open, close };
+  return { preview, videoRef: attachVideo, open, close };
 }

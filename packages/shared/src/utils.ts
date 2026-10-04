@@ -5,6 +5,7 @@ import type {
   HlsDownloaderEventPayload,
   ParseHlsResult,
   Playlist,
+  Rendition,
   VariantSelector,
   Segment,
 } from './types';
@@ -238,6 +239,9 @@ type ManifestAttributes = {
   BANDWIDTH?: number;
   'FRAME-RATE'?: string | number;
   NAME?: string;
+  AUDIO?: string;
+  SUBTITLES?: string;
+  VIDEO?: string;
 };
 type ManifestPlaylist = { attributes?: ManifestAttributes; uri: string };
 type ManifestSegment = { uri: string; [key: string]: any };
@@ -261,9 +265,26 @@ export function mapManifest(manifest: M3u8Manifest, base: string): ParseHlsResul
   const hasAlternateRenditions = Object.values(manifest.mediaGroups ?? {}).some(
     (group) => Object.keys(group ?? {}).length > 0,
   );
+  const renditions: Rendition[] = [];
+  for (const [kind, groups] of Object.entries(manifest.mediaGroups ?? {})) {
+    for (const [groupId, entries] of Object.entries(groups)) {
+      for (const [name, raw] of Object.entries((entries ?? {}) as Record<string, any>)) {
+        renditions.push({
+          type: kind.toLowerCase() as Rendition['type'],
+          groupId,
+          name,
+          uri: raw.uri ? new URL(raw.uri, base.replace('{{URL}}', '')).href : undefined,
+          language: raw.language,
+          default: raw.default === true,
+          autoselect: raw.autoselect === true,
+          forced: raw.forced === true,
+        });
+      }
+    }
+  }
   if (manifest.playlists?.length) {
     const groups = manifest.playlists
-      .filter((g) => g && g.attributes)
+      .filter((g): g is ManifestPlaylist & { attributes: ManifestAttributes } => !!g?.attributes)
       .map((g) => {
         const codecs: string | undefined = g.attributes.CODECS;
         const resolution = g.attributes.RESOLUTION
@@ -291,6 +312,9 @@ export function mapManifest(manifest: M3u8Manifest, base: string): ParseHlsResul
           frameRate,
           isAudioOnly,
           hasAlternateRenditions,
+          audioGroup: g.attributes.AUDIO,
+          subtitlesGroup: g.attributes.SUBTITLES,
+          videoGroup: g.attributes.VIDEO,
         } as Playlist;
       });
 
@@ -298,6 +322,7 @@ export function mapManifest(manifest: M3u8Manifest, base: string): ParseHlsResul
       return {
         type: 'playlist',
         data: groups,
+        renditions,
       };
     }
   }

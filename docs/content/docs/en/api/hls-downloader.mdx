@@ -170,9 +170,8 @@ try {
 ### `downloadToStream()`
 
 <Callout type="info" title="BrowserAdapter & NodeAdapter">
-  `downloadToStream()` is supported on both **`BrowserAdapter`** and **`NodeAdapter`**, but the two
-  adapters have **different streaming semantics** (see below). On `BrowserAdapter` the fMP4 bytes
-  flow via `onChunk` as fragmented MP4; on `NodeAdapter` bytes flow with real backpressure.
+  `downloadToStream()` is supported on both **`BrowserAdapter`** and **`NodeAdapter`**, and both
+  emit fragmented MP4 incrementally. Use writable output for asynchronous consumer backpressure.
 </Callout>
 
 ```ts
@@ -184,12 +183,11 @@ async downloadToStream(
 
 Parses HLS, transmuxes, and pushes fMP4 bytes through `onChunk`. **The library itself does not write to disk.**
 
-#### Streaming behavior asymmetry
+#### Incremental output
 
-- **`NodeAdapter` — true streaming with backpressure.** Segments are downloaded and muxed concurrently; fMP4 chunks flow through `onChunk` as soon as each segment is ready. A bounded tokio channel (256 KB) provides backpressure, so a slow `onChunk` consumer naturally throttles downloading. The first `onChunk` fires after the first segment is muxed, not after the whole stream is fetched.
-- **`BrowserAdapter` — batch-then-emit (not real-time).** `BrowserAdapter` first prefetches **all** segments and resources (init segments, keys) into memory with bounded concurrency, then its WASM writer emits fMP4 chunks. The first `onChunk` therefore fires **only after the entire playlist has been downloaded**; peak memory is roughly the sum of all segment sizes plus the fMP4 output. This is **not** suitable for low-latency / real-time MSE playback despite the `onChunk` API shape. True segment-by-segment streaming on the browser path is planned for a future major version.
+Both adapters download and emit fMP4 incrementally. `onChunk` is synchronous: the library waits for callback execution, but not a returned Promise or a downstream Node stream’s `drain`. Use `downloadToWritable()` when the destination performs asynchronous writes.
 
-Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each subsequent segment: `styp`+`moof`+`mdat`, optional trailing `mfra`). Browser MSE can consume it directly (note the buffering caveat above for `BrowserAdapter`).
+Output starts with `ftyp` and `moov`, followed by fMP4 fragments. Media buffering is bounded for stream/writable paths; full playlist metadata and the caller’s own buffering are separate.
 
 Merges per-call options with `globalOptions` (per-call wins).
 
@@ -321,17 +319,17 @@ async downloadToWritable(
 ): Promise<HlsDownloaderStreamResult>
 ```
 
-Browser-only, incremental fMP4 output with backpressure. Source codecs are preserved; per-call `transcode` is rejected and global transcode settings are ignored. Check `downloader.capabilities.writableOutput === true`; Node and adapters without this optional capability reject with `UNSUPPORTED_OUTPUT` before acquiring the writer.
+Browser and Node support incremental fMP4 output with backpressure. Source codecs are preserved; per-call `transcode` is rejected and global transcode settings are ignored. Check `downloader.capabilities.writableOutput === true`; Adapters without this optional capability reject with `UNSUPPORTED_OUTPUT` before acquiring the writer.
 
-The SDK owns the acquired writer: it awaits each write and closes it on success. `READY_FOR_DOWNLOAD` and promise resolution occur only after close succeeds. Failure/cancellation aborts the writer and releases its lock. Writer acquisition, write and close errors use `OUTPUT_WRITE_FAILED`; cancellation uses `ABORTED` with `name === 'AbortError'`. Each failed operation emits one `ERROR`. A custom sink may retain partial output; arbitrary external writes cannot be rolled back. An uncooperative pending write does not prevent the SDK promise from rejecting on cancellation; its eventual abort is observed asynchronously.
+The library owns the acquired writer: it awaits each write and closes it on success. `READY_FOR_DOWNLOAD` and promise resolution occur only after close succeeds. Failure/cancellation aborts the writer and releases its lock. Writer acquisition, write and close errors use `OUTPUT_WRITE_FAILED`; cancellation uses `ABORTED` with `name === 'AbortError'`. Each failed operation emits one `ERROR`. A custom sink may retain partial output; arbitrary external writes cannot be rolled back. An uncooperative pending write does not prevent the promise returned by the library from rejecting on cancellation; its eventual abort is observed asynchronously.
 
-The prefetch window holds at most `downloadConcurrency` in-flight/ready segments, plus the segment being processed and initialization data. Media buffers do not grow with total video length. Playlist metadata still grows with segment count, a large individual segment may require substantial memory, and WASM memory retains its allocation high-water mark. This is not a fixed RSS limit. The fMP4 output omits the trailing `mfra` index.
+`downloadConcurrency` limits aggregate reads. Dual-input sessions retain the current segment and one lookahead per input, plus initialization probes, the current output fragment, and bridge buffers. Media buffers do not grow with total video length. Playlist metadata still grows with segment count, a large individual segment may require substantial memory, and WASM memory retains its allocation high-water mark. This is not a fixed RSS limit. The fMP4 output omits the trailing `mfra` index.
 
-`download()` still produces a complete Blob URL; callback-based `downloadToStream()` still preloads Browser media and does not await callback promises. Neither has the new bounded-media-buffer guarantee. `persistentOutput` describes the default `download()` result and remains false for Browser; `writableOutput` describes this separate caller-owned destination.
+`download()` produces a complete Browser Blob URL or a Node file; callback streaming is incremental but does not await callback promises. `persistentOutput` describes the default `download()` result and remains false for Browser; `writableOutput` describes this separate caller-owned destination.
 
 #### Save directly to a file
 
-The caller opens the picker during user activation and passes its writable stream. File System Access availability and permissions are application concerns; the SDK never opens a picker or silently falls back to buffering a Blob. The example assumes `#save` and `#cancel` buttons and a browser with `showSaveFilePicker`; a cancelled controller is one-shot, so create a new one for another operation.
+The caller opens the picker during user activation and passes its writable stream. File System Access availability and permissions are application concerns; the library never opens a picker or silently falls back to buffering a Blob. The example assumes `#save` and `#cancel` buttons and a browser with `showSaveFilePicker`; a cancelled controller is one-shot, so create a new one for another operation.
 
 ```js
 import { HlsDownloader } from '@hls-downloader/core';
@@ -339,7 +337,7 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 
 const downloader = new HlsDownloader({ adapter: BrowserAdapter });
 const controller = new AbortController();
-// Invoke directly from a user click; do not await SDK initialization first.
+// Invoke directly from a user click; do not await library initialization first.
 document.querySelector('#save').addEventListener('click', async () => {
   try {
     const handle = await window.showSaveFilePicker({
@@ -383,13 +381,40 @@ Verified cached resources avoid repeated media requests; corrupted cache entries
 
 On failure or cancellation, the directory retains valid recovery data and releases its lock. On success, media caches and partial output are removed, while the lock file and a small completion receipt remain. Repeating a completed call validates and returns the existing output without downloading again. Cleanup failure does not invalidate a delivered output. `clearCache()` does not remove recovery data; delete the dedicated directory when abandoning or forgetting the task. Filesystem durability remains subject to the operating system and filesystem guarantees.
 
-| Error | Meaning |
-| --- | --- |
-| `RESUME_CONFLICT` | Another process or operation holds the directory lock. |
-| `RESUME_INVALID` | Invalid directory, changed identity, invalid checkpoint, or missing/changed completed output. |
-| `RESUME_IO_FAILED` | Recovery storage, checkpoint persistence, or output publication failed. |
-| `ABORTED` | Cancelled; the error retains `name === 'AbortError'`. |
+| Error              | Meaning                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `RESUME_CONFLICT`  | Another process or operation holds the directory lock.                                        |
+| `RESUME_INVALID`   | Invalid directory, changed identity, invalid checkpoint, or missing/changed completed output. |
+| `RESUME_IO_FAILED` | Recovery storage, checkpoint persistence, or output publication failed.                       |
+| `ABORTED`          | Cancelled; the error retains `name === 'AbortError'`.                                         |
 
 ## Browser request options
 
-All five media methods accept `browserRequest` for BrowserAdapter. Per-call configuration replaces instance `options.browserRequest`; `{}` restores native defaults. Browser operations do not share playlist/poster results across calls. See [Adapter API](/api/adapters#browser-media-request-context).
+All six media methods accept `browserRequest` for BrowserAdapter. Per-call configuration replaces instance `options.browserRequest`; `{}` restores native defaults. Browser operations do not share playlist/poster results across calls. See [Adapter API](/api/adapters#browser-media-request-context).
+
+### Audio renditions and WebVTT
+
+```ts
+const source = { url: 'https://example.test/master.m3u8' };
+const parsed = await downloader.parseHls(source);
+if (parsed.type === 'playlist') console.log(parsed.renditions);
+
+await downloader.downloadToWritable(
+  { ...source, audio: { language: 'en' } },
+  destination, // WHATWG WritableStream<Uint8Array>
+);
+const subtitles = await downloader.downloadSubtitles({
+  ...source,
+  audio: { language: 'en' },
+  subtitle: { groupId: 'subs', name: 'English' },
+});
+console.log(subtitles.text); // save as subtitles.filename
+```
+
+Audio selection applies after variant selection and only within its referenced audio group. With no explicit selection, DEFAULT wins, then AUTOSELECT, then declaration order. External audio replaces embedded audio; a URI-less rendition keeps embedded audio. Output contains one selected audio track. Unsupported alternate video groups fail explicitly.
+
+Alternate audio supports unencrypted VOD TS/fMP4 with AVC/HEVC and AAC-LC. It cannot be combined with resume, transcoding, or aria2. Unselected subtitles are never fetched. Prepared inputs must share a reliable presentation clock; timestamp resets and unrepresentable gaps fail rather than guessing synchronization.
+
+`downloadSubtitles()` is a separate operation exporting one external WebVTT rendition. It probes the selected media’s initialization/first segments to obtain the same output timeline, then fetches subtitle segments. It supports MAP, timestamp mapping/wrap, empty segments, cue deduplication, and cue settings. Cues before output zero are omitted or clipped at zero. Malformed subtitles fail with `SUBTITLE_INVALID`; no subtitles are embedded in MP4 and no SRT conversion is performed.
+
+Node writable accepts WHATWG streams. To use a Node writable, pass `Writable.toWeb(nodeWritable)` from `node:stream`; the downloader owns close/abort for the operation.

@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <body>
+    <video muted controls></video>
+    <script type="module">
+      import { HlsDownloader } from '/packages/core/src/index.ts';
+      import { BrowserAdapter } from '/packages/adapters/src/browser/index.ts';
+      window.runRenditions = async () => {
+        const d = new HlsDownloader({ adapter: BrowserAdapter });
+        const options = { url: location.origin + '/fixture/master.m3u8' };
+        const outputs = [];
+        for (const mode of ['download', 'stream', 'writable']) {
+          let blob;
+          if (mode === 'download') {
+            const result = await d.download(options);
+            try {
+              blob = await (await fetch(result.blobURL)).blob();
+            } finally {
+              URL.revokeObjectURL(result.blobURL);
+            }
+          } else {
+            const chunks = [];
+            if (mode === 'stream') await d.downloadToStream(options, (bytes) => chunks.push(bytes));
+            else
+              await d.downloadToWritable(
+                options,
+                new WritableStream({
+                  async write(bytes) {
+                    await new Promise((r) => setTimeout(r, 1));
+                    chunks.push(bytes);
+                  },
+                }),
+              );
+            blob = new Blob(chunks, { type: 'video/mp4' });
+          }
+          const video = document.querySelector('video');
+          const url = URL.createObjectURL(blob);
+          try {
+            video.src = url;
+            await video.play();
+            await new Promise((resolve, reject) => {
+              video.onended = resolve;
+              video.onerror = () => reject(new Error('Playback failed'));
+            });
+            outputs.push({ mode, bytes: blob.size, duration: video.duration });
+          } finally {
+            video.removeAttribute('src');
+            video.load();
+            URL.revokeObjectURL(url);
+          }
+        }
+        const subtitles = await d.downloadSubtitles({
+          ...options,
+          subtitle: { groupId: 's', name: 'en' },
+        });
+        const track = document.createElement('track');
+        const subtitleURL = URL.createObjectURL(new Blob([subtitles.text], { type: 'text/vtt' }));
+        try {
+          track.src = subtitleURL;
+          track.kind = 'subtitles';
+          document.querySelector('video').append(track);
+          track.track.mode = 'hidden';
+          await new Promise((resolve, reject) => {
+            track.onload = resolve;
+            track.onerror = () => reject(new Error('Invalid WebVTT export'));
+          });
+          if (
+            track.track.cues.length !== 1 ||
+            Math.abs(track.track.cues[0].startTime - 0.5) > 0.001
+          )
+            throw new Error('Subtitle timeline mismatch');
+        } finally {
+          track.remove();
+          URL.revokeObjectURL(subtitleURL);
+        }
+        return outputs;
+      };
+    </script>
+  </body>
+</html>

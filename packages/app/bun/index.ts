@@ -10,7 +10,7 @@ const maxActiveTasks = Number(process.env.MAX_ACTIVE_TASKS) || 3;
 let manager: TaskManager;
 const downloader = new HlsDownloader({
   adapter: NodeAdapter,
-  onEvent: (event, payload) => manager?.handleSdkEvent(event, payload),
+  onEvent: (event, payload) => manager?.handleLibraryEvent(event, payload),
 });
 manager = new TaskManager(downloader, { fileExpiryMs, maxActiveTasks });
 

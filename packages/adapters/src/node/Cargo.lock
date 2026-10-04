@@ -595,19 +595,23 @@ dependencies = [
  "base64",
  "dashmap",
  "hls-core",
+ "hls-transmux",
  "napi",
  "napi-build",
  "napi-derive",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-util",
+ "url",
  "uuid",
 ]
 
 [[package]]
 name = "hls-transmux"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d251fcefac3a7cd683b1344217b31ea49ae133cba07d0beb6d744bc8fb8a1d0"
+checksum = "3c6e46b122cf7943ec79e4bb94d22765266fa81079a36abb5106020476212293"
 dependencies = [
  "reqwest 0.13.4",
  "serde",

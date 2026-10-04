@@ -16,3 +16,9 @@ The common encoder arguments are:
 -c:v libx264 -preset ultrafast -g 10 -sc_threshold 0 -pix_fmt yuv420p
 -c:a aac -b:a 64k -f hls -hls_time 1 -hls_list_size 0
 ```
+
+The `audio-ts` and `audio-fmp4` fixtures use an independent 880 Hz sine
+wave (48 kHz AAC, 64 kbit/s, two seconds, HLS segment target 0.6 seconds).
+They are generated with FFmpeg lavfi and covered by the same MIT license.
+Their four segments deliberately differ from the two primary video segments.
+Rendition tests decode the selected audio to distinguish it from embedded 440 Hz audio.

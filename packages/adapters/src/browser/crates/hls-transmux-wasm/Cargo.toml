@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-hls-transmux = { version = "0.4.2", default-features = false }
+hls-transmux = { version = "0.5.0", default-features = false }
 wasm-bindgen = "=0.2.100"
 wasm-bindgen-futures = "=0.4.50"
 js-sys = "=0.3.77"
@@ -16,3 +16,6 @@ console_error_panic_hook = "0.1"
 tokio = { version = "1", default-features = false, features = ["io-util", "macros", "sync", "rt"] }
 url = "2"
 getrandom = { version = "0.2", features = ["js"] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -7,7 +7,7 @@ import { resolve, join } from 'node:path';
 describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
   'publish entrypoints e2e',
   () => {
-    it('type-checks writable and recovery APIs from actual package tarballs', () => {
+    it('type-checks writable, recovery and rendition APIs from actual package tarballs', () => {
       const root = resolve(import.meta.dirname, '..');
       const dir = mkdtempSync(join(tmpdir(), 'hls-tarballs-'));
       try {
@@ -46,6 +46,11 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
           const resume: NodeAdapterResumeOptions & RootResume & SubpackageResume = { directory: './job' };
           const node = new HlsDownloader({ adapter: NodeAdapter });
           node.download({ url: 'https://example.test/media.m3u8', resume });
+          node.downloadToWritable({url:'https://example.test/master.m3u8', audio:{language:'en'}}, new WritableStream<Uint8Array>());
+          const subtitles: Promise<import('@logosw/hls-downloader').HlsDownloaderSubtitleResult> = node.downloadSubtitles({url:'https://example.test/master.m3u8',subtitle:{groupId:'s',name:'en'}});
+          const selection: import('@logosw/hls-downloader/shared').AudioSelection = {groupId:'a',name:'en'};
+          // @ts-expect-error subtitle selection is required
+          node.downloadSubtitles({url:'https://example.test/master.m3u8'});
           const recoveryCapable: boolean | undefined = node.capabilities.resumableDownload;
           const recoveryError: 'RESUME_INVALID' = HlsDownloaderErrorCode.RESUME_INVALID;
           // @ts-expect-error recovery is not a global option

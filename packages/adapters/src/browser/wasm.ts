@@ -58,3 +58,5 @@ export async function transmuxDemandToFmp4(
   await ensureWasm();
   return (await transmux_demand_to_fmp4(url, playlist, read, write)) as HlsWasmReport;
 }
+
+export { prepared_browser } from './generated/hls_transmux_browser_wasm.js';

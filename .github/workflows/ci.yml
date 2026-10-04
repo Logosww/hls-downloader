@@ -101,6 +101,9 @@ jobs:
       - name: Browser writable playback and memory
         run: pnpm run test:browser:writable
 
+      - name: Browser rendition playback
+        run: pnpm run test:browser:renditions
+
       - uses: actions/upload-artifact@v4
         with:
           name: writable-memory
@@ -109,6 +112,13 @@ jobs:
       - run: pnpm exec turbo run lint --filter=!@hls-downloader/app-web
 
       - run: pnpm run build
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+
+      - name: Bun example writable and subtitle contracts
+        run: pnpm run test:app-bun
 
       - name: WXT published-package extension acceptance (Chrome)
         run: HLS_EXTENSION_CHANNEL=chrome pnpm run test:browser:extension
@@ -132,9 +142,16 @@ jobs:
             sleep 1
           done
           pnpm run test:app-web:writable
+          pnpm run test:app-web:renditions
 
       - name: Node native protocol contract
         run: pnpm run test:native:contract
+
+      - name: Prepared input contracts
+        run: pnpm run test:native:prepared
+
+      - name: Rendition public types
+        run: pnpm run test:types:renditions
 
       - name: Node recovery contracts (native module required)
         run: pnpm run test:native:resume

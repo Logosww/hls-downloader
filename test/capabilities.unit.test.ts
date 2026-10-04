@@ -5,6 +5,8 @@ import { getInternalAdapter } from '@hls-downloader/shared';
 const evidence = {
   BrowserAdapter: {
     writableOutput: 'writable-output.integration: real WASM, backpressure and ffprobe',
+    alternateAudio: 'renditions.integration: both containers and all three outputs',
+    subtitleExport: 'renditions.integration: prepared timeline and WebVTT export',
     download: 'hls-http.integration: BYTERANGE download',
     stream: 'hls-http.integration: EXT-X-MAP stream',
     configurableRetry: 'hls-http.integration: transient segment retry',
@@ -23,6 +25,8 @@ describe('capability evidence', () => {
       'configurableRetry',
       'byteRange',
       'writableOutput',
+      'alternateAudio',
+      'subtitleExport',
     ] as const) {
       if (capabilities[key] === true) expect(mapped[key]).toBeTruthy();
     }

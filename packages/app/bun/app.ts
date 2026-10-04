@@ -2,6 +2,22 @@ import { Elysia, t } from 'elysia';
 import { getDownloadOutputFilename, getTranscodeMimeType } from '@hls-downloader/shared';
 import { TaskManager, type TaskEvent } from './task-manager';
 
+const audioSelection = t.Optional(
+  t.Union([
+    t.Object({ groupId: t.String(), name: t.String() }),
+    t.Object({ language: t.String() }),
+  ]),
+);
+const variantSelection = t.Optional(
+  t.Object({
+    maxResolution: t.Optional(t.Object({ width: t.Number(), height: t.Number() })),
+    maxBandwidth: t.Optional(t.Number()),
+    preferredCodec: t.Optional(t.String()),
+    preferredAudio: t.Optional(t.String()),
+    includeAudioOnly: t.Optional(t.Boolean()),
+  }),
+);
+
 const ok = <T>(data: T, msg = '') => ({ successful: true, data, msg });
 const fail = (msg: string) => ({ successful: false, data: null, msg });
 const encodeSse = (event: TaskEvent) =>
@@ -64,12 +80,36 @@ export function createApp(manager: TaskManager) {
         body: t.Object({ url: t.String(), headers: t.Optional(t.Record(t.String(), t.String())) }),
       },
     )
+    .post(
+      '/subtitles',
+      async ({ body, request, status }) => {
+        try {
+          return ok(await manager.subtitles({ ...body, signal: request.signal }));
+        } catch (error) {
+          return status(
+            422,
+            fail(error instanceof Error ? error.message : 'Subtitle export failed'),
+          );
+        }
+      },
+      {
+        body: t.Object({
+          url: t.String(),
+          headers: t.Optional(t.Record(t.String(), t.String())),
+          variant: variantSelection,
+          audio: audioSelection,
+          subtitle: t.Object({ groupId: t.String(), name: t.String() }),
+        }),
+      },
+    )
     .post('/download', ({ body, status }) => status(202, ok(manager.create(body))), {
       body: t.Object({
         url: t.String(),
         headers: t.Optional(t.Record(t.String(), t.String())),
         filename: t.Optional(t.String()),
         stream: t.Optional(t.Boolean()),
+        variant: variantSelection,
+        audio: audioSelection,
         transcode: t.Optional(
           t.Object({
             preset: t.Optional(t.Union([t.Literal('h264'), t.Literal('hevc'), t.Literal('vp9')])),

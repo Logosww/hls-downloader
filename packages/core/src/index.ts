@@ -18,6 +18,8 @@ import type {
   HlsDownloaderFetchOptions,
   HlsDownloaderDownloadOptions,
   HlsDownloaderStreamResult,
+  HlsDownloaderSubtitleOptions,
+  HlsDownloaderSubtitleResult,
   HlsDownloaderWritableOptions,
   HlsDownloaderTranscodeOptions,
   HlsDownloaderEventPayload,
@@ -156,6 +158,10 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     return {
       ...options,
       ...(options.headers ? { headers: { ...options.headers } } : {}),
+      ...('audio' in options && options.audio ? { audio: { ...(options.audio as object) } } : {}),
+      ...('subtitle' in options && options.subtitle
+        ? { subtitle: { ...(options.subtitle as object) } }
+        : {}),
       ...(request ? { browserRequest: { ...request } } : {}),
     };
   }
@@ -240,6 +246,32 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       return { ...result, operationId };
     } catch (cause) {
       const error = normalizeHlsError(cause, HlsDownloaderErrorCode.TRANSMUX_FAILED, {
+        adapter: this.#adapter.name,
+        url: options.url,
+      });
+      context.emit?.(HlsDownloaderEvent.ERROR, { error });
+      throw error;
+    }
+  }
+  async downloadSubtitles(
+    options: HlsDownloaderSubtitleOptions & HlsDownloaderConfigFactory<T>['requestOptions'],
+  ): Promise<HlsDownloaderSubtitleResult> {
+    options = this.#snapshotRequestOptions(options);
+    const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    const context = this.#createOperationContext(operationId);
+    try {
+      if (!this.capabilities.subtitleExport || !this.#adapter.downloadSubtitles)
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Subtitle export is unavailable',
+        );
+      await this.init();
+      return {
+        ...(await this.#adapter.downloadSubtitles(injectContext(options, context))),
+        operationId,
+      };
+    } catch (cause) {
+      const error = normalizeHlsError(cause, HlsDownloaderErrorCode.SUBTITLE_INVALID, {
         adapter: this.#adapter.name,
         url: options.url,
       });

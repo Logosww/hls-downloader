@@ -6,6 +6,7 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import type { Playlist } from '@hls-downloader/shared';
 
 export type HlsMetadata = {
+  sourceUrl: string;
   filename: string;
   previewSrc: string;
   playlist: Playlist[];
@@ -54,7 +55,7 @@ export function useHlsMetadata() {
             : [{ name: '默认', bandwidth: 0, uri: url } satisfies Playlist];
         if (playlist.length === 0) return false;
 
-        setMetadata({ filename: '', previewSrc: '', playlist });
+        setMetadata({ sourceUrl: url, filename: '', previewSrc: '', playlist });
 
         try {
           const previewSrc = await downloader.getPosterUrl({

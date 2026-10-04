@@ -319,7 +319,7 @@ describe('HTTP HLS integration', () => {
     },
   );
 
-  it('rejects alternate renditions instead of silently dropping tracks', async () => {
+  it('fails if a selected rendition manifest is unavailable', async () => {
     const server = await startFixtureServer({
       '/master.m3u8': (_request, response) => sendText(response, alternateRenditionMaster),
     });
@@ -329,9 +329,9 @@ describe('HTTP HLS integration', () => {
     await expect(
       downloader.download({ url: `${server.origin}/master.m3u8` }),
     ).rejects.toMatchObject({
-      code: HlsDownloaderErrorCode.TRANSMUX_FAILED,
+      code: HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
     });
-    expect(server.attempts.get('/video.m3u8')).toBeUndefined();
+    expect(server.attempts.get('/video.m3u8')).toBe(1);
     expect(server.attempts.get('/audio.m3u8')).toBeUndefined();
   });
 

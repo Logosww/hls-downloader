@@ -245,7 +245,7 @@ describe('NodeAdapter protocol contract', () => {
     },
   );
 
-  it('rejects native alternate renditions before selecting one track', async () => {
+  it('fails if a selected native rendition manifest is unavailable', async () => {
     const server = await startFixtureServer({
       '/master.m3u8': (_request, response) => sendText(response, alternateRenditionMaster),
     });
@@ -254,9 +254,9 @@ describe('NodeAdapter protocol contract', () => {
     await expect(
       downloader.download({ url: `${server.origin}/master.m3u8` }),
     ).rejects.toMatchObject({
-      code: HlsDownloaderErrorCode.TRANSMUX_FAILED,
+      code: HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
     });
-    expect(server.attempts.get('/video.m3u8')).toBeUndefined();
+    expect(server.attempts.get('/video.m3u8')).toBe(1);
   });
 
   it('reports a native empty master as NO_VARIANT', async () => {
@@ -285,12 +285,12 @@ describe('NodeAdapter protocol contract', () => {
   });
 });
 
-it('rejects writable output before acquiring a Node destination', async () => {
+it('rejects writable transcoding before acquiring a Node destination', async () => {
   const d = new HlsDownloader({ adapter: NodeAdapter });
-  expect(d.capabilities.writableOutput).toBe(false);
+  expect(d.capabilities.writableOutput).toBe(true);
   const sink = new WritableStream<Uint8Array>();
   await expect(
-    d.downloadToWritable({ url: 'http://127.0.0.1:1/never-requested' }, sink),
+    d.downloadToWritable({ url: 'http://127.0.0.1:1/never-requested', transcode: {} } as any, sink),
   ).rejects.toMatchObject({ code: 'UNSUPPORTED_OUTPUT' });
   expect(sink.locked).toBe(false);
 });

@@ -131,10 +131,12 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 
 ## Writable output
 
-| Capability | Browser | Node |
-| --- | --- | --- |
-| `writableOutput` | true | false |
-| `resumableDownload` | false | true |
+| Capability          | Browser | Node |
+| ------------------- | ------- | ---- |
+| `writableOutput`    | true    | true |
+| `alternateAudio`    | true    | true |
+| `subtitleExport`    | true    | true |
+| `resumableDownload` | false   | true |
 
 使用 `downloadToWritable()` 获得有界媒体缓冲与异步写入目标。现有回调流式接口行为不变。
 

@@ -29,7 +29,7 @@ type Playlist = {
 };
 ```
 
-A variant stream from a master playlist. `isAudioOnly` is `true` when the variant has no `RESOLUTION` and its `codecs` are audio-only. `hasAlternateRenditions` reports whether its master declares alternate tracks that the current transmux path cannot safely flatten.
+A variant stream from a master playlist. `isAudioOnly` is `true` when the variant has no `RESOLUTION` and its `codecs` are audio-only. `hasAlternateRenditions` reports whether its master declares alternate tracks; inspect `audioGroup`, `subtitlesGroup`, and the master result’s `renditions` to select tracks.
 
 ## VariantSelectOptions
 
@@ -255,3 +255,23 @@ type HlsDownloaderBrowserOperationOptions = {
 ```
 
 Exported from shared/root and browser adapter entrypoints. BrowserAdapter methods accept `HlsDownloaderFetchOptions & HlsDownloaderBrowserOperationOptions` (plus their existing download/writable options). NodeAdapter does not accept browser request options.
+
+## Rendition and AudioSelection
+
+```ts
+type AudioSelection = { groupId: string; name: string } | { language: string };
+type Rendition = {
+  type: 'audio' | 'subtitles' | 'video' | 'closed-captions';
+  groupId: string;
+  name: string;
+  uri?: string;
+  language?: string;
+  default: boolean;
+  autoselect: boolean;
+  forced: boolean;
+};
+```
+
+Master results add optional `renditions`; variants add `audioGroup`, `subtitlesGroup`, and `videoGroup`. Audio language matches are exact and case-insensitive. Explicit missing selections fail with `RENDITION_NOT_FOUND`; unsupported rendition kinds use `UNSUPPORTED_RENDITION`. Errors may include `inputRole` (`primary`, `audio`, `subtitles`) and `phase` diagnostics. Node also supports writable output.
+
+`HlsDownloaderSubtitleOptions` contains fetch options plus required `subtitle: { groupId, name }`, optional `variant`, `audio`, `operationId`, `filename`, `maxRetry`, and `downloadConcurrency`. Browser additionally accepts `browserRequest`. `HlsDownloaderSubtitleResult` contains `operationId`, `text`, `mimeType: 'text/vtt'`, `filename`, and `totalSegments`.

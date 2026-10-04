@@ -1,9 +1,29 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { execSync } from 'child_process';
-import { existsSync, rmSync } from 'fs';
+import { existsSync, rmSync, readFileSync } from 'fs';
+import { resolve } from 'node:path';
+import { startFixtureServer, sendBytes } from './fixtures/http-server';
 
-const HLS_URL =
-  'https://is02.dlserv3.com/vod/_definst_/bprost/sample/STT-5380B_sample.mp4/playlist.m3u8';
+let HLS_URL: string;
+let fixtureServer: Awaited<ReturnType<typeof startFixtureServer>>;
+beforeAll(async () => {
+  fixtureServer = await startFixtureServer(
+    Object.fromEntries(
+      ['media.m3u8', 'segment-00.ts', 'segment-01.ts'].map((name) => [
+        '/' + name,
+        (_request: unknown, response: Parameters<typeof sendBytes>[0]) =>
+          sendBytes(
+            response,
+            readFileSync(resolve(import.meta.dirname, 'fixtures/media/ts', name)),
+          ),
+      ]),
+    ),
+  );
+  HLS_URL = fixtureServer.origin + '/media.m3u8';
+});
+afterAll(async () => {
+  await fixtureServer?.close();
+});
 
 function getVideoCodec(filePath: string): string {
   const output = execSync(

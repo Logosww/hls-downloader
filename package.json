@@ -80,7 +80,11 @@
     "test:native:resume": "pnpm --filter @hls-downloader/test run test:native:resume",
     "test:types:resume": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/resume-api.typecheck.ts",
     "test:browser:extension": "pnpm --filter @hls-downloader/test run test:browser:extension",
-    "test:app-web:metadata": "pnpm --filter @hls-downloader/test run test:app-web:metadata"
+    "test:app-web:metadata": "pnpm --filter @hls-downloader/test run test:app-web:metadata",
+    "test:native:prepared": "pnpm --filter @hls-downloader/test run test:native:prepared",
+    "test:browser:renditions": "pnpm --filter @hls-downloader/test run test:browser:renditions",
+    "test:types:renditions": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/renditions-api.typecheck.ts",
+    "test:app-web:renditions": "pnpm --filter @hls-downloader/test run test:app-web:renditions"
   },
   "dependencies": {
     "@hls-downloader/adapters": "workspace:*",

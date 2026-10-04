@@ -8,6 +8,19 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [Unreleased]
+
+### 新增
+
+- **BrowserAdapter / NodeAdapter**：发现备用音轨与字幕，通过 `audio` 为文件、回调流及 writable 下载选择一条音轨；省略时使用默认音轨。
+- **NodeAdapter**：新增 `downloadToWritable()`，支持异步背压、取消，并在目标关闭后完成。
+- 新增 `downloadSubtitles()`，导出与所选媒体对齐的单条 WebVTT 字幕；新增 `alternateAudio` / `subtitleExport` 能力及 `RENDITION_NOT_FOUND`、`UNSUPPORTED_RENDITION`、`SUBTITLE_INVALID` 错误。
+
+### 变更
+
+- **BrowserAdapter**：回调流现在增量下载媒体，仍不等待回调返回的 Promise；异步目标背压请使用 writable。
+- 备用音轨下载支持 AVC/HEVC 与 AAC-LC 的 VOD TS/fMP4；拒绝与恢复、转码和 aria2 组合，保留原有单路路径。
+
 ## [3.6.0] - 2026-10-03
 
 ### 新增

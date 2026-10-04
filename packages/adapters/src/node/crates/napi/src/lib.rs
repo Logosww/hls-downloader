@@ -1,4 +1,5 @@
 #![deny(clippy::all)]
+mod prepared;
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -65,6 +66,10 @@ pub struct NapiPlaylist {
     pub frame_rate: Option<f64>,
     pub is_audio_only: bool,
     pub has_alternate_renditions: bool,
+    pub audio_group: Option<String>,
+    pub subtitles_group: Option<String>,
+    pub video_group: Option<String>,
+    pub renditions_json: String,
 }
 
 #[napi(object)]
@@ -178,6 +183,10 @@ pub async fn parse_hls_native(
                         frame_rate: p.frame_rate,
                         is_audio_only: p.is_audio_only,
                         has_alternate_renditions: p.has_alternate_renditions,
+                        audio_group: p.audio_group,
+                        subtitles_group: p.subtitles_group,
+                        video_group: p.video_group,
+                        renditions_json: p.renditions_json,
                     })
                     .collect(),
             ),
@@ -441,8 +450,7 @@ pub async fn transmux_hls_streaming_native(
         registry().remove(&id);
     }
 
-    pump_result
-        .map_err(|e| Error::from_reason(format!("streaming pump join error: {e}")))??;
+    pump_result.map_err(|e| Error::from_reason(format!("streaming pump join error: {e}")))??;
     result.map_err(to_napi_err)?;
     Ok(())
 }

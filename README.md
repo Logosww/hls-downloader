@@ -97,17 +97,17 @@ await downloader.init();
 
 ### 边下边推流（BrowserAdapter 与 NodeAdapter）
 
-`downloadToStream()` 通过 `onChunk` 输出 fMP4，适合 HTTP 转发或浏览器 MSE。NodeAdapter 会边下载边输出；BrowserAdapter 先预加载全部媒体资源，再由 WASM writer 输出分块（并发请求有界，媒体总缓冲不受此限制）。**库本身不落盘**。
+`downloadToStream()` 通过 `onChunk` 输出 fMP4，适合 HTTP 转发或浏览器 MSE。两端均边下载边输出；`onChunk` 不等待 Promise，异步目标背压请使用 `downloadToWritable()`。**库本身不落盘**。
 
 ```ts
 import { createServer } from 'node:http';
+import { Writable } from 'node:stream';
 import { HlsDownloader } from '@hls-downloader/core';
 import { NodeAdapter } from '@hls-downloader/adapters/node';
 
 const downloader = new HlsDownloader({ adapter: NodeAdapter });
 
 // 场景：HTTP 服务把 fMP4 字节流转发给浏览器（边下边播）
-// 同时通过 ReadableStream.tee() 分叉一路写文件，task 完成后 /file 可访问
 const server = createServer(async (req, res) => {
   if (req.url !== '/stream.mp4') {
     res.writeHead(404);
@@ -120,17 +120,21 @@ const server = createServer(async (req, res) => {
     // 注意：不设 Content-Length（流式，长度未知）
   });
 
-  await downloader.downloadToStream(
-    {
-      url: 'https://example.com/stream.m3u8',
-      headers: { Authorization: 'Bearer ...' },
-      downloadConcurrency: 8,
-    },
-    (bytes) => {
-      res.write(bytes); // 每个 chunk 直接写入 HTTP response body
-    },
-  );
-  res.end();
+  const controller = new AbortController();
+  res.once('close', () => controller.abort());
+  try {
+    await downloader.downloadToWritable(
+      {
+        url: 'https://example.com/stream.m3u8',
+        headers: { Authorization: 'Bearer ...' },
+        downloadConcurrency: 8,
+        signal: controller.signal,
+      },
+      Writable.toWeb(res), // 等待 HTTP 输出背压，成功后由库关闭响应
+    );
+  } catch (error) {
+    res.destroy(error instanceof Error ? error : new Error(String(error)));
+  }
 });
 
 server.listen(3000);
@@ -139,9 +143,11 @@ server.listen(3000);
 要点：
 
 - 输出为 **fragmented MP4**（首段 `ftyp`+`moov`，每段 `styp`+`moof`+`mdat`），浏览器 MSE 可直接消费
-- 此 NodeAdapter 示例会在首个 segment 处理后开始推送；BrowserAdapter 会先完成资源预取
+- BrowserAdapter 与 NodeAdapter 均增量读取；异步输出使用 writable 等待背压
 - 库本身不落盘；调用方可通过 `ReadableStream.tee()` 分叉一路写文件实现「边推流 + 边落盘」
 - `download()` 文件路径完全不受影响，作为非流式 fallback
+
+示例应用沿用这些接口：Web 保留 master URL，并通过 `variant` 传递清晰度偏好，以解析关联的默认音轨；MSE 预览等待每次写入完成。Bun 的 `/download` 接受可选 `variant` 和 `audio`，流式任务等待 HTTP 消费和文件写入；`POST /subtitles` 接受 `url`、`headers`、`variant`、`audio` 和必填 `subtitle: { groupId, name }`，返回独立 WebVTT 导出结果。
 
 ### `HlsDownloader` API 摘要
 
@@ -167,17 +173,17 @@ server.listen(3000);
 
 可通过 `downloader.capabilities` 在运行时读取同一数据。
 
-| 能力               | Browser         | Node            |
-| ------------------ | --------------- | --------------- |
-| 下载 / fMP4 stream | 是 / 是         | 是 / 是         |
-| 可配置重试         | 是              | 是              |
-| Transcode presets  | h264、hevc、vp9 | h264、hevc、vp9 |
-| Byte range         | 是              | 是              |
-| AES-128            | 否              | 否              |
-| 持久输出           | 否（Blob URL）  | 是（文件路径）  |
-| `writableOutput`   | true            | false           |
+| 能力                | Browser         | Node            |
+| ------------------- | --------------- | --------------- |
+| 下载 / fMP4 stream  | 是 / 是         | 是 / 是         |
+| 可配置重试          | 是              | 是              |
+| Transcode presets   | h264、hevc、vp9 | h264、hevc、vp9 |
+| Byte range          | 是              | 是              |
+| AES-128             | 否              | 否              |
+| 持久输出            | 否（Blob URL）  | 是（文件路径）  |
+| `writableOutput`    | true            | true            |
 | `resumableDownload` | false           | true            |
-| Live recording     | 否              | 否              |
+| Live recording      | 否              | 否              |
 
 ### NodeAdapter 专有选项
 
@@ -298,7 +304,7 @@ await downloader.init();
 
 ### Stream-as-you-go (BrowserAdapter & NodeAdapter)
 
-`downloadToStream()` emits fMP4 through `onChunk` for HTTP forwarding or browser MSE. NodeAdapter downloads and emits concurrently; BrowserAdapter first preloads all media resources with bounded request concurrency, then its WASM writer emits chunks; this does not bound total media memory. **The library itself does not write to disk.**
+`downloadToStream()` emits fMP4 through `onChunk` for HTTP forwarding or browser MSE. Both adapters download and emit incrementally. `onChunk` does not await promises; use writable output for asynchronous destination backpressure. **The library itself does not write to disk.**
 
 ```ts
 import { createServer } from 'node:http';
@@ -377,8 +383,8 @@ The same data is available at runtime through `downloader.capabilities`.
 | Byte range             | yes             | yes             |
 | AES-128                | no              | no              |
 | Persistent output      | no (Blob URL)   | yes (file path) |
-| `writableOutput`       | true            | false           |
-| `resumableDownload`     | false           | true            |
+| `writableOutput`       | true            | true            |
+| `resumableDownload`    | false           | true            |
 | Live recording         | no              | no              |
 
 ### NodeAdapter options
@@ -403,9 +409,9 @@ Only use streams you are allowed to access, and follow the source site’s terms
 
 ## Browser 大文件直写 / Large-file writable output
 
-新增 `downloadToWritable(options, writable)`：Browser 按需读取分片并等待异步写入，输出 fMP4。`writableOutput` 为 true；Node 暂不支持。现有 Blob 和回调接口不变。
+新增 `downloadToWritable(options, writable)`：Browser 按需读取分片并等待异步写入，输出 fMP4。Browser 与 Node 的 `writableOutput` 均为 true；回调流增量读取，但不等待异步消费。
 
-`downloadToWritable(options, writable)` incrementally emits fMP4 with backpressure. Browser supports it; Node currently rejects it. Existing Blob and callback APIs remain compatible.
+`downloadToWritable(options, writable)` incrementally emits fMP4 with backpressure. Browser and Node support it. Callback streaming is incremental but does not await asynchronous consumers.
 
 详见 [中文 API](docs/content/docs/zh/api/hls-downloader.mdx#downloadtowritable) / [English API](docs/content/docs/en/api/hls-downloader.mdx#downloadtowritable).
 
@@ -469,3 +475,9 @@ await downloader.parseHls({ url: mediaOrigin + '/public.m3u8', browserRequest: {
 Extensions own permissions, restricted-header rules and credential destination policies. Cookie/Referer/Origin cannot simply be replayed as ordinary headers; browser policies and site authorization may still prevent access. Do not attach site credentials unconditionally to CDN URLs or redirects. Explicit shared headers keep their existing behavior.
 
 扩展负责权限、受限头规则及凭据目标域策略。Cookie/Referer/Origin 不能仅依赖普通 headers 重放；浏览器策略和站点授权仍可能阻止访问。不要无条件向 CDN 或重定向目标扩散凭据。详见中英文 Adapter API 文档。
+
+## Audio selection and subtitles
+
+Browser 与 Node 的 download、stream、writable 都支持通过 `audio: { language: 'en' }` 或 `{ groupId, name }` 选择一条音轨。省略时自动选默认轨道。`parseHls()` 返回 rendition 元数据，`downloadSubtitles()` 独立导出对齐的 WebVTT。新音轨能力不与恢复、转码或 aria2 组合。
+
+Both adapters support one selected audio rendition across download, stream and writable output. Inspect `parseHls().renditions` on master results, and use `downloadSubtitles()` for an aligned WebVTT export. Audio selection cannot be combined with recovery, transcoding or aria2.

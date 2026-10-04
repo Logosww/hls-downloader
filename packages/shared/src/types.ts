@@ -5,6 +5,19 @@ export type Segment = {
   [key: string]: any;
 };
 
+export type Rendition = {
+  type: 'audio' | 'subtitles' | 'video' | 'closed-captions';
+  groupId: string;
+  name: string;
+  uri?: string;
+  language?: string;
+  default: boolean;
+  autoselect: boolean;
+  forced: boolean;
+};
+
+export type AudioSelection = { groupId: string; name: string } | { language: string };
+
 export type Playlist = {
   name: string;
   bandwidth: number;
@@ -16,6 +29,9 @@ export type Playlist = {
   isAudioOnly?: boolean;
   /** Master playlist declares alternate audio/video/subtitle renditions. */
   hasAlternateRenditions?: boolean;
+  audioGroup?: string;
+  subtitlesGroup?: string;
+  videoGroup?: string;
 };
 
 /**
@@ -43,7 +59,7 @@ export type VariantSelector = (
 ) => Playlist | undefined;
 
 export type ParseHlsResult =
-  | { type: 'playlist'; data: Playlist[]; message?: undefined }
+  | { type: 'playlist'; data: Playlist[]; renditions?: Rendition[]; message?: undefined }
   | { type: 'segment'; data: Segment[]; message?: undefined }
   | { type: 'error'; data?: undefined; message: string; error?: HlsDownloaderError };
 
@@ -86,6 +102,8 @@ export type AdapterCapabilities = Readonly<{
   persistentOutput: boolean;
   /** Supports backpressured fMP4 output to a caller-provided writable stream. */
   writableOutput?: boolean;
+  alternateAudio?: boolean;
+  subtitleExport?: boolean;
   /** Node plain file downloads with explicit persistent recovery storage. */
   resumableDownload?: boolean;
 }>;
@@ -159,11 +177,29 @@ export type HlsDownloaderDownloadOptions = {
   signal?: AbortSignal;
   /** Master playlist variant 选择偏好；缺省时取最高分辨率 → 最高带宽。 */
   variant?: VariantSelectOptions;
+  audio?: AudioSelection;
 };
 
 /** fMP4 passthrough only; global transcode settings are not applied. */
 export type HlsDownloaderWritableOptions = HlsDownloaderFetchOptions &
   Omit<HlsDownloaderDownloadOptions, 'transcode'> & { transcode?: never };
+
+export type HlsDownloaderSubtitleOptions = HlsDownloaderFetchOptions & {
+  operationId?: string;
+  filename?: string;
+  maxRetry?: number;
+  downloadConcurrency?: number;
+  variant?: VariantSelectOptions;
+  audio?: AudioSelection;
+  subtitle: { groupId: string; name: string };
+};
+export type HlsDownloaderSubtitleResult = {
+  operationId: string;
+  text: string;
+  mimeType: 'text/vtt';
+  filename: string;
+  totalSegments: number;
+};
 
 export type HlsDownloaderStreamResult = {
   operationId: string;
@@ -198,6 +234,9 @@ export interface HlsDownloaderAdapterInternal<
     options: HlsDownloaderWritableOptions & RequestOptions,
     write: (bytes: Uint8Array) => Promise<void>,
   ): Promise<Omit<HlsDownloaderStreamResult, 'operationId'>>;
+  downloadSubtitles?(
+    options: HlsDownloaderSubtitleOptions & RequestOptions,
+  ): Promise<Omit<HlsDownloaderSubtitleResult, 'operationId'>>;
   /** 清空 adapter 内部的 parseHls / poster 缓存。可选实现。 */
   clearCache?(): void;
 }

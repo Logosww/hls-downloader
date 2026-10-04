@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "bun --watch index.ts",
     "start": "bun index.ts",
-    "test:app-bun": "bun test task-manager.test.ts",
+    "test:app-bun": "bun test task-manager.test.ts app-media.test.ts",
     "lint": "oxlint"
   },
   "dependencies": {

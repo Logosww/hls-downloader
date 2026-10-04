@@ -237,12 +237,26 @@ export function transmux_demand_to_fmp4(playlist_url, playlist, read, write) {
     return ret;
 }
 
-function __wbg_adapter_28(arg0, arg1, arg2) {
-    wasm.closure70_externref_shim(arg0, arg1, arg2);
+/**
+ * @param {string} request
+ * @param {Function} read
+ * @param {Function} write
+ * @param {Function} progress
+ * @returns {Promise<any>}
+ */
+export function prepared_browser(request, read, write, progress) {
+    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.prepared_browser(ptr0, len0, read, write, progress);
+    return ret;
 }
 
-function __wbg_adapter_57(arg0, arg1, arg2, arg3) {
-    wasm.closure99_externref_shim(arg0, arg1, arg2, arg3);
+function __wbg_adapter_28(arg0, arg1, arg2) {
+    wasm.closure100_externref_shim(arg0, arg1, arg2);
+}
+
+function __wbg_adapter_58(arg0, arg1, arg2, arg3) {
+    wasm.closure158_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 async function __wbg_load(module, imports) {
@@ -347,7 +361,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_57(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_58(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -444,8 +458,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper226 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 71, __wbg_adapter_28);
+    imports.wbg.__wbindgen_closure_wrapper366 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 101, __wbg_adapter_28);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {

@@ -131,10 +131,12 @@ The native addon must match your operating system and Node.js ABI. Pre-built bin
 
 ## Writable output
 
-| Capability | Browser | Node |
-| --- | --- | --- |
-| `writableOutput` | true | false |
-| `resumableDownload` | false | true |
+| Capability          | Browser | Node |
+| ------------------- | ------- | ---- |
+| `writableOutput`    | true    | true |
+| `alternateAudio`    | true    | true |
+| `subtitleExport`    | true    | true |
+| `resumableDownload` | false   | true |
 
 Use `downloadToWritable()` for bounded media buffers and an asynchronous destination. Existing callback streaming behavior is unchanged.
 

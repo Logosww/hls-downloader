@@ -1,3 +1,6 @@
+import { resolveMedia, selectAudio } from '../renditions';
+import { withOperation, executePrepared, exportSubtitles, type Engine } from '../prepared';
+import { assertActive } from '../browser/request';
 import {
   createAdapter,
   emitAdapterEvent,
@@ -19,6 +22,7 @@ import {
   HlsDownloaderErrorCode,
   type ParseHlsResult,
   type Playlist,
+  type Rendition,
   type Segment,
   type VariantSelectOptions,
   assertSupportedSegments,
@@ -28,11 +32,11 @@ import {
   closeResumeTask,
   runResumeTask,
   initFfmpeg,
+  preparedNative,
   parseHlsNative,
   downloadAndMerge,
   extractPoster,
   transmuxHlsNative,
-  transmuxHlsStreamingNative,
   createCancelToken,
   cancelJob,
   type NapiParseHlsResult,
@@ -40,7 +44,7 @@ import {
 } from './native.js';
 import { extractPosterFromSegmentUrl } from './poster';
 import { randomUUID } from 'node:crypto';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 export type NodeAdapterResumeOptions = { directory: string };
@@ -112,6 +116,9 @@ function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
     case 'playlist':
       return {
         type: 'playlist',
+        renditions: (JSON.parse(napi.playlists?.[0]?.renditionsJson ?? '[]') as Rendition[]).map(
+          (r) => ({ ...r, uri: r.uri ?? undefined, language: r.language ?? undefined }),
+        ),
         data: (napi.playlists ?? []).map((p) => ({
           name: p.name,
           bandwidth: p.bandwidth,
@@ -123,6 +130,9 @@ function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
           frameRate: p.frameRate,
           isAudioOnly: p.isAudioOnly,
           hasAlternateRenditions: p.hasAlternateRenditions,
+          audioGroup: p.audioGroup,
+          subtitlesGroup: p.subtitlesGroup,
+          videoGroup: p.videoGroup,
         })),
       };
     case 'segment':
@@ -243,10 +253,15 @@ async function resolveToSegments(
         { adapter: adapter.name },
       );
     }
-    if (best.hasAlternateRenditions) {
+    if (best.videoGroup)
       throw new HlsDownloaderError(
-        HlsDownloaderErrorCode.TRANSMUX_FAILED,
-        'Alternate renditions are not supported by this transmux path',
+        HlsDownloaderErrorCode.UNSUPPORTED_RENDITION,
+        'Alternate video groups are unsupported',
+      );
+    if (best.audioGroup && selectAudio(result.renditions ?? [], best.audioGroup)?.uri) {
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+        'External audio is incompatible with recovery, transcoding or aria2',
         { adapter: adapter.name, url },
       );
     }
@@ -311,6 +326,50 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
     });
   }
 
+  if (options.audio && (options.resume || transcode !== undefined || aria2?.enabled))
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'Audio selection is incompatible with recovery, transcoding or aria2',
+    );
+  if (options.resume === undefined && !needsFfmpegTranscode(transcode) && !aria2?.enabled) {
+    return withOperation(
+      { ...options, url, headers, filename, maxRetry, downloadConcurrency, signal },
+      async (request) => {
+        const media = await resolveMedia(request, transcode !== undefined);
+        emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+        const workDir = join(process.cwd(), randomUUID());
+        await mkdir(workDir, { recursive: true });
+        try {
+          const output = join(workDir, 'output.mp4');
+          const report = await executePrepared(
+            this,
+            request,
+            media,
+            nodeEngine,
+            'file',
+            async () => {},
+            output,
+          );
+          const filePath = resolve(filename);
+          assertActive(request.signal);
+          try {
+            await rename(output, filePath);
+          } catch (cause) {
+            throw new HlsDownloaderError(
+              HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
+              'Failed to publish output file',
+              { cause },
+            );
+          }
+          emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+          return { filePath, totalSegments: report.totalSegments };
+        } finally {
+          await rm(workDir, { recursive: true, force: true });
+        }
+      },
+      this.name,
+    );
+  }
   if (options.resume !== undefined) {
     return downloadResumable(this, options, {
       url,
@@ -600,73 +659,110 @@ async function downloadAndTransmux({
   return filePath;
 }
 
+const nodeEngine: Engine = async (request, read, write, progress, signal) => {
+  const { jobId, cleanup } = await setupCancelToken(signal);
+  let active = true;
+  try {
+    return await preparedNative(
+      request,
+      jobId!,
+      async (err: Error | null, resource: string) => {
+        if (err) throw err;
+        return Buffer.from(await read(resource));
+      },
+      async (err: Error | null, bytes: Buffer) => {
+        if (err) throw err;
+        await write(new Uint8Array(bytes));
+      },
+      (err: Error | null, event: string) => {
+        if (!err && active) progress(event);
+      },
+    );
+  } finally {
+    active = false;
+    cleanup();
+  }
+};
+const downloadToWritable: NonNullable<HlsDownloaderNodeAdapter['downloadToWritable']> =
+  async function (this: HlsDownloaderNodeAdapter, options, write) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
+    const merged = mergeDownloadOptions(this, globalOptions, options);
+    return withOperation(
+      { ...options, ...merged },
+      async (request) => {
+        emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+        const media = await resolveMedia(
+          request,
+          Boolean((options as Record<string, unknown>).__rejectAudio),
+        );
+        if (media.audio && merged.aria2?.enabled)
+          throw new HlsDownloaderError(
+            HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+            'Audio selection cannot use aria2',
+          );
+        emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+        const report = await executePrepared(this, request, media, nodeEngine, 'stream', write);
+        emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
+          completed: report.totalSegments,
+          total: report.totalSegments,
+        });
+        return { totalSegments: report.totalSegments };
+      },
+      this.name,
+    );
+  };
 const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async function (
   this: HlsDownloaderNodeAdapter,
   options,
   onChunk,
 ) {
-  const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
-  const { url, headers, downloadConcurrency, maxRetry, signal } = mergeDownloadOptions(
+  const merged = mergeDownloadOptions(
     this,
-    globalOptions,
+    getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options),
     options,
   );
-
-  emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
-
-  if (signal?.aborted) {
-    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-      adapter: this.name,
-    });
-  }
-
-  if ((options as Record<string, unknown>).resume !== undefined) {
+  if (options.audio && merged.transcode)
     throw new HlsDownloaderError(
       HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-      'Recovery is not supported for streaming output',
+      'Audio selection cannot be transcoded',
     );
-  }
-  // 流式路径只需 resolvedUrl（media playlist URL）；segments 仅用于 totalSegments 计数。
-  // resolveToSegments 已返回 segments，直接复用，避免二次 parseHls（cache miss 时多一次 native round-trip）。
-  const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
-  emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-
-  const totalSegments = segments.length;
-
-  const { jobId, cleanup } = await setupCancelToken(signal);
-  try {
-    await transmuxHlsStreamingNative(
-      resolvedUrl,
-      headers ?? null,
-      downloadConcurrency,
-      maxRetry,
-      jobId,
-      // ThreadsafeFunction 默认 CalleeHandled=true，callback 签名为 (err, value)
-      (err: Error | null, bytes: Buffer) => {
-        if (err) return;
-        onChunk(new Uint8Array(bytes));
-      },
-      (err: Error | null, completed: number, total: number) => {
-        if (err) return;
-        emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
-          total,
-          completed,
-        });
-      },
-    );
-  } finally {
-    cleanup();
-  }
-
-  // 末端触发 STITCHING_SEGMENTS + READY_FOR_DOWNLOAD，保持事件语义一致
-  emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
-    total: totalSegments,
-    completed: totalSegments,
-  });
+  const result = await downloadToWritable.call(
+    this,
+    {
+      ...options,
+      transcode: undefined,
+      __rejectAudio: merged.transcode !== undefined,
+    } as Parameters<NonNullable<HlsDownloaderNodeAdapter['downloadToWritable']>>[0],
+    async (bytes) => {
+      onChunk(bytes);
+    },
+  );
   emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-
-  return { totalSegments };
+  return result;
 };
+const downloadSubtitles: NonNullable<HlsDownloaderNodeAdapter['downloadSubtitles']> =
+  async function (this: HlsDownloaderNodeAdapter, options) {
+    const merged = mergeDownloadOptions(
+      this,
+      getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options),
+      options,
+    );
+    return withOperation(
+      { ...options, ...merged },
+      async (request) => {
+        emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+        const media = await resolveMedia(request);
+        emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+        return exportSubtitles(
+          this,
+          { ...request, subtitle: options.subtitle, filename: options.filename },
+          media,
+          nodeEngine,
+        );
+      },
+      this.name,
+    );
+  };
 
 const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   name: 'NodeAdapter',
@@ -679,7 +775,9 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
     aes128: false,
     liveRecording: false,
     persistentOutput: true,
-    writableOutput: false,
+    writableOutput: true,
+    alternateAudio: true,
+    subtitleExport: true,
     resumableDownload: true,
   },
   chunkDownloadConcurrency: 10,
@@ -689,6 +787,8 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   getPosterUrl,
   download,
   downloadToStream,
+  downloadToWritable,
+  downloadSubtitles,
   clearCache: () => parseResultCache.clear(),
 }) as HlsDownloaderNodeAdapter;
 

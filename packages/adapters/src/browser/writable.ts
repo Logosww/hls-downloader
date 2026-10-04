@@ -192,7 +192,12 @@ export async function resolveWritablePlaylist(
       );
     const variant = selectBestVariant(parsed.data, options.variant);
     if (!variant) throw failure(HlsDownloaderErrorCode.NO_VARIANT, 'No variant available', url);
-    if (variant.hasAlternateRenditions)
+    if (
+      variant.videoGroup ||
+      (parsed.renditions ?? []).some(
+        (r) => r.type === 'audio' && r.groupId === variant.audioGroup && r.uri,
+      )
+    )
       throw failure(
         HlsDownloaderErrorCode.TRANSMUX_FAILED,
         'Alternate renditions are not supported',

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **BrowserAdapter / NodeAdapter**: Discover alternate audio and subtitle renditions. Select one audio track with `audio` for file, callback stream, and writable downloads; omitted selection uses the default track.
+- **NodeAdapter**: Add `downloadToWritable()` with asynchronous backpressure, cancellation, and completion after the destination closes.
+- Add `downloadSubtitles()` to export one WebVTT rendition aligned with the selected media, plus `alternateAudio` / `subtitleExport` capabilities and `RENDITION_NOT_FOUND`, `UNSUPPORTED_RENDITION`, and `SUBTITLE_INVALID` errors.
+
+### Changed
+
+- **BrowserAdapter**: Callback streaming now downloads media incrementally. Callback promises remain unawaited; use writable output for asynchronous destination backpressure.
+- Alternate audio downloads support VOD TS/fMP4 with AVC/HEVC and AAC-LC. Recovery, transcoding, and aria2 combinations are rejected; existing single-input paths remain available.
+
 ## [3.6.0] - 2026-10-03
 
 ### Added

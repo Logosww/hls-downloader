@@ -4,6 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalSt
 import HlsDownloader, { HlsDownloaderEvent } from '@hls-downloader/core';
 import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/adapters/browser';
+import type { VariantSelectOptions } from '@hls-downloader/shared';
 import { HlsDownloaderErrorCode } from '@hls-downloader/shared';
 import { toast } from 'sonner';
 import {
@@ -37,6 +38,7 @@ export type DownloadTask = {
   outputMode?: 'browser' | 'file';
   error?: string;
   headers?: Record<string, string>;
+  variant?: VariantSelectOptions;
   transcode?: HlsDownloaderBrowserTranscodeOptions;
 };
 
@@ -50,7 +52,7 @@ export function downloadTaskReducer(tasks: DownloadTask[], action: Action): Down
   if (action.type === 'remove') return tasks.filter((task) => task.id !== action.id);
   return tasks.map((task) => {
     if (task.id !== action.id) return task;
-    // Late SDK progress must not revive a cancelled/removed/finished operation.
+    // Late library progress must not revive a cancelled/removed/finished operation.
     if (['saved', 'failed', 'cancelled'].includes(task.status)) return task;
     return { ...task, ...action.patch };
   });
@@ -77,7 +79,7 @@ export function useDownloadManager(maxConcurrent = 3) {
     serverHasFilePicker,
   );
   const [downloader] = useState(
-    // The constructor only registers this callback; SDK events run after render.
+    // The constructor only registers this callback; library events run after render.
     // react-doctor-disable-next-line react-hooks-js/refs
     () =>
       new HlsDownloader({
@@ -135,6 +137,7 @@ export function useDownloadManager(maxConcurrent = 3) {
         url: task.url,
         filename: task.filename,
         headers: task.headers,
+        variant: task.variant,
         operationId: task.id,
         signal: controller.signal,
       };

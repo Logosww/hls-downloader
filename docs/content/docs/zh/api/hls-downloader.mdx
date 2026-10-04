@@ -178,9 +178,9 @@ async downloadToStream(
 ): Promise<HlsDownloaderStreamResult>
 ```
 
-解析 HLS，经 Rust transmux 后通过 `onChunk` 推送 fMP4 字节。**库本身不落盘。** BrowserAdapter 先以有界并发预取播放列表资源，再由 WASM writer 输出分块；NodeAdapter 可并发下载并同步推流。
+解析 HLS，经 Rust transmux 后通过 `onChunk` 推送 fMP4 字节。**库本身不落盘。** Browser 与 Node 均增量读取并输出分块。`onChunk` 为同步回调，不等待返回的 Promise 或 Node 下游的 `drain`；异步消费端请使用 `downloadToWritable()`。
 
-输出为 **fragmented MP4**（首段 `ftyp`+`moov`，之后每段 `styp`+`moof`+`mdat`，末端可选 `mfra`）。浏览器 MSE 可直接消费。
+输出为 **fragmented MP4**（首段 `ftyp`+`moov`，之后每段 `styp`+`moof`+`mdat`，不含末端 `mfra` 索引）。浏览器 MSE 可直接消费。
 
 单次传入的选项与 `globalOptions` 合并，单次选项优先。
 
@@ -279,17 +279,17 @@ async downloadToWritable(
 ): Promise<HlsDownloaderStreamResult>
 ```
 
-仅 Browser 支持，按需下载并通过背压输出 fMP4，保留源编码。拒绝单次调用的 `transcode`，忽略全局转码设置。请检查 `downloader.capabilities.writableOutput === true`；Node 或缺少此可选能力的 adapter 在获取 writer 前报 `UNSUPPORTED_OUTPUT`。
+Browser 与 Node 均支持，按需下载并通过背压输出 fMP4，保留源编码。拒绝单次调用的 `transcode`，忽略全局转码设置。请检查 `downloader.capabilities.writableOutput === true`；缺少此可选能力的 adapter 在获取 writer 前报 `UNSUPPORTED_OUTPUT`。
 
-SDK 获取并管理 writer，等待每次写入，成功时关闭流；关闭完成后才发出 `READY_FOR_DOWNLOAD` 并 resolve。失败或取消会 abort writer 并释放锁。获取、写入、关闭失败使用 `OUTPUT_WRITE_FAILED`；取消使用 `ABORTED`，且 `name === 'AbortError'`。失败 operation 仅发一次 `ERROR`。自定义目标可能保留部分输出，SDK 无法回滚任意外部写入；未结束的自定义 write 不会阻止 SDK 在取消时 reject，其后续 abort 结果会被异步处理。
+库获取并管理 writer，等待每次写入，成功时关闭流；关闭完成后才发出 `READY_FOR_DOWNLOAD` 并 resolve。失败或取消会 abort writer 并释放锁。获取、写入、关闭失败使用 `OUTPUT_WRITE_FAILED`；取消使用 `ABORTED`，且 `name === 'AbortError'`。失败 operation 仅发一次 `ERROR`。自定义目标可能保留部分输出，库无法回滚任意外部写入；未结束的自定义 write 不会阻止库在取消时 reject，其后续 abort 结果会被异步处理。
 
-预取窗口最多保留 `downloadConcurrency` 个在途或待消费分片，另有当前处理分片及初始化数据。媒体缓冲不随视频总长度增长；playlist 元数据仍随分片数量增长，超大单分片仍需较多内存，WASM 内存会保留分配高水位。这不是固定 RSS 上限。fMP4 输出不包含尾部 `mfra` 索引。
+`downloadConcurrency` 限制总读取并发；双路每路保留当前分片和一个 lookahead，另有初始化探测、当前输出分片及桥接缓冲。媒体缓冲不随视频总长度增长；playlist 元数据仍随分片数量增长，超大单分片仍需较多内存，WASM 内存会保留分配高水位。这不是固定 RSS 上限。fMP4 输出不包含尾部 `mfra` 索引。
 
-现有 `download()` 仍返回全量 Blob URL；Browser 回调式 `downloadToStream()` 仍预加载媒体且不等待回调 Promise，均不具备新接口的媒体缓冲保证。`persistentOutput` 描述默认 `download()` 的结果，Browser 仍为 false；`writableOutput` 单独描述写入调用方目标的能力。
+`download()` 返回 Browser 全量 Blob URL 或 Node 文件；两端回调式 `downloadToStream()` 均增量读取媒体，但不等待回调 Promise，异步目标请使用 writable。`persistentOutput` 描述默认 `download()` 的结果，Browser 仍为 false；`writableOutput` 单独描述写入调用方目标的能力。
 
 #### 直接保存文件
 
-调用方在用户点击时打开选择器并传入写入流。应用自行检查 File System Access 可用性与权限；SDK 不弹窗，也不自动回退为全量 Blob。以下示例假定页面有 `#save`、`#cancel` 按钮且浏览器提供 `showSaveFilePicker`；AbortController 取消后不可复用，新 operation 应创建新的 controller。
+调用方在用户点击时打开选择器并传入写入流。应用自行检查 File System Access 可用性与权限；库不弹窗，也不自动回退为全量 Blob。以下示例假定页面有 `#save`、`#cancel` 按钮且浏览器提供 `showSaveFilePicker`；AbortController 取消后不可复用，新 operation 应创建新的 controller。
 
 ```js
 import { HlsDownloader } from '@hls-downloader/core';
@@ -297,7 +297,7 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 
 const downloader = new HlsDownloader({ adapter: BrowserAdapter });
 const controller = new AbortController();
-// Invoke directly from a user click; do not await SDK initialization first.
+// Invoke directly from a user click; do not await library initialization first.
 document.querySelector('#save').addEventListener('click', async () => {
   try {
     const handle = await window.showSaveFilePicker({
@@ -341,13 +341,40 @@ const result = await downloader.download({
 
 失败或取消保留有效恢复数据并释放目录锁。成功后清理分片缓存及 partial 输出，保留锁文件和少量完成凭据；再次调用会验证并返回已完成文件，不重新下载。清理失败不会使已交付的输出变成失败。`clearCache()` 不清理恢复目录；放弃或遗忘任务时由调用方删除专用目录。持久化保证受操作系统和文件系统限制。
 
-| 错误码 | 含义 |
-| --- | --- |
-| `RESUME_CONFLICT` | 其他进程或 operation 正在使用恢复目录。 |
-| `RESUME_INVALID` | 目录或 checkpoint 无效、输入身份变化、已完成输出丢失或被修改。 |
-| `RESUME_IO_FAILED` | 恢复存储、checkpoint 保存或输出交付失败。 |
-| `ABORTED` | 下载取消，保留 `name === 'AbortError'`。 |
+| 错误码             | 含义                                                           |
+| ------------------ | -------------------------------------------------------------- |
+| `RESUME_CONFLICT`  | 其他进程或 operation 正在使用恢复目录。                        |
+| `RESUME_INVALID`   | 目录或 checkpoint 无效、输入身份变化、已完成输出丢失或被修改。 |
+| `RESUME_IO_FAILED` | 恢复存储、checkpoint 保存或输出交付失败。                      |
+| `ABORTED`          | 下载取消，保留 `name === 'AbortError'`。                       |
 
 ## 浏览器请求选项
 
-BrowserAdapter 的五个媒体方法均接受 `browserRequest`，单次配置整体替换实例 `options.browserRequest`，`{}` 恢复原生默认值。播放列表和封面结果不跨调用复用，`clearCache()` 对浏览器为 no-op。详见 [Adapter API](/api/adapters#浏览器媒体请求上下文)。
+BrowserAdapter 的六个媒体方法均接受 `browserRequest`，单次配置整体替换实例 `options.browserRequest`，`{}` 恢复原生默认值。播放列表和封面结果不跨调用复用，`clearCache()` 对浏览器为 no-op。详见 [Adapter API](/api/adapters#浏览器媒体请求上下文)。
+
+### 音轨选择与 WebVTT 字幕
+
+```ts
+const source = { url: 'https://example.test/master.m3u8' };
+const parsed = await downloader.parseHls(source);
+if (parsed.type === 'playlist') console.log(parsed.renditions);
+
+await downloader.downloadToWritable(
+  { ...source, audio: { language: 'en' } },
+  destination, // WHATWG WritableStream<Uint8Array>
+);
+const subtitles = await downloader.downloadSubtitles({
+  ...source,
+  audio: { language: 'en' },
+  subtitle: { groupId: 'subs', name: 'English' },
+});
+console.log(subtitles.text); // save as subtitles.filename
+```
+
+先选择 variant，再在其关联的音频组内选轨。未显式指定时按 DEFAULT、AUTOSELECT、声明顺序选择。外置音轨替换内嵌音频；无 URI 的 rendition 保留内嵌音频，最终输出一条所选音轨。备用视频组明确失败。
+
+备用音轨支持未加密 VOD TS/fMP4，编码为 AVC/HEVC 与 AAC-LC；不兼容 resume、转码或 aria2。未选择的字幕不会请求。两路必须共享可确定的时间轴；时间戳重置或不可表达的间隙会失败，不猜测同步偏移。
+
+`downloadSubtitles()` 是独立 operation，导出一条外置 WebVTT。它先探测所选媒体的初始化数据/首段以取得共同时间轴，再读取字幕。支持 MAP、时间戳映射与回绕、空分片、cue 去重和设置保留。输出零点前的 cue 被丢弃或截到零点；非法字幕报 `SUBTITLE_INVALID`。不内嵌字幕，也不转换 SRT。
+
+Node writable 接受 WHATWG 流。已有 Node writable 可通过 `node:stream` 的 `Writable.toWeb(nodeWritable)` 转换；operation 期间由 downloader 管理 close/abort。

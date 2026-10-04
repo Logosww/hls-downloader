@@ -1,4 +1,8 @@
 import type {
+  AudioSelection,
+  VariantSelectOptions,
+  HlsDownloaderSubtitleOptions,
+  HlsDownloaderSubtitleResult,
   HlsDownloaderEvent,
   HlsDownloaderEventPayload,
   HlsDownloaderTranscodeOptions,
@@ -22,6 +26,8 @@ export type DownloadTaskResponse = {
   status: TaskStatus;
   url: string;
   filename: string;
+  variant?: VariantSelectOptions;
+  audio?: AudioSelection;
   transcode?: HlsDownloaderTranscodeOptions;
   totalSegments?: number;
   error?: string;
@@ -42,6 +48,8 @@ export type CreateTaskInput = {
   headers?: Record<string, string>;
   filename?: string;
   stream?: boolean;
+  variant?: VariantSelectOptions;
+  audio?: AudioSelection;
   transcode?: HlsDownloaderTranscodeOptions;
 };
 
@@ -55,23 +63,32 @@ export type DownloaderLike = {
     url: string;
     headers?: Record<string, string>;
     filename: string;
+    variant?: VariantSelectOptions;
+    audio?: AudioSelection;
     transcode?: HlsDownloaderTranscodeOptions;
     operationId: string;
     signal: AbortSignal;
   }): Promise<{ filePath: string; totalSegments: number; operationId?: string }>;
-  downloadToStream(
+  downloadToWritable(
     options: {
       url: string;
       headers?: Record<string, string>;
       filename: string;
+      variant?: VariantSelectOptions;
+      audio?: AudioSelection;
       operationId: string;
       signal: AbortSignal;
     },
-    onChunk: (bytes: Uint8Array) => void,
+    writable: WritableStream<Uint8Array>,
   ): Promise<{ totalSegments: number; operationId?: string }>;
+  downloadSubtitles(options: HlsDownloaderSubtitleOptions): Promise<HlsDownloaderSubtitleResult>;
 };
 
-type FileWriter = { write(bytes: Uint8Array): unknown; end(): Promise<number> | number };
+type FileWriter = {
+  write(bytes: Uint8Array): unknown;
+  flush?(): unknown;
+  end(): Promise<number> | number;
+};
 type DownloadTask = DownloadTaskResponse & {
   headers?: Record<string, string>;
   controller: AbortController;
@@ -81,7 +98,9 @@ type DownloadTask = DownloadTaskResponse & {
   subscribers: Set<(event: TaskEvent) => void>;
   streamAttached: boolean;
   streamController?: ReadableStreamDefaultController<Uint8Array>;
+  wakeStream?: () => void;
   writer?: FileWriter;
+  writerFinishing?: Promise<void>;
   filePath?: string;
   expiryTimer?: ReturnType<typeof setTimeout>;
   tombstoneTimer?: ReturnType<typeof setTimeout>;
@@ -146,6 +165,15 @@ export class TaskManager {
       headers: input.headers,
       filename: input.filename ?? 'output',
       transcode: input.transcode,
+      variant: input.variant
+        ? {
+            ...input.variant,
+            maxResolution: input.variant.maxResolution
+              ? { ...input.variant.maxResolution }
+              : undefined,
+          }
+        : undefined,
+      audio: input.audio ? { ...input.audio } : undefined,
       createdAt: this.#now(),
       stream: input.stream ?? false,
       controller: new AbortController(),
@@ -175,6 +203,10 @@ export class TaskManager {
     return await this.#downloader.getPosterUrl({ url, headers });
   }
 
+  async subtitles(options: HlsDownloaderSubtitleOptions): Promise<HlsDownloaderSubtitleResult> {
+    return this.#downloader.downloadSubtitles(options);
+  }
+
   cancel(id: string): { kind: 'ok' | 'conflict' | 'missing'; task?: DownloadTaskResponse } {
     const task = this.#tasks.get(id);
     if (!task) return { kind: 'missing' };
@@ -189,8 +221,10 @@ export class TaskManager {
     try {
       task.streamController?.error(new DOMException('Operation aborted', 'AbortError'));
     } catch {}
-    void this.#finishWriter(task);
-    void this.#removeTaskFile(task);
+    task.wakeStream?.();
+    void this.#finishWriter(task)
+      .catch(() => {})
+      .then(() => this.#removeTaskFile(task));
     this.#emit(task, 'cancelled');
     this.#scheduleExpiry(task);
     const queueIndex = this.#queue.indexOf(id);
@@ -216,6 +250,9 @@ export class TaskManager {
       start: (controller) => {
         task.streamController = controller;
       },
+      pull: () => {
+        task.wakeStream?.();
+      },
       cancel: () => {
         this.cancel(task.id);
       },
@@ -224,7 +261,7 @@ export class TaskManager {
     return { kind: 'ok', stream };
   }
 
-  handleSdkEvent<E extends HlsDownloaderEvent>(
+  handleLibraryEvent<E extends HlsDownloaderEvent>(
     _event: E,
     payload: HlsDownloaderEventPayload<E>,
   ): void {
@@ -261,7 +298,8 @@ export class TaskManager {
       clearTimeout(task.tombstoneTimer);
       task.controller.abort();
       task.subscribers.clear();
-      void this.#finishWriter(task);
+      task.wakeStream?.();
+      void this.#finishWriter(task).catch(() => {});
     }
     this.#tasks.clear();
     this.#queue.length = 0;
@@ -274,6 +312,8 @@ export class TaskManager {
       url: task.url,
       filename: task.filename,
       transcode: task.transcode,
+      variant: task.variant,
+      audio: task.audio,
       totalSegments: task.totalSegments,
       error: task.error,
       progress: task.progress,
@@ -306,6 +346,7 @@ export class TaskManager {
     const revision = ++task.revision;
     this.#emit(task, 'status');
     try {
+      if (task.stream && task.transcode) throw new Error('Streaming does not support transcoding');
       if (task.stream) await this.#runStream(task, revision);
       else await this.#runDownload(task, revision);
     } catch (error) {
@@ -319,7 +360,7 @@ export class TaskManager {
       try {
         task.streamController?.error(error);
       } catch {}
-      await this.#finishWriter(task);
+      await this.#finishWriter(task).catch(() => {});
       await this.#removeTaskFile(task);
       this.#emit(task, task.status === 'cancelled' ? 'cancelled' : 'error');
       this.#scheduleExpiry(task);
@@ -332,6 +373,8 @@ export class TaskManager {
       headers: task.headers,
       filename: task.filename,
       transcode: task.transcode,
+      variant: task.variant,
+      audio: task.audio,
       operationId: task.id,
       signal: task.controller.signal,
     });
@@ -347,24 +390,40 @@ export class TaskManager {
   }
 
   async #runStream(task: DownloadTask, revision: number): Promise<void> {
-    const result = await this.#downloader.downloadToStream(
+    const result = await this.#downloader.downloadToWritable(
       {
         url: task.url,
         headers: task.headers,
         filename: task.filename,
+        variant: task.variant,
+        audio: task.audio,
         operationId: task.id,
         signal: task.controller.signal,
       },
-      (bytes) => {
-        if (task.revision !== revision || task.status !== 'downloading') return;
-        task.writer?.write(bytes);
-        task.streamController?.enqueue(bytes);
-      },
+      new WritableStream<Uint8Array>({
+        write: async (bytes) => {
+          task.controller.signal.throwIfAborted();
+          while ((task.streamController?.desiredSize ?? 0) <= 0) {
+            await new Promise<void>((resolve) => {
+              task.wakeStream = resolve;
+            });
+            task.wakeStream = undefined;
+            task.controller.signal.throwIfAborted();
+          }
+          await task.writer?.write(bytes);
+          await task.writer?.flush?.();
+          task.controller.signal.throwIfAborted();
+          task.streamController?.enqueue(bytes);
+        },
+        close: async () => {
+          await this.#finishWriter(task);
+          task.controller.signal.throwIfAborted();
+          task.streamController?.close();
+        },
+      }),
     );
     if (task.revision !== revision || task.status !== 'downloading') return;
     task.totalSegments = result.totalSegments;
-    await this.#finishWriter(task);
-    task.streamController?.close();
     task.status = 'completed';
     this.#emit(task, 'completed');
     this.#scheduleExpiry(task);
@@ -413,12 +472,14 @@ export class TaskManager {
     if (task.filePath) await this.#removeFile(task.filePath);
   }
   async #finishWriter(task: DownloadTask): Promise<void> {
+    if (task.writerFinishing) return task.writerFinishing;
     const writer = task.writer;
     task.writer = undefined;
     if (writer) {
-      try {
-        await writer.end();
-      } catch {}
+      task.writerFinishing = Promise.resolve()
+        .then(() => writer.end())
+        .then(() => {});
+      return task.writerFinishing;
     }
   }
   #isAbort(error: unknown): boolean {

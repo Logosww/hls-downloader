@@ -29,7 +29,7 @@ type Playlist = {
 };
 ```
 
-`hasAlternateRenditions` 表示 master 清单声明了当前 transmux 路径无法安全合并的备用轨道。
+`hasAlternateRenditions` 表示 master 声明了备用轨道；结合 `audioGroup`、`subtitlesGroup` 与 master 结果的 `renditions` 选择轨道。
 
 ## ParseHlsResult
 
@@ -221,3 +221,23 @@ type HlsDownloaderBrowserOperationOptions = {
 ```
 
 从 shared/root 和浏览器适配器入口导出。BrowserAdapter 方法接受 `HlsDownloaderFetchOptions & HlsDownloaderBrowserOperationOptions`（另加原有下载或直写选项），NodeAdapter 不接受浏览器请求选项。
+
+## Rendition and AudioSelection
+
+```ts
+type AudioSelection = { groupId: string; name: string } | { language: string };
+type Rendition = {
+  type: 'audio' | 'subtitles' | 'video' | 'closed-captions';
+  groupId: string;
+  name: string;
+  uri?: string;
+  language?: string;
+  default: boolean;
+  autoselect: boolean;
+  forced: boolean;
+};
+```
+
+master 结果增加可选 `renditions`，variant 增加 `audioGroup`、`subtitlesGroup`、`videoGroup`。音轨语言精确匹配且忽略大小写；显式选择不存在时报 `RENDITION_NOT_FOUND`，不支持的轨道类型报 `UNSUPPORTED_RENDITION`。错误可携带 `inputRole`（`primary`、`audio`、`subtitles`）及 `phase` 诊断字段。Node 同样支持 writable 输出。
+
+`HlsDownloaderSubtitleOptions` 包含请求配置和必填 `subtitle: { groupId, name }`，以及可选的 `variant`、`audio`、`operationId`、`filename`、`maxRetry`、`downloadConcurrency`。Browser 额外接受 `browserRequest`。`HlsDownloaderSubtitleResult` 包含 `operationId`、`text`、`mimeType: 'text/vtt'`、`filename` 和 `totalSegments`。

@@ -73,7 +73,15 @@ export default function HomePage() {
       return undefined;
     }
     return {
-      selected,
+      source: {
+        // Keep the master URL so the library can resolve its associated audio group.
+        url: metadata!.sourceUrl,
+        variant: {
+          maxBandwidth: selected.bandwidth,
+          maxResolution: selected.resolution,
+          preferredCodec: selected.codecs?.split(',').find((codec) => /^(avc|hev|hvc)/.test(codec)),
+        },
+      },
       filename: ((title || '').trim() || 'output').replace(/\.[^/.]+$/, ''),
     };
   };
@@ -84,7 +92,7 @@ export default function HomePage() {
     const transcode = buildBrowserTranscodeOptions(values);
     const extension = transcode?.preset === 'vp9' ? 'webm' : 'mp4';
     const task = {
-      url: selection.selected.uri,
+      ...selection.source,
       filename: selection.filename,
       title: `${selection.filename}.${extension}`,
       previewSrc: metadata?.previewSrc ?? '',
@@ -100,7 +108,12 @@ export default function HomePage() {
     const selection = getSelection(values);
     if (!selection) return;
     setModalOpen(false);
-    openStreamPreview(selection.selected.uri, selection.filename, requestHeaders);
+    openStreamPreview(
+      selection.source.url,
+      selection.filename,
+      requestHeaders,
+      selection.source.variant,
+    );
   };
 
   return (

@@ -1,4 +1,7 @@
 export const HlsDownloaderErrorCode = {
+  RENDITION_NOT_FOUND: 'RENDITION_NOT_FOUND',
+  UNSUPPORTED_RENDITION: 'UNSUPPORTED_RENDITION',
+  SUBTITLE_INVALID: 'SUBTITLE_INVALID',
   RESUME_CONFLICT: 'RESUME_CONFLICT',
   RESUME_INVALID: 'RESUME_INVALID',
   RESUME_IO_FAILED: 'RESUME_IO_FAILED',
@@ -21,6 +24,8 @@ export type HlsDownloaderErrorDetails = {
   url?: string;
   status?: number;
   segmentIndex?: number;
+  inputRole?: 'primary' | 'audio' | 'subtitles';
+  phase?: string;
   attempt?: number;
   adapter?: string;
   recoverable?: boolean;
@@ -46,6 +51,8 @@ export class HlsDownloaderError extends Error {
   readonly url?: string;
   readonly status?: number;
   readonly segmentIndex?: number;
+  readonly inputRole?: 'primary' | 'audio' | 'subtitles';
+  readonly phase?: string;
   readonly attempt?: number;
   readonly adapter?: string;
   readonly recoverable: boolean;
@@ -61,6 +68,8 @@ export class HlsDownloaderError extends Error {
     this.url = sanitizeHlsUrl(details.url);
     this.status = details.status;
     this.segmentIndex = details.segmentIndex;
+    this.inputRole = details.inputRole;
+    this.phase = details.phase;
     this.attempt = details.attempt;
     this.adapter = details.adapter;
     this.recoverable = details.recoverable ?? false;

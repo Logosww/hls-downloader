@@ -14,6 +14,10 @@ pub struct Playlist {
     pub frame_rate: Option<f64>,
     pub is_audio_only: bool,
     pub has_alternate_renditions: bool,
+    pub audio_group: Option<String>,
+    pub subtitles_group: Option<String>,
+    pub video_group: Option<String>,
+    pub renditions_json: String,
 }
 
 #[derive(Debug, Clone)]
@@ -83,6 +87,11 @@ fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHls
     match parsed {
         m3u8_rs::Playlist::MasterPlaylist(master) => {
             let has_alternate_renditions = !master.alternatives.is_empty();
+            let renditions_json = serde_json::to_string(&master.alternatives.iter().map(|r| serde_json::json!({
+                "type": r.media_type.to_string().to_lowercase(), "groupId": r.group_id,
+                "name": r.name, "uri": r.uri.as_ref().map(|u| resolve_uri(u, base)), "language": r.language,
+                "default": r.default, "autoselect": r.autoselect, "forced": r.forced
+            })).collect::<Vec<_>>()).unwrap();
             let playlists: Vec<Playlist> = master
                 .variants
                 .iter()
@@ -107,6 +116,10 @@ fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHls
                         frame_rate,
                         is_audio_only,
                         has_alternate_renditions,
+                        audio_group: v.audio.clone(),
+                        subtitles_group: v.subtitles.clone(),
+                        video_group: v.video.clone(),
+                        renditions_json: renditions_json.clone(),
                     }
                 })
                 .collect();
@@ -159,6 +172,7 @@ pub async fn parse_hls(
         let text = response.text().await.unwrap_or_default();
         return Err(HlsError::Parse(text));
     }
+    let url = response.url().clone();
     let manifest_text = response.text().await?;
 
     let parsed = m3u8_rs::parse_playlist_res(manifest_text.as_bytes())
