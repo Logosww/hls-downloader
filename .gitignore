@@ -63,7 +63,7 @@ vercel.json
 .vercelignore
 
 # local planning
-ROADMAP.md
+.local-dev/
 
 # browser test measurements
 test-results/
