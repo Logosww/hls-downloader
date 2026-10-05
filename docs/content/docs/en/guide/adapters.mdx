@@ -25,7 +25,7 @@ Read the same matrix from `downloader.capabilities` at runtime.
 | Configurable retry | yes             | yes             |
 | Transcode presets  | h264, hevc, vp9 | h264, hevc, vp9 |
 | Byte range         | yes             | yes             |
-| AES-128            | no              | no              |
+| AES-128 (finite VOD) | yes | yes |
 | Persistent output  | no              | yes             |
 | Live recording     | no              | no              |
 
@@ -37,7 +37,7 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
 ```
 
-The browser adapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly for ordinary downloads. `download()` returns a classic fast-start MP4; `downloadToStream()` emits fragmented MP4 chunks suitable for MSE.
+The browser adapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly for ordinary downloads. `download()` returns a classic fast-start MP4; `downloadToStream()` emits fragmented MP4 chunks. External-audio output with initial track offsets is verified for file/Blob playback. Chromium MSE ignores leading empty edits; an MSE host must map timestamps per track instead of appending these multiplexed bytes unchanged to one SourceBuffer. The SDK does not provide that MSE mapping.
 
 When `transcode` is provided, Mediabunny uses WebCodecs — BrowserAdapter does not ship or load `ffmpeg.wasm`. Supported presets are `h264`, `hevc`, and `vp9`, with optional `videoBitrate` and `audioBitrate`. Codec support depends on `VideoEncoder.isConfigSupported()` and `AudioEncoder.isConfigSupported()` in the current browser.
 

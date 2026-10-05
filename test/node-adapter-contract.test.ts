@@ -95,6 +95,7 @@ describe('NodeAdapter protocol contract', () => {
   it('publishes the tested native capability contract', () => {
     const capabilities = getInternalAdapter(NodeAdapter).capabilities;
     const evidence = {
+      aes128: 'keyed.integration: native decode, key bridge, offset timeline and all outputs',
       download: 'deterministic TS output',
       stream: 'BYTERANGE and EXT-X-MAP stream output',
       configurableRetry: 'transient BYTERANGE retry',
@@ -105,6 +106,7 @@ describe('NodeAdapter protocol contract', () => {
       transcodePresets: 'node-adapter-transcode suite',
     } as const;
     for (const key of [
+      'aes128',
       'download',
       'stream',
       'configurableRetry',
@@ -117,7 +119,17 @@ describe('NodeAdapter protocol contract', () => {
     for (const preset of capabilities.transcodePresets) {
       expect(evidence.transcodePresets, preset).toBeTruthy();
     }
-    expect(capabilities.aes128).toBe(false);
+    expect(capabilities.aes128).toBe(true);
+    expect(capabilities.decryption).toEqual({
+      methods: ['AES-128'],
+      containers: ['ts', 'fmp4'],
+      codecs: ['avc', 'hevc', 'aac-lc'],
+      finite: true,
+      externalAudio: true,
+      resume: false,
+    });
+    expect(Object.isFrozen(capabilities.decryption)).toBe(true);
+    expect(Object.isFrozen(capabilities.decryption!.methods)).toBe(true);
     expect(capabilities.liveRecording).toBe(false);
   });
 
@@ -211,7 +223,7 @@ describe('NodeAdapter protocol contract', () => {
     expectMonotonicTimestamps(path);
   });
 
-  it.each(['AES-128', 'SAMPLE-AES'])('rejects %s before media requests', async (method) => {
+  it.each(['SAMPLE-AES'])('rejects %s before media requests', async (method) => {
     const server = await startFixtureServer({
       '/encrypted.m3u8': (_request, response) =>
         sendText(response, encryptedPlaylist(method as 'AES-128' | 'SAMPLE-AES')),

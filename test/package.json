@@ -21,7 +21,9 @@
     "test:app-web:metadata": "node browser/metadata-cancellation.ts",
     "test:native:prepared": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --test prepared_upstream",
     "test:browser:renditions": "node browser/renditions-smoke.ts",
-    "test:app-web:renditions": "node browser/app-web-renditions.ts"
+    "test:app-web:renditions": "node browser/app-web-renditions.ts",
+    "test:keyed": "vitest run keyed.integration.test.ts bounded.unit.test.ts",
+    "test:browser:keyed": "node browser/keyed-smoke.ts"
   },
   "dependencies": {
     "@hls-downloader/core": "workspace:*",

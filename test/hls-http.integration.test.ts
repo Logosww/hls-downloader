@@ -265,26 +265,23 @@ describe('HTTP HLS integration', () => {
     expect(text.indexOf('mdat')).toBeGreaterThan(text.indexOf('moof'));
   });
 
-  it.each(['AES-128', 'SAMPLE-AES'])(
-    'rejects %s before fetching keys or segments',
-    async (method) => {
-      const server = await startFixtureServer({
-        '/encrypted.m3u8': (_request, response) =>
-          sendText(response, encryptedPlaylist(method as 'AES-128' | 'SAMPLE-AES')),
-        '/key.bin': (_request, response) => sendBytes(response, new Uint8Array(16)),
-        '/segment.ts': (_request, response) => sendBytes(response, new Uint8Array([1, 2, 3])),
-      });
-      servers.push(server);
-      const downloader = new HlsDownloader({ adapter: BrowserAdapter });
-      await expect(
-        downloader.download({ url: `${server.origin}/encrypted.m3u8` }),
-      ).rejects.toMatchObject({
-        code: HlsDownloaderErrorCode.UNSUPPORTED_ENCRYPTION,
-      });
-      expect(server.attempts.get('/key.bin')).toBeUndefined();
-      expect(server.attempts.get('/segment.ts')).toBeUndefined();
-    },
-  );
+  it.each(['SAMPLE-AES'])('rejects %s before fetching keys or segments', async (method) => {
+    const server = await startFixtureServer({
+      '/encrypted.m3u8': (_request, response) =>
+        sendText(response, encryptedPlaylist(method as 'AES-128' | 'SAMPLE-AES')),
+      '/key.bin': (_request, response) => sendBytes(response, new Uint8Array(16)),
+      '/segment.ts': (_request, response) => sendBytes(response, new Uint8Array([1, 2, 3])),
+    });
+    servers.push(server);
+    const downloader = new HlsDownloader({ adapter: BrowserAdapter });
+    await expect(
+      downloader.download({ url: `${server.origin}/encrypted.m3u8` }),
+    ).rejects.toMatchObject({
+      code: HlsDownloaderErrorCode.UNSUPPORTED_ENCRYPTION,
+    });
+    expect(server.attempts.get('/key.bin')).toBeUndefined();
+    expect(server.attempts.get('/segment.ts')).toBeUndefined();
+  });
 
   it('rejects cyclic master playlists with MANIFEST_INVALID', async () => {
     const server = await startFixtureServer({

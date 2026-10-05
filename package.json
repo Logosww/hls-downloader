@@ -84,7 +84,10 @@
     "test:native:prepared": "pnpm --filter @hls-downloader/test run test:native:prepared",
     "test:browser:renditions": "pnpm --filter @hls-downloader/test run test:browser:renditions",
     "test:types:renditions": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/renditions-api.typecheck.ts",
-    "test:app-web:renditions": "pnpm --filter @hls-downloader/test run test:app-web:renditions"
+    "test:app-web:renditions": "pnpm --filter @hls-downloader/test run test:app-web:renditions",
+    "test:keyed": "pnpm --filter @hls-downloader/test run test:keyed",
+    "test:browser:keyed": "pnpm --filter @hls-downloader/test run test:browser:keyed",
+    "test:types:decryption": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/decryption-api.typecheck.ts"
   },
   "dependencies": {
     "@hls-downloader/adapters": "workspace:*",

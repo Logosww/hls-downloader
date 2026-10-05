@@ -1,3 +1,4 @@
+import type { HlsDecryptionOptions, HlsMediaPlaylist } from '@hls-downloader/shared';
 import {
   getInternalAdapter,
   injectContext,
@@ -155,8 +156,18 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   }
   #snapshotRequestOptions<O extends HlsDownloaderFetchOptions>(options: O): O {
     const request = (options as O & { browserRequest?: object }).browserRequest;
+    const decryption = (options as O & { decryption?: HlsDecryptionOptions }).decryption;
     return {
       ...options,
+      ...(decryption
+        ? {
+            decryption: {
+              ...decryption,
+              limits: decryption.limits && { ...decryption.limits },
+              keyFormats: decryption.keyFormats?.map((f) => ({ ...f, versions: [...f.versions] })),
+            },
+          }
+        : {}),
       ...(options.headers ? { headers: { ...options.headers } } : {}),
       ...('audio' in options && options.audio ? { audio: { ...(options.audio as object) } } : {}),
       ...('subtitle' in options && options.subtitle
@@ -164,6 +175,14 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
         : {}),
       ...(request ? { browserRequest: { ...request } } : {}),
     };
+  }
+  async parseMediaPlaylist(text: string, url: string): Promise<HlsMediaPlaylist> {
+    if (!this.#adapter.parseMediaPlaylist)
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+        'Structured playlist parsing is unavailable',
+      );
+    return this.#adapter.parseMediaPlaylist(text, url);
   }
   async parseHls(
     options: HlsDownloaderFetchOptions & HlsDownloaderConfigFactory<T>['requestOptions'],
@@ -181,6 +200,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   ): Promise<HlsDownloaderConfigFactory<T>['downloadResult'] & { operationId: string }> {
     options = this.#snapshotRequestOptions(options);
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    options = { ...options, operationId };
     const context = this.#createOperationContext(operationId);
     await this.init();
     try {
@@ -233,6 +253,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   ): Promise<HlsDownloaderStreamResult> {
     options = this.#snapshotRequestOptions(options);
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    options = { ...options, operationId };
     const context = this.#createOperationContext(operationId);
     await this.init();
     try {
@@ -258,6 +279,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   ): Promise<HlsDownloaderSubtitleResult> {
     options = this.#snapshotRequestOptions(options);
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    options = { ...options, operationId };
     const context = this.#createOperationContext(operationId);
     try {
       if (!this.capabilities.subtitleExport || !this.#adapter.downloadSubtitles)
@@ -286,6 +308,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   ): Promise<HlsDownloaderStreamResult> {
     options = this.#snapshotRequestOptions(options);
     const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    options = { ...options, operationId };
     const context = this.#createOperationContext(operationId);
     const controller = new AbortController();
     const aborted = () =>

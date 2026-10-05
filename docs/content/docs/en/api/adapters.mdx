@@ -141,3 +141,46 @@ The native addon must match your operating system and Node.js ABI. Pre-built bin
 Use `downloadToWritable()` for bounded media buffers and an asynchronous destination. Existing callback streaming behavior is unchanged.
 
 Node recovery requires per-call `resume: { directory }` and plain VOD file output. It cannot be combined with transcoding, enabled aria2, or streaming APIs. See [download recovery](./hls-downloader).
+
+## AES-128 VOD
+
+External-audio output with initial track offsets is verified for file/Blob playback. Chromium MSE ignores leading empty edits; an MSE host must map timestamps per track instead of appending these multiplexed bytes unchanged to one SourceBuffer. The SDK does not provide that MSE mapping.
+
+BrowserAdapter and NodeAdapter automatically recognize AES-128 in the selected media playlists. Supported inputs are finite TS/fMP4 VOD with AVC/HEVC video and AAC-LC audio, including clear/encrypted transitions, key rotation, encrypted MAPs and one selected external audio track. `download()` produces classic MP4; callback and writable output produce fMP4. Browser playback still depends on the device's codec support.
+
+By default, identity/version-1 keys use the same headers, retry policy, cancellation and Browser `browserRequest` transport/credentials as media requests. A key must contain exactly 16 bytes. Key responses are read with a 17-byte limit; invalid lengths are not retried.
+
+```ts
+await downloader.downloadToWritable(
+  {
+    url: 'https://example.com/video.m3u8',
+    decryption: {
+      keyResolver: async (request) => {
+        const response = await fetch(request.uri, { signal: request.signal });
+        if (!response.ok) throw new Error('Key request failed');
+        return { key: new Uint8Array(await response.arrayBuffer()), expiresInMs: 60_000 };
+      },
+    },
+  },
+  writable,
+);
+```
+
+`decryption` is a per-operation option for download, stream and writable methods:
+
+| Field | Contract |
+| --- | --- |
+| `keyResolver` | Replaces the HTTP provider. Return `{ key: Uint8Array, version?: string, expiresInMs?: number }` or `null`. Only `null` permits trying another declared key-format candidate. A throw/rejection fails safely without exposing its message or triggering HTTP fallback. |
+| `keyFormats` | Ordered `{ format: string, versions: readonly number[] }[]`; defaults to identity/version 1. Declare custom formats explicitly. |
+| `encryptedRanges` | Defaults to `'reject'`. `'complete-resources'` attests that each range is a complete independently encrypted/padded resource. A 206 response with exact Content-Range and length is required. |
+| `limits` | Positive safe integers; defaults listed below. Resource limits bound source reads, not total process or Blob memory. |
+
+The resolver receives `operationId`, `inputId`, `resourceKind`, `uri`, `method`, `keyFormat`, `keyFormatVersions`, `originalSequence`, `epoch`, `generation`, `declaration`, `resolveRevision`, `refreshGeneration`, `refreshReason` and a request-specific `signal`. Protocol integers are decimal strings. `expiresInMs` is a nonnegative safe integer relative lifetime; zero is immediately expired. Cancellation aborts pending resolver requests, and late results are discarded. Caches are operation-scoped even when two calls use the same `operationId`.
+
+Default `limits`: `manifestBytes = 4 MiB`, `resourceBytes = 16 MiB`, `waitingBytes = 32 MiB`, `resources = 2`, `keyRequests = 2`, `cachedKeys = 8`, `keyWaiters = 2`. `waitingBytes` must be at least `resourceBytes`. The manifest limit also applies when selecting playlists for ordinary downloads; increase `manifestBytes` for large finite playlists. Configuring `decryption` explicitly selects the typed finite-input path even for clear input. `resources` controls keyed concurrency; legacy `downloadConcurrency` continues to apply to the existing clear path.
+
+`capabilities.aes128` indicates this finite profile; `capabilities.decryption` describes methods, containers, codecs, external audio and the absence of encrypted recovery. Live/EVENT, discontinuities, sample encryption/GCM, encrypted resume, transcoding, aria2 and encrypted WebVTT remain unsupported. Unsupported playlist combinations are rejected before key/media work; container and codec validation requires reading media.
+
+Errors distinguish `KEY_UNAVAILABLE`, `KEY_RESOLUTION_FAILED`, `KEY_INVALID`, `KEY_EXPIRED`, `ENCRYPTION_INVALID`, `DECRYPT_FAILED`, `MEDIA_INVALID` and `RESOURCE_LIMIT_EXCEEDED`. CBC decryption is not authenticated encryption. A wrong key is not guaranteed to be detectable. Resolver messages, key bytes and key versions are excluded from public errors/events.
+
+`DECRYPTION_PROGRESS` carries `payload.decryption`: per-input discovered/committed counts plus separate media/MAP downloaded, decrypted and ready counters, all as decimal strings. Clear resources do not increase decrypted counts. Committed counts are not recovery checkpoints. The public completion event is emitted only after the destination closes successfully.

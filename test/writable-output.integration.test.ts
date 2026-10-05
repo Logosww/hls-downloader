@@ -401,7 +401,6 @@ describe('writable output (real WASM)', () => {
   });
 
   it.each([
-    ['AES-128', '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"', 'UNSUPPORTED_ENCRYPTION'],
     ['SAMPLE-AES', '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="key.bin"', 'UNSUPPORTED_ENCRYPTION'],
     ['discontinuity', '#EXT-X-DISCONTINUITY', 'TRANSMUX_FAILED'],
     ['event', '#EXT-X-PLAYLIST-TYPE:EVENT', 'TRANSMUX_FAILED'],

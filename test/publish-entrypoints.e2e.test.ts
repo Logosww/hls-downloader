@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { encryptedRoutes } from './fixtures/encrypted';
+import { startFixtureServer } from './fixtures/http-server';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -7,7 +10,7 @@ import { resolve, join } from 'node:path';
 describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
   'publish entrypoints e2e',
   () => {
-    it('type-checks writable, recovery and rendition APIs from actual package tarballs', () => {
+    it('type-checks public APIs and decodes AES outputs from isolated package tarballs', async () => {
       const root = resolve(import.meta.dirname, '..');
       const dir = mkdtempSync(join(tmpdir(), 'hls-tarballs-'));
       try {
@@ -51,6 +54,12 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
           const selection: import('@logosw/hls-downloader/shared').AudioSelection = {groupId:'a',name:'en'};
           // @ts-expect-error subtitle selection is required
           node.downloadSubtitles({url:'https://example.test/master.m3u8'});
+          const resolver: import('@logosw/hls-downloader').HlsKeyResolver = async request => { const sequence: string = request.originalSequence; return { key: new Uint8Array(16), expiresInMs: 500 }; };
+          node.download({url:'https://example.test/a.m3u8',decryption:{keyResolver:resolver}});
+          const typedPlaylist: Promise<import('@logosw/hls-downloader/shared').HlsMediaPlaylist> = node.parseMediaPlaylist('#EXTM3U','https://example.test/a.m3u8');
+          const decryptionError: 'KEY_INVALID' = HlsDownloaderErrorCode.KEY_INVALID;
+          // @ts-expect-error key bytes must be binary
+          const badResolver: import('@logosw/hls-downloader').HlsKeyResolver = async () => ({ key: 'secret' });
           const recoveryCapable: boolean | undefined = node.capabilities.resumableDownload;
           const recoveryError: 'RESUME_INVALID' = HlsDownloaderErrorCode.RESUME_INVALID;
           // @ts-expect-error recovery is not a global option
@@ -96,6 +105,81 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
           ],
           { cwd: dir, encoding: 'utf8' },
         );
+        // A separate Node process prevents workspace aliases or source imports from
+        // hiding missing public exports, native bindings or packaged WASM assets.
+        writeFileSync(
+          join(dir, 'consumer.mjs'),
+          `
+          import { HlsDownloader, BrowserAdapter, NodeAdapter } from '@logosw/hls-downloader';
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const realFetch = globalThis.fetch;
+          globalThis.fetch = (url, init) => String(url).startsWith('file:') && String(url).endsWith('.wasm')
+            ? Promise.resolve(new Response(readFileSync(new URL(url)), {headers:{'content-type':'application/wasm'}}))
+            : realFetch(url, init);
+          for (const [name, adapter] of [['browser', BrowserAdapter], ['node', NodeAdapter]]) {
+            const d = new HlsDownloader({adapter});
+            assert.equal(d.capabilities.aes128, true);
+            assert.equal(d.capabilities.decryption.resume, false);
+            const text = await (await fetch(process.argv[2] + '/video/media.m3u8')).text();
+            const metadata = await d.parseMediaPlaylist(text, process.argv[2] + '/video/media.m3u8');
+            assert.equal(metadata.mediaSequence, '9007199254740993');
+            for (const mode of ['download', 'stream', 'writable']) {
+              const options = {url:process.argv[2] + '/master.m3u8', filename:name+'-'+mode+'.mp4'};
+              let bytes;
+              if (mode === 'download') {
+                const output = await d.download(options);
+                if ('blobURL' in output) {
+                  bytes = new Uint8Array(await (await fetch(output.blobURL)).arrayBuffer());
+                  URL.revokeObjectURL(output.blobURL);
+                } else bytes = readFileSync(output.filePath);
+              } else {
+                const chunks = [];
+                if (mode === 'stream') await d.downloadToStream(options, b => {chunks.push(b);});
+                else await d.downloadToWritable(options, new WritableStream({write(b){chunks.push(b);}}));
+                bytes = Buffer.concat(chunks);
+              }
+              writeFileSync(options.filename, bytes);
+            }
+          }
+        `,
+        );
+        const server = await startFixtureServer(encryptedRoutes('ts', true, true, false));
+        try {
+          await promisify(execFile)(process.execPath, [join(dir, 'consumer.mjs'), server.origin], {
+            cwd: dir,
+            timeout: 30000,
+          });
+        } finally {
+          await server.close();
+        }
+        const hashes = (file: string) =>
+          execFileSync(
+            'ffmpeg',
+            ['-v', 'error', '-i', file, '-map', '0:v:0', '-f', 'framemd5', '-'],
+            { encoding: 'utf8' },
+          )
+            .split('\n')
+            .filter((l) => l && !l.startsWith('#'))
+            .map((l) => l.split(',').at(-1)?.trim());
+        const clear = hashes(resolve(root, 'test/fixtures/media/ts/media.m3u8'));
+        for (const name of ['browser', 'node'])
+          for (const mode of ['download', 'stream', 'writable']) {
+            const file = join(dir, name + '-' + mode + '.mp4');
+            expect(hashes(file)).toEqual(clear);
+            const probe = JSON.parse(
+              execFileSync(
+                'ffprobe',
+                ['-v', 'error', '-show_packets', '-show_format', '-of', 'json', file],
+                { encoding: 'utf8' },
+              ),
+            );
+            const end = Math.max(
+              ...probe.packets.map((p: any) => Number(p.pts_time) + Number(p.duration_time)),
+            );
+            expect(Math.abs(Number(probe.format.duration) - end)).toBeLessThan(0.05);
+            expect(end).toBeGreaterThan(3.3);
+          }
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

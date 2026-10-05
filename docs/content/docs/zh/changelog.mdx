@@ -8,6 +8,18 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [Unreleased]
+
+### 新增
+
+- **BrowserAdapter / NodeAdapter**：download、stream、writable 支持有限 AES-128 TS/fMP4 VOD、AVC/HEVC/AAC-LC、密钥轮换、加密 MAP 及一条外置音轨。新增单次操作的 `decryption` provider、预算、结构化进度和 key/解密错误；暂不支持加密恢复、转码、aria2 和字幕。
+- 新增 `parseMediaPlaylist(text, url)`，提供无损协议整数的结构化元数据，以及描述支持范围的 `capabilities.decryption`。
+
+### 变更
+
+- 外置音轨 fMP4 输出现在正确保留初始轨道偏移及文件/Blob 播放时长；MSE 播放端需单独映射各轨道时间戳。
+- 下载选择清单时默认限制 manifest 为 4 MiB；较大的有限清单可配置 `decryption.limits.manifestBytes`。
+
 ## [3.7.0] - 2026-10-04
 
 ### 新增

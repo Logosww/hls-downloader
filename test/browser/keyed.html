@@ -1,0 +1,173 @@
+<!doctype html>
+<html>
+  <body>
+    <video muted></video>
+    <script type="module">
+      import { HlsDownloader } from '/packages/core/src/index.ts';
+      import { BrowserAdapter } from '/packages/adapters/src/browser/index.ts';
+      window.runKeyed = async () => {
+        const key = Uint8Array.from({ length: 16 }, (_, i) => i * 17);
+        const result = [];
+        let unhandled = 0;
+        window.addEventListener('unhandledrejection', () => unhandled++);
+        const d = new HlsDownloader({ adapter: BrowserAdapter });
+        for (const format of ['ts', 'fmp4'])
+          for (const mode of ['download', 'stream', 'writable']) {
+            const options = {
+              url: `${location.origin}/${format}/master.m3u8`,
+              browserRequest: {
+                credentials: 'include',
+                fetch: async (url, init) => {
+                  if (init.credentials !== 'include') throw new Error('credentials missing');
+                  return fetch(url, init);
+                },
+              },
+              decryption: {
+                keyResolver: async (request) => {
+                  if (!request.operationId || typeof request.originalSequence !== 'string')
+                    throw new Error('invalid context');
+                  return { key };
+                },
+              },
+            };
+            let blob;
+            if (mode === 'download') {
+              const r = await d.download(options);
+              blob = await (await fetch(r.blobURL)).blob();
+              URL.revokeObjectURL(r.blobURL);
+            } else {
+              const chunks = [];
+              let pending = false;
+              if (mode === 'stream') await d.downloadToStream(options, (b) => chunks.push(b));
+              else
+                await d.downloadToWritable(
+                  options,
+                  new WritableStream({
+                    async write(b) {
+                      if (pending) throw new Error('overlapping writes');
+                      pending = true;
+                      await new Promise((r) => setTimeout(r, 2));
+                      chunks.push(b);
+                      pending = false;
+                    },
+                  }),
+                );
+              blob = new Blob(chunks, { type: 'video/mp4' });
+            }
+            const video = document.querySelector('video');
+            const url = URL.createObjectURL(blob);
+            try {
+              video.src = url;
+              await video.play();
+              await new Promise((resolve, reject) => {
+                video.onended = resolve;
+                video.onerror = () => reject(new Error('decode failed'));
+              });
+              result.push({ format, mode, bytes: blob.size, duration: video.duration });
+            } finally {
+              video.removeAttribute('src');
+              video.load();
+              URL.revokeObjectURL(url);
+            }
+          }
+        for (const [keyResolver, expected] of [
+          [async () => null, 'KEY_UNAVAILABLE'],
+          [
+            async () => {
+              throw new Error('secret-provider-message');
+            },
+            'KEY_RESOLUTION_FAILED',
+          ],
+          [async () => ({ key: new Uint8Array(17) }), 'KEY_INVALID'],
+          [async () => ({ key, expiresInMs: 0 }), 'KEY_EXPIRED'],
+        ]) {
+          let error;
+          try {
+            await d.downloadToStream(
+              { url: location.origin + '/ts/video/media.m3u8', decryption: { keyResolver } },
+              () => {},
+            );
+          } catch (e) {
+            error = e;
+          }
+          if (error?.code !== expected || JSON.stringify(error).includes('secret-provider-message'))
+            throw new Error('provider error contract');
+        }
+        let keyRequests = 0;
+        await d.downloadToStream(
+          {
+            url: location.origin + '/ts/video/media.m3u8',
+            headers: { 'x-keyed': 'authorized' },
+            browserRequest: {
+              credentials: 'include',
+              fetch: async (url, init) => {
+                if (
+                  init.credentials !== 'include' ||
+                  new Headers(init.headers).get('x-keyed') !== 'authorized'
+                )
+                  throw new Error('transport mismatch');
+                if (url.endsWith('/key')) keyRequests++;
+                return fetch(url, init);
+              },
+            },
+          },
+          () => {},
+        );
+        if (!keyRequests) throw new Error('HTTP provider was not used');
+        for (const phase of ['write', 'close']) {
+          let error;
+          try {
+            await d.downloadToWritable(
+              { url: location.origin + '/ts/video/media.m3u8' },
+              new WritableStream({
+                write() {
+                  if (phase === 'write') throw new Error('sink');
+                },
+                close() {
+                  if (phase === 'close') throw new Error('sink');
+                },
+              }),
+            );
+          } catch (e) {
+            error = e;
+          }
+          if (error?.code !== 'OUTPUT_WRITE_FAILED') throw new Error('sink error contract');
+        }
+        const controller = new AbortController();
+        let reached;
+        const started = new Promise((r) => (reached = r));
+        let reject;
+        let signal;
+        const task = d.downloadToStream(
+          {
+            url: location.origin + '/ts/video/media.m3u8',
+            signal: controller.signal,
+            decryption: {
+              keyResolver: (r) => {
+                signal = r.signal;
+                reached();
+                return new Promise((_, no) => (reject = no));
+              },
+            },
+          },
+          () => {
+            throw new Error('late write');
+          },
+        );
+        await started;
+        controller.abort();
+        let code;
+        try {
+          await task;
+        } catch (e) {
+          code = e.code;
+        }
+        if (code !== 'ABORTED' || !signal.aborted) throw new Error('cancel failed');
+        reject(new Error('late secret'));
+        await new Promise((r) => setTimeout(r, 30));
+        if (unhandled) throw new Error('unhandled rejection');
+        return result;
+      };
+    </script>
+  </body>
+</html>

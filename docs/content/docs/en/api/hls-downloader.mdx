@@ -169,6 +169,8 @@ try {
 
 ### `downloadToStream()`
 
+External-audio output with initial track offsets is verified for file/Blob playback. Chromium MSE ignores leading empty edits; an MSE host must map timestamps per track instead of appending these multiplexed bytes unchanged to one SourceBuffer. The SDK does not provide that MSE mapping.
+
 <Callout type="info" title="BrowserAdapter & NodeAdapter">
   `downloadToStream()` is supported on both **`BrowserAdapter`** and **`NodeAdapter`**, and both
   emit fragmented MP4 incrementally. Use writable output for asynchronous consumer backpressure.
@@ -413,8 +415,17 @@ console.log(subtitles.text); // save as subtitles.filename
 
 Audio selection applies after variant selection and only within its referenced audio group. With no explicit selection, DEFAULT wins, then AUTOSELECT, then declaration order. External audio replaces embedded audio; a URI-less rendition keeps embedded audio. Output contains one selected audio track. Unsupported alternate video groups fail explicitly.
 
-Alternate audio supports unencrypted VOD TS/fMP4 with AVC/HEVC and AAC-LC. It cannot be combined with resume, transcoding, or aria2. Unselected subtitles are never fetched. Prepared inputs must share a reliable presentation clock; timestamp resets and unrepresentable gaps fail rather than guessing synchronization.
+Alternate audio supports clear and AES-128 finite VOD TS/fMP4 with AVC/HEVC and AAC-LC. It cannot be combined with resume, transcoding, or aria2. Unselected subtitles are never fetched. Prepared inputs must share a reliable presentation clock; timestamp resets and unrepresentable gaps fail rather than guessing synchronization.
 
 `downloadSubtitles()` is a separate operation exporting one external WebVTT rendition. It probes the selected media’s initialization/first segments to obtain the same output timeline, then fetches subtitle segments. It supports MAP, timestamp mapping/wrap, empty segments, cue deduplication, and cue settings. Cues before output zero are omitted or clipped at zero. Malformed subtitles fail with `SUBTITLE_INVALID`; no subtitles are embedded in MP4 and no SRT conversion is performed.
 
 Node writable accepts WHATWG streams. To use a Node writable, pass `Writable.toWeb(nodeWritable)` from `node:stream`; the downloader owns close/abort for the operation.
+
+### `parseMediaPlaylist(text, url)`
+
+```ts
+const playlist = await downloader.parseMediaPlaylist(text, finalPlaylistUrl);
+const sequence = BigInt(playlist.segments[0].originalSequence);
+```
+
+Parses an already-selected media playlist from its raw text and final URL. Returns versioned `HlsMediaPlaylist` metadata, preserving decimal-string sequences/ranges/ticks, KEY candidates, MAP declaration context, NONE transitions, gaps and discontinuities. It does not select a master rendition or request keys/media. Browser may load WASM for this parser; the lightweight `parseHls()` behavior is unchanged. Parsing alone does not guarantee executable media support.

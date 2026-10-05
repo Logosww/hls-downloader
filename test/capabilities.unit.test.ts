@@ -4,6 +4,7 @@ import { getInternalAdapter } from '@hls-downloader/shared';
 
 const evidence = {
   BrowserAdapter: {
+    aes128: 'keyed.integration: independent decode, offset timelines, all output modes',
     writableOutput: 'writable-output.integration: real WASM, backpressure and ffprobe',
     alternateAudio: 'renditions.integration: both containers and all three outputs',
     subtitleExport: 'renditions.integration: prepared timeline and WebVTT export',
@@ -20,6 +21,7 @@ describe('capability evidence', () => {
     const capabilities = getInternalAdapter(BrowserAdapter).capabilities;
     const mapped = evidence.BrowserAdapter;
     for (const key of [
+      'aes128',
       'download',
       'stream',
       'configurableRetry',
@@ -33,7 +35,17 @@ describe('capability evidence', () => {
     for (const preset of capabilities.transcodePresets) {
       expect(mapped.transcodePresets, preset).toBeTruthy();
     }
-    expect(capabilities.aes128).toBe(false);
+    expect(capabilities.aes128).toBe(true);
+    expect(capabilities.decryption).toEqual({
+      methods: ['AES-128'],
+      containers: ['ts', 'fmp4'],
+      codecs: ['avc', 'hevc', 'aac-lc'],
+      finite: true,
+      externalAudio: true,
+      resume: false,
+    });
+    expect(Object.isFrozen(capabilities.decryption)).toBe(true);
+    expect(Object.isFrozen(capabilities.decryption!.methods)).toBe(true);
     expect(capabilities.liveRecording).toBe(false);
   });
 });

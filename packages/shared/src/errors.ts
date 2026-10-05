@@ -1,4 +1,12 @@
 export const HlsDownloaderErrorCode = {
+  KEY_UNAVAILABLE: 'KEY_UNAVAILABLE',
+  KEY_RESOLUTION_FAILED: 'KEY_RESOLUTION_FAILED',
+  KEY_INVALID: 'KEY_INVALID',
+  KEY_EXPIRED: 'KEY_EXPIRED',
+  ENCRYPTION_INVALID: 'ENCRYPTION_INVALID',
+  DECRYPT_FAILED: 'DECRYPT_FAILED',
+  MEDIA_INVALID: 'MEDIA_INVALID',
+  RESOURCE_LIMIT_EXCEEDED: 'RESOURCE_LIMIT_EXCEEDED',
   RENDITION_NOT_FOUND: 'RENDITION_NOT_FOUND',
   UNSUPPORTED_RENDITION: 'UNSUPPORTED_RENDITION',
   SUBTITLE_INVALID: 'SUBTITLE_INVALID',
@@ -26,6 +34,11 @@ export type HlsDownloaderErrorDetails = {
   segmentIndex?: number;
   inputRole?: 'primary' | 'audio' | 'subtitles';
   phase?: string;
+  reason?: string;
+  inputId?: string;
+  originalSequence?: string;
+  epoch?: string;
+  resourceKind?: 'media' | 'map';
   attempt?: number;
   adapter?: string;
   recoverable?: boolean;
@@ -53,6 +66,11 @@ export class HlsDownloaderError extends Error {
   readonly segmentIndex?: number;
   readonly inputRole?: 'primary' | 'audio' | 'subtitles';
   readonly phase?: string;
+  readonly reason?: string;
+  readonly inputId?: string;
+  readonly originalSequence?: string;
+  readonly epoch?: string;
+  readonly resourceKind?: 'media' | 'map';
   readonly attempt?: number;
   readonly adapter?: string;
   readonly recoverable: boolean;
@@ -70,6 +88,12 @@ export class HlsDownloaderError extends Error {
     this.segmentIndex = details.segmentIndex;
     this.inputRole = details.inputRole;
     this.phase = details.phase;
+    this.reason = details.reason;
+    this.inputId = details.inputId;
+    this.originalSequence = details.originalSequence;
+    this.epoch = details.epoch;
+    this.resourceKind = details.resourceKind;
+
     this.attempt = details.attempt;
     this.adapter = details.adapter;
     this.recoverable = details.recoverable ?? false;

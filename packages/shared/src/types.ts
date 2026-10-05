@@ -1,3 +1,4 @@
+import type { HlsDecryptionOptions, HlsDecryptionProgress, HlsMediaPlaylist } from './decryption';
 import type { HlsDownloaderError } from './errors';
 
 export type Segment = {
@@ -64,6 +65,7 @@ export type ParseHlsResult =
   | { type: 'error'; data?: undefined; message: string; error?: HlsDownloaderError };
 
 export enum HlsDownloaderEvent {
+  DECRYPTION_PROGRESS = 'decryption-progress',
   FFMPEG_LOADING = 'ffmpeg-loading',
   FFMPEG_LOADED = 'ffmpeg-loaded',
   STARTING_DOWNLOAD = 'starting-download',
@@ -80,11 +82,14 @@ export type HlsDownloaderEventPayload<E extends HlsDownloaderEvent = HlsDownload
   total?: number;
   completed?: number;
   error?: HlsDownloaderError;
+  decryption?: HlsDecryptionProgress;
 } & (E extends HlsDownloaderEvent.DOWNLOADING_SEGMENTS | HlsDownloaderEvent.STITCHING_SEGMENTS
   ? { total: number; completed: number }
   : E extends HlsDownloaderEvent.ERROR
     ? { error: HlsDownloaderError }
-    : Record<string, never>);
+    : E extends HlsDownloaderEvent.DECRYPTION_PROGRESS
+      ? { decryption: HlsDecryptionProgress }
+      : Record<string, never>);
 
 export type HlsDownloaderAdapter = {
   name: string;
@@ -98,6 +103,14 @@ export type AdapterCapabilities = Readonly<{
   configurableRetry: boolean;
   byteRange: boolean | 'unknown';
   aes128: boolean | 'unknown';
+  decryption?: Readonly<{
+    methods: readonly ['AES-128'];
+    containers: readonly ['ts', 'fmp4'];
+    codecs: readonly ['avc', 'hevc', 'aac-lc'];
+    finite: true;
+    externalAudio: true;
+    resume: false;
+  }>;
   liveRecording: boolean;
   persistentOutput: boolean;
   /** Supports backpressured fMP4 output to a caller-provided writable stream. */
@@ -168,6 +181,7 @@ export type HlsDownloaderBrowserTranscodeOptions = {
 };
 
 export type HlsDownloaderDownloadOptions = {
+  decryption?: HlsDecryptionOptions;
   /** Stable identifier used to correlate lifecycle events for this operation. */
   operationId?: string;
   filename?: string;
@@ -212,6 +226,7 @@ export interface HlsDownloaderAdapterInternal<
   DownloadOnlyOptions extends Record<string, any> = {},
   RequestOptions extends Record<string, any> = {},
 > extends HlsDownloaderAdapter {
+  parseMediaPlaylist?(text: string, url: string): Promise<HlsMediaPlaylist>;
   readonly capabilities: AdapterCapabilities;
   chunkDownloadConcurrency: number;
   segmentRetryAttempts: number;

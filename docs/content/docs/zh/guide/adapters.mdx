@@ -25,7 +25,7 @@ HLS Downloader 使用适配器模式来支持不同运行环境。请根据你�
 | 可配置重试     | 是              | 是              |
 | 转码预设       | h264、hevc、vp9 | h264、hevc、vp9 |
 | Byte range     | 是              | 是              |
-| AES-128        | 否              | 否              |
+| AES-128（有限 VOD） | 是 | 是 |
 | 持久输出       | 否              | 是              |
 | Live recording | 否              | 否              |
 
@@ -37,7 +37,7 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
 ```
 
-浏览器适配器的普通下载使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly。`download()` 返回经典 fast-start MP4；`downloadToStream()` 输出适用于 MSE 的 fragmented MP4 分块。
+浏览器适配器的普通下载使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly。`download()` 返回经典 fast-start MP4；`downloadToStream()` 输出 fragmented MP4 分块。带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。SDK 不提供该 MSE 映射。
 
 传入 `transcode` 时，Mediabunny 使用 WebCodecs 转码 — BrowserAdapter 不再附带或加载 `ffmpeg.wasm`。支持 `h264`、`hevc`、`vp9` 预设及可选的 `videoBitrate`、`audioBitrate`。编码支持情况取决于当前浏览器的 `VideoEncoder.isConfigSupported()` 与 `AudioEncoder.isConfigSupported()`。
 

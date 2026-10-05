@@ -22,3 +22,15 @@ wave (48 kHz AAC, 64 kbit/s, two seconds, HLS segment target 0.6 seconds).
 They are generated with FFmpeg lavfi and covered by the same MIT license.
 Their four segments deliberately differ from the two primary video segments.
 Rendition tests decode the selected audio to distinguish it from embedded 440 Hz audio.
+
+The `hevc-ts` and `hevc-fmp4` variants use the same sources and durations, with
+`-c:v libx265 -preset ultrafast -x265-params log-level=error:keyint=10:min-keyint=10:scenecut=0:pools=1:frame-threads=1 -tag:v hvc1`.
+`encrypted.ts` encrypts these clear fixtures independently with Node/OpenSSL
+AES-128-CBC and PKCS#7 padding. Mixed-container external-audio tests shift TS
+PES clocks by -1.4 seconds to place both independently generated inputs on the
+same timeline; the SDK receives the resulting timestamps unchanged.
+
+The offset regression passes `alignClocks: false` (the fourth positional argument
+to `encryptedRoutes`) to preserve the original TS/fMP4 clock difference. It
+requires container duration to match the final packet presentation end without
+removing that difference. See hls-transmux issue #2 for the regression fixed in 0.6.2.

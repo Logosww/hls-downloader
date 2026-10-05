@@ -1,5 +1,12 @@
+import {
+  executeMedia,
+  requiresKeyed,
+  parseMediaMetadata,
+  decryptionProfile,
+  type KeyedEngine,
+} from '../keyed';
 import { resolveMedia, selectAudio } from '../renditions';
-import { withOperation, executePrepared, exportSubtitles, type Engine } from '../prepared';
+import { withOperation, exportSubtitles, type Engine } from '../prepared';
 import { assertActive } from '../browser/request';
 import {
   createAdapter,
@@ -33,6 +40,8 @@ import {
   runResumeTask,
   initFfmpeg,
   preparedNative,
+  keyedNative,
+  parseMediaPlaylistNative,
   parseHlsNative,
   downloadAndMerge,
   extractPoster,
@@ -326,6 +335,11 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
     });
   }
 
+  if (options.decryption && (options.resume || transcode !== undefined || aria2?.enabled))
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'Decryption is incompatible with recovery, transcoding or aria2',
+    );
   if (options.audio && (options.resume || transcode !== undefined || aria2?.enabled))
     throw new HlsDownloaderError(
       HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
@@ -333,19 +347,20 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
     );
   if (options.resume === undefined && !needsFfmpegTranscode(transcode) && !aria2?.enabled) {
     return withOperation(
-      { ...options, url, headers, filename, maxRetry, downloadConcurrency, signal },
+      { ...options, url, headers, filename, maxRetry, downloadConcurrency, signal, transcode },
       async (request) => {
-        const media = await resolveMedia(request, transcode !== undefined);
+        const media = await resolveMedia(request, transcode !== undefined, true);
         emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
         const workDir = join(process.cwd(), randomUUID());
         await mkdir(workDir, { recursive: true });
         try {
           const output = join(workDir, 'output.mp4');
-          const report = await executePrepared(
+          const report = await executeMedia(
             this,
             request,
             media,
             nodeEngine,
+            nodeKeyedEngine,
             'file',
             async () => {},
             output,
@@ -686,7 +701,7 @@ const nodeEngine: Engine = async (request, read, write, progress, signal) => {
 const downloadToWritable: NonNullable<HlsDownloaderNodeAdapter['downloadToWritable']> =
   async function (this: HlsDownloaderNodeAdapter, options, write) {
     const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
-    const merged = mergeDownloadOptions(this, globalOptions, options);
+    const merged = { ...mergeDownloadOptions(this, globalOptions, options), transcode: undefined };
     return withOperation(
       { ...options, ...merged },
       async (request) => {
@@ -694,14 +709,28 @@ const downloadToWritable: NonNullable<HlsDownloaderNodeAdapter['downloadToWritab
         const media = await resolveMedia(
           request,
           Boolean((options as Record<string, unknown>).__rejectAudio),
+          true,
         );
-        if (media.audio && merged.aria2?.enabled)
+        if ((media.audio || requiresKeyed(media, request)) && merged.aria2?.enabled)
           throw new HlsDownloaderError(
             HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
             'Audio selection cannot use aria2',
           );
         emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-        const report = await executePrepared(this, request, media, nodeEngine, 'stream', write);
+        if (requiresKeyed(media, request) && (options as Record<string, unknown>).__rejectAudio)
+          throw new HlsDownloaderError(
+            HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+            'Encrypted input cannot be transcoded',
+          );
+        const report = await executeMedia(
+          this,
+          request,
+          media,
+          nodeEngine,
+          nodeKeyedEngine,
+          'stream',
+          write,
+        );
         emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
           completed: report.totalSegments,
           total: report.totalSegments,
@@ -772,7 +801,8 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
     transcodePresets: ['h264', 'hevc', 'vp9'],
     configurableRetry: true,
     byteRange: true,
-    aes128: false,
+    aes128: true,
+    decryption: decryptionProfile,
     liveRecording: false,
     persistentOutput: true,
     writableOutput: true,
@@ -784,6 +814,9 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   segmentRetryAttempts: 10,
   init,
   parseHls,
+  async parseMediaPlaylist(text: string, url: string) {
+    return parseMediaMetadata(parseMediaPlaylistNative(text, url));
+  },
   getPosterUrl,
   download,
   downloadToStream,
@@ -795,3 +828,44 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
 export const NodeAdapter: HlsDownloaderNodeAdapter = nodeAdapter;
 
 export default NodeAdapter;
+
+const nodeKeyedEngine: KeyedEngine = async (
+  request,
+  read,
+  write,
+  resolve,
+  abort,
+  progress,
+  signal,
+) => {
+  const { jobId, cleanup } = await setupCancelToken(signal);
+  let active = true;
+  try {
+    return await keyedNative(
+      request,
+      jobId!,
+      async (err: Error | null, value: string) => {
+        if (err) throw err;
+        return Buffer.from(await read(value));
+      },
+      async (err: Error | null, bytes: Buffer) => {
+        if (err) throw err;
+        await write(new Uint8Array(bytes));
+      },
+      async (err: Error | null, value: string) => {
+        if (err) throw err;
+        const reply = await resolve(value);
+        return { ...reply, key: Buffer.from(reply.key) };
+      },
+      (err: Error | null, id: string) => {
+        if (!err && active) abort(id);
+      },
+      (err: Error | null, event: string) => {
+        if (!err && active) progress(event);
+      },
+    );
+  } finally {
+    active = false;
+    cleanup();
+  }
+};

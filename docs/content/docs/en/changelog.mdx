@@ -8,6 +8,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **BrowserAdapter / NodeAdapter**: Support finite AES-128 TS/fMP4 VOD with AVC/HEVC/AAC-LC, key rotation, encrypted MAPs and one external audio track across download, stream and writable output. Add per-operation `decryption` providers, budgets, structured progress and typed key/decryption errors; encrypted recovery, transcoding, aria2 and subtitles remain unsupported.
+- Add `parseMediaPlaylist(text, url)` for structured metadata with lossless protocol integers, and `capabilities.decryption` to describe the supported profile.
+
+### Changed
+
+- External-audio fMP4 output preserves initial track offsets with correct file/Blob duration; MSE hosts must map timestamps per track.
+- Download playlist selection now enforces a 4 MiB manifest limit; configure `decryption.limits.manifestBytes` for larger finite playlists.
+
 ## [3.7.0] - 2026-10-04
 
 ### Added

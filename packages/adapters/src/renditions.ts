@@ -13,7 +13,7 @@ import {
   type HlsDownloaderBrowserOperationOptions,
   type ParseHlsResult,
 } from '@hls-downloader/shared';
-import { readResource } from './browser/writable';
+import { readBoundedResource } from './bounded';
 
 export type MediaSnapshot = { url: string; text: string; segments: Segment[] };
 export type SelectedMedia = {
@@ -43,8 +43,9 @@ export async function readManifest(
   url: string,
   options: RequestOptions,
 ): Promise<{ url: string; text: string; parsed: ParseHlsResult }> {
-  const result = await readResource(
+  const result = await readBoundedResource(
     { url },
+    options.decryption?.limits?.manifestBytes ?? 4 * 1024 * 1024,
     options.headers,
     options.maxRetry ?? 10,
     options.signal ?? new AbortController().signal,
@@ -94,6 +95,7 @@ export function selectAudio(
 export async function resolveMedia(
   options: RequestOptions,
   rejectAlternate = false,
+  allowKeyed = false,
 ): Promise<SelectedMedia> {
   let url = options.url;
   let audio: Rendition | undefined;
@@ -138,7 +140,8 @@ export async function resolveMedia(
         Code.RENDITION_NOT_FOUND,
         'Audio selection requires a master playlist',
       );
-    assertSupportedSegments(parsed.data, 'HlsDownloader');
+    if (!allowKeyed || (!options.decryption && !/^\s*#EXT-X-KEY:/m.test(resource.text)))
+      assertSupportedSegments(parsed.data, 'HlsDownloader');
     const primary = { url: resource.url, text: resource.text, segments: parsed.data };
     let external: MediaSnapshot | undefined;
     if (audio?.uri) {
@@ -149,7 +152,8 @@ export async function resolveMedia(
           'Audio rendition must be a media playlist',
           { inputRole: 'audio' },
         );
-      assertSupportedSegments(a.parsed.data, 'HlsDownloader');
+      if (!allowKeyed || (!options.decryption && !/^\s*#EXT-X-KEY:/m.test(a.text)))
+        assertSupportedSegments(a.parsed.data, 'HlsDownloader');
       external = { url: a.url, text: a.text, segments: a.parsed.data };
     }
     return {

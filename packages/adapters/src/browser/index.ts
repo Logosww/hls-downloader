@@ -1,6 +1,13 @@
+import {
+  executeMedia,
+  requiresKeyed,
+  parseMediaMetadata,
+  decryptionProfile,
+  type KeyedEngine,
+} from '../keyed';
 import { resolveMedia } from '../renditions';
-import { withOperation, executePrepared, exportSubtitles, type Engine } from '../prepared';
-import { prepared_browser } from './wasm';
+import { withOperation, exportSubtitles, type Engine } from '../prepared';
+import { prepared_browser, keyed_browser, parse_media_playlist_browser } from './wasm';
 import { Parser } from 'm3u8-parser';
 import {
   createAdapter,
@@ -233,11 +240,20 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
 
   if (!needsBrowserTranscode(transcode)) {
     return withOperation(
-      { ...options, url, headers, maxRetry, downloadConcurrency, signal, browserRequest },
+      {
+        ...options,
+        url,
+        headers,
+        maxRetry,
+        downloadConcurrency,
+        signal,
+        browserRequest,
+        transcode,
+      },
       async (request) => {
-        const media = await resolveMedia(request, transcode !== undefined);
+        const media = await resolveMedia(request, transcode !== undefined, true);
         emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-        if (!media.audio) {
+        if (!media.audio && !requiresKeyed(media, request)) {
           const blobURL = await downloadAndTransmux({
             url: media.primary.url,
             playlist: media.primary.text,
@@ -262,11 +278,12 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
           return { blobURL, totalSegments: media.totalSegments };
         }
         let buffer: Uint8Array | undefined;
-        const report = await executePrepared(
+        const report = await executeMedia(
           this,
           request,
           media,
           browserEngine,
+          browserKeyedEngine,
           'bytes',
           async (bytes) => {
             buffer = bytes;
@@ -632,15 +649,16 @@ const browserEngine: Engine = async (request, read, write, progress, signal) => 
 const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWritable']> =
   async function (this: HlsDownloaderBrowserAdapter, options, write) {
     const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
-    const merged = mergeDownloadOptions(this, globalOptions, options);
+    const merged = { ...mergeDownloadOptions(this, globalOptions, options), transcode: undefined };
     return withOperation({ ...options, ...merged }, async (request) => {
       emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
       const media = await resolveMedia(
         request,
         Boolean((options as Record<string, unknown>).__rejectAudio),
+        true,
       );
       emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-      if (!media.audio && !options.audio) {
+      if (!media.audio && !options.audio && !requiresKeyed(media, request)) {
         // Preserve the legacy single-input timeline contract while feeding its exact snapshot.
         return legacyDownloadToWritable.call(
           this,
@@ -648,7 +666,20 @@ const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWri
           write,
         );
       }
-      const report = await executePrepared(this, request, media, browserEngine, 'stream', write);
+      if (requiresKeyed(media, request) && (options as Record<string, unknown>).__rejectAudio)
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Encrypted input cannot be transcoded',
+        );
+      const report = await executeMedia(
+        this,
+        request,
+        media,
+        browserEngine,
+        browserKeyedEngine,
+        'stream',
+        write,
+      );
       emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
         completed: report.totalSegments,
         total: report.totalSegments,
@@ -734,7 +765,8 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
     transcodePresets: ['h264', 'hevc', 'vp9'],
     configurableRetry: true,
     byteRange: true,
-    aes128: false,
+    aes128: true,
+    decryption: decryptionProfile,
     liveRecording: false,
     persistentOutput: false,
     writableOutput: true,
@@ -746,6 +778,10 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   segmentRetryAttempts: 10,
   init,
   parseHls,
+  async parseMediaPlaylist(text: string, url: string) {
+    await ensureWasm();
+    return parseMediaMetadata(parse_media_playlist_browser(text, url));
+  },
   getPosterUrl: scopedOperation(getPosterUrl),
   download: scopedOperation(download),
   downloadToStream: scopedOperation(downloadToStream),
@@ -757,3 +793,35 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
 export const BrowserAdapter: HlsDownloaderBrowserAdapter = browserAdapter;
 
 export default BrowserAdapter;
+
+const browserKeyedEngine: KeyedEngine = async (
+  request,
+  read,
+  write,
+  resolve,
+  abort,
+  progress,
+  signal,
+) => {
+  await cancellable(ensureWasm(), signal);
+  let cancel!: () => void;
+  const cancelled = new Promise<void>((done) => {
+    cancel = done;
+  });
+  signal.addEventListener('abort', cancel, { once: true });
+  if (signal.aborted) cancel();
+  try {
+    return (await keyed_browser(
+      request,
+      read,
+      write,
+      resolve,
+      abort,
+      progress,
+      cancelled,
+    )) as string;
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    cancel();
+  }
+};

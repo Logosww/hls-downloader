@@ -141,3 +141,46 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 使用 `downloadToWritable()` 获得有界媒体缓冲与异步写入目标。现有回调流式接口行为不变。
 
 Node 恢复下载使用单次调用选项 `resume: { directory }`，仅支持普通 VOD 文件输出，不能与转码、启用的 aria2 或流式 API 组合。详见[恢复下载](./hls-downloader)。
+
+## AES-128 VOD
+
+带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。SDK 不提供该 MSE 映射。
+
+BrowserAdapter 和 NodeAdapter 会自动识别选中媒体清单中的 AES-128。支持有限 TS/fMP4 VOD、AVC/HEVC 视频和 AAC-LC 音频，包含明密切换、密钥轮换、加密 MAP 和一条选中的外置音轨。`download()` 输出 classic MP4；callback stream 和 writable 输出 fMP4。浏览器播放仍取决于设备的编解码器支持。
+
+默认 identity/version-1 key 与媒体共用 headers、重试、取消以及 Browser 的 `browserRequest` transport/credentials。key 必须恰好 16 字节；响应读取上限为 17 字节，非法长度不会重试。
+
+```ts
+await downloader.downloadToWritable(
+  {
+    url: 'https://example.com/video.m3u8',
+    decryption: {
+      keyResolver: async (request) => {
+        const response = await fetch(request.uri, { signal: request.signal });
+        if (!response.ok) throw new Error('Key request failed');
+        return { key: new Uint8Array(await response.arrayBuffer()), expiresInMs: 60_000 };
+      },
+    },
+  },
+  writable,
+);
+```
+
+`decryption` 是 download、stream、writable 的单次操作选项：
+
+| 字段 | 契约 |
+| --- | --- |
+| `keyResolver` | 替代 HTTP provider。返回 `{ key: Uint8Array, version?: string, expiresInMs?: number }` 或 `null`。只有 `null` 允许尝试其他已声明 KEYFORMAT 候选；throw/reject 会安全失败，不暴露其消息，不自动回退 HTTP。 |
+| `keyFormats` | 有序的 `{ format: string, versions: readonly number[] }[]`，默认 identity/version 1；自定义格式须显式声明。 |
+| `encryptedRanges` | 默认 `'reject'`。`'complete-resources'` 表示调用者确认每个 range 都是独立完整加密且填充的资源；响应须为 206，Content-Range 和长度须完全匹配。 |
+| `limits` | 正安全整数，默认值见下文；限制 source 读取，不等于进程或 Blob 总内存上限。 |
+
+resolver 请求包含 `operationId`、`inputId`、`resourceKind`、`uri`、`method`、`keyFormat`、`keyFormatVersions`、`originalSequence`、`epoch`、`generation`、`declaration`、`resolveRevision`、`refreshGeneration`、`refreshReason` 及独立请求的 `signal`。协议大整数为十进制字符串。`expiresInMs` 是非负安全整数的相对有效期，0 表示立即过期。取消会中止待处理 resolver 请求并丢弃迟到结果；即使 `operationId` 相同，不同操作也不共享 key 缓存。
+
+默认 `limits`：`manifestBytes = 4 MiB`、`resourceBytes = 16 MiB`、`waitingBytes = 32 MiB`、`resources = 2`、`keyRequests = 2`、`cachedKeys = 8`、`keyWaiters = 2`。`waitingBytes` 至少等于 `resourceBytes`。普通下载选择清单时也受 manifest 上限约束；大型有限清单可提高 `manifestBytes`。显式配置 `decryption` 时，明文输入也会进入结构化有限输入路径；`resources` 控制该路径的并发，原有明文路径继续使用 `downloadConcurrency`。
+
+`capabilities.aes128` 表示上述有限能力，`capabilities.decryption` 描述 method、container、codec、外置音频及不支持加密恢复的边界。Live/EVENT、discontinuity、sample encryption/GCM、加密 resume、转码、aria2 和加密 WebVTT 暂不支持。清单已知的不支持组合在 key/media 工作前拒绝；容器和编码验证需要读取媒体。
+
+错误区分 `KEY_UNAVAILABLE`、`KEY_RESOLUTION_FAILED`、`KEY_INVALID`、`KEY_EXPIRED`、`ENCRYPTION_INVALID`、`DECRYPT_FAILED`、`MEDIA_INVALID` 和 `RESOURCE_LIMIT_EXCEEDED`。CBC 不提供认证，不保证所有错误 key 都可检测。公共错误和事件不包含 resolver 消息、key bytes 或 key version。
+
+`DECRYPTION_PROGRESS` 的 `payload.decryption` 提供各输入 discovered/committed 计数，以及分开的 media/MAP downloaded、decrypted、ready 计数，均为十进制字符串。明文资源不增加 decrypted 计数，committed 不是恢复 checkpoint。只有目标成功 close 后才发出公共完成事件。

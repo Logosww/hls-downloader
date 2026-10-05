@@ -1,5 +1,6 @@
 #![deny(clippy::all)]
 mod prepared;
+mod keyed;
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};

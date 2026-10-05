@@ -99,6 +99,8 @@ await downloader.init();
 
 `downloadToStream()` 通过 `onChunk` 输出 fMP4，适合 HTTP 转发或浏览器 MSE。两端均边下载边输出；`onChunk` 不等待 Promise，异步目标背压请使用 `downloadToWritable()`。**库本身不落盘**。
 
+带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。SDK 不提供该 MSE 映射。
+
 ```ts
 import { createServer } from 'node:http';
 import { Writable } from 'node:stream';
@@ -142,7 +144,7 @@ server.listen(3000);
 
 要点：
 
-- 输出为 **fragmented MP4**（首段 `ftyp`+`moov`，每段 `styp`+`moof`+`mdat`），浏览器 MSE 可直接消费
+- 输出为 **fragmented MP4**（首段 `ftyp`+`moov`，每段 `styp`+`moof`+`mdat`），接入 MSE 时需遵守下述音轨时间戳限制
 - BrowserAdapter 与 NodeAdapter 均增量读取；异步输出使用 writable 等待背压
 - 库本身不落盘；调用方可通过 `ReadableStream.tee()` 分叉一路写文件实现「边推流 + 边落盘」
 - `download()` 文件路径完全不受影响，作为非流式 fallback
@@ -179,7 +181,7 @@ server.listen(3000);
 | 可配置重试          | 是              | 是              |
 | Transcode presets   | h264、hevc、vp9 | h264、hevc、vp9 |
 | Byte range          | 是              | 是              |
-| AES-128             | 否              | 否              |
+| AES-128（有限 VOD） | 是 | 是 |
 | 持久输出            | 否（Blob URL）  | 是（文件路径）  |
 | `writableOutput`    | true            | true            |
 | `resumableDownload` | false           | true            |
@@ -306,6 +308,8 @@ await downloader.init();
 
 `downloadToStream()` emits fMP4 through `onChunk` for HTTP forwarding or browser MSE. Both adapters download and emit incrementally. `onChunk` does not await promises; use writable output for asynchronous destination backpressure. **The library itself does not write to disk.**
 
+External-audio output with initial track offsets is verified for file/Blob playback. Chromium MSE ignores leading empty edits; an MSE host must map timestamps per track instead of appending these multiplexed bytes unchanged to one SourceBuffer. The SDK does not provide that MSE mapping.
+
 ```ts
 import { createServer } from 'node:http';
 import { HlsDownloader } from '@hls-downloader/core';
@@ -346,7 +350,7 @@ server.listen(3000);
 
 Notes:
 
-- Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each segment: `styp`+`moof`+`mdat`) — directly consumable by browser MSE
+- Output is **fragmented MP4** (first segment: `ftyp`+`moov`, each segment: `styp`+`moof`+`mdat`) — MSE hosts must follow the track-timestamp requirements below
 - This NodeAdapter example starts emitting after the first segment; BrowserAdapter prefetches resources first
 - The library does not write to disk; callers can fork a file-writing branch with `ReadableStream.tee()` for "stream + persist"
 - The `download()` file path is unaffected; it remains the non-streaming fallback
@@ -381,7 +385,7 @@ The same data is available at runtime through `downloader.capabilities`.
 | Configurable retry     | yes             | yes             |
 | Transcode presets      | h264, hevc, vp9 | h264, hevc, vp9 |
 | Byte range             | yes             | yes             |
-| AES-128                | no              | no              |
+| AES-128 (finite VOD) | yes | yes |
 | Persistent output      | no (Blob URL)   | yes (file path) |
 | `writableOutput`       | true            | true            |
 | `resumableDownload`    | false           | true            |
@@ -481,3 +485,9 @@ Extensions own permissions, restricted-header rules and credential destination p
 Browser 与 Node 的 download、stream、writable 都支持通过 `audio: { language: 'en' }` 或 `{ groupId, name }` 选择一条音轨。省略时自动选默认轨道。`parseHls()` 返回 rendition 元数据，`downloadSubtitles()` 独立导出对齐的 WebVTT。新音轨能力不与恢复、转码或 aria2 组合。
 
 Both adapters support one selected audio rendition across download, stream and writable output. Inspect `parseHls().renditions` on master results, and use `downloadSubtitles()` for an aligned WebVTT export. Audio selection cannot be combined with recovery, transcoding or aria2.
+
+### AES-128 VOD
+
+AES-128 有限 VOD 已支持 TS/fMP4、AVC/HEVC/AAC-LC 和单条外置音轨，可输出 MP4 文件/Blob 或 fMP4 stream/writable。默认按媒体请求策略读取 identity key；可通过每次调用的 `decryption.keyResolver` 替换。暂不支持加密恢复、转码、aria2、加密字幕或 live。完整选项和预算见[适配器 API](docs/content/docs/zh/api/adapters.mdx#aes-128-vod)。
+
+Finite AES-128 VOD supports TS/fMP4, AVC/HEVC/AAC-LC and one external audio track, with classic MP4 file/Blob and fMP4 stream/writable output. Identity keys use the media request policy by default; per-call `decryption.keyResolver` replaces it. Encrypted recovery, transcoding, aria2, subtitles and live are unsupported. See the [adapter API](docs/content/docs/en/api/adapters.mdx#aes-128-vod) for options and resource budgets.

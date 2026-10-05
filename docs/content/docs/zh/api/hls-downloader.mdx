@@ -166,6 +166,8 @@ try {
 
 ### `downloadToStream()`
 
+带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。SDK 不提供该 MSE 映射。
+
 <Callout type="info" title="BrowserAdapter 与 NodeAdapter">
   `downloadToStream()` 在 **`BrowserAdapter`** 与 **`NodeAdapter`** 上均已实现。在 `BrowserAdapter`
   上，fMP4 字节通过 `onChunk` 推送，适合实时 MSE 播放（例如 `SourceBuffer.appendBuffer`）。
@@ -180,7 +182,7 @@ async downloadToStream(
 
 解析 HLS，经 Rust transmux 后通过 `onChunk` 推送 fMP4 字节。**库本身不落盘。** Browser 与 Node 均增量读取并输出分块。`onChunk` 为同步回调，不等待返回的 Promise 或 Node 下游的 `drain`；异步消费端请使用 `downloadToWritable()`。
 
-输出为 **fragmented MP4**（首段 `ftyp`+`moov`，之后每段 `styp`+`moof`+`mdat`，不含末端 `mfra` 索引）。浏览器 MSE 可直接消费。
+输出为 **fragmented MP4**（首段 `ftyp`+`moov`，之后每段 `styp`+`moof`+`mdat`，不含末端 `mfra` 索引）。接入 MSE 时需遵守下述音轨时间戳限制。
 
 单次传入的选项与 `globalOptions` 合并，单次选项优先。
 
@@ -373,8 +375,17 @@ console.log(subtitles.text); // save as subtitles.filename
 
 先选择 variant，再在其关联的音频组内选轨。未显式指定时按 DEFAULT、AUTOSELECT、声明顺序选择。外置音轨替换内嵌音频；无 URI 的 rendition 保留内嵌音频，最终输出一条所选音轨。备用视频组明确失败。
 
-备用音轨支持未加密 VOD TS/fMP4，编码为 AVC/HEVC 与 AAC-LC；不兼容 resume、转码或 aria2。未选择的字幕不会请求。两路必须共享可确定的时间轴；时间戳重置或不可表达的间隙会失败，不猜测同步偏移。
+备用音轨支持明文及 AES-128 有限 VOD TS/fMP4，编码为 AVC/HEVC 与 AAC-LC；不兼容 resume、转码或 aria2。未选择的字幕不会请求。两路必须共享可确定的时间轴；时间戳重置或不可表达的间隙会失败，不猜测同步偏移。
 
 `downloadSubtitles()` 是独立 operation，导出一条外置 WebVTT。它先探测所选媒体的初始化数据/首段以取得共同时间轴，再读取字幕。支持 MAP、时间戳映射与回绕、空分片、cue 去重和设置保留。输出零点前的 cue 被丢弃或截到零点；非法字幕报 `SUBTITLE_INVALID`。不内嵌字幕，也不转换 SRT。
 
 Node writable 接受 WHATWG 流。已有 Node writable 可通过 `node:stream` 的 `Writable.toWeb(nodeWritable)` 转换；operation 期间由 downloader 管理 close/abort。
+
+### `parseMediaPlaylist(text, url)`
+
+```ts
+const playlist = await downloader.parseMediaPlaylist(text, finalPlaylistUrl);
+const sequence = BigInt(playlist.segments[0].originalSequence);
+```
+
+从已选媒体清单的原始文本及最终 URL 解析版本化 `HlsMediaPlaylist` 元数据，保留十进制字符串的 sequence/range/ticks、KEY 候选、MAP 声明上下文、NONE 切换、gap 和 discontinuity。此方法不选择 master rendition，也不请求 key/media。Browser 可为解析器加载 WASM；原有轻量 `parseHls()` 行为保持不变。解析成功不代表媒体可执行。
