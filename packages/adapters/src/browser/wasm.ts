@@ -1,3 +1,4 @@
+import { HlsDownloaderError, HlsDownloaderErrorCode } from '@hls-downloader/shared';
 import init, {
   transmux_preloaded_to_fmp4_stream,
   transmux_demand_to_fmp4,
@@ -27,7 +28,21 @@ let initPromise: Promise<void> | undefined;
 export async function ensureWasm(): Promise<void> {
   initPromise ??= (async () => {
     const wasmUrl = new URL('./hls_transmux_browser_wasm_bg.wasm', import.meta.url);
-    await init(wasmUrl);
+    try {
+      const module = await init(wasmUrl);
+      if (typeof module.timeline_browser !== 'function')
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
+          'Incompatible WASM bridge',
+        );
+    } catch (error) {
+      if (error instanceof WebAssembly.LinkError)
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
+          'Incompatible WASM bridge',
+        );
+      throw error;
+    }
   })();
   await initPromise;
 }
@@ -62,5 +77,6 @@ export async function transmuxDemandToFmp4(
 export {
   prepared_browser,
   keyed_browser,
+  timeline_browser,
   parse_media_playlist_browser,
 } from './generated/hls_transmux_browser_wasm.js';

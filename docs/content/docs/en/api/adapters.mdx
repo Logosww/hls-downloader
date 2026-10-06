@@ -179,8 +179,22 @@ The resolver receives `operationId`, `inputId`, `resourceKind`, `uri`, `method`,
 
 Default `limits`: `manifestBytes = 4 MiB`, `resourceBytes = 16 MiB`, `waitingBytes = 32 MiB`, `resources = 2`, `keyRequests = 2`, `cachedKeys = 8`, `keyWaiters = 2`. `waitingBytes` must be at least `resourceBytes`. The manifest limit also applies when selecting playlists for ordinary downloads; increase `manifestBytes` for large finite playlists. Configuring `decryption` explicitly selects the typed finite-input path even for clear input. `resources` controls keyed concurrency; legacy `downloadConcurrency` continues to apply to the existing clear path.
 
-`capabilities.aes128` indicates this finite profile; `capabilities.decryption` describes methods, containers, codecs, external audio and the absence of encrypted recovery. Live/EVENT, discontinuities, sample encryption/GCM, encrypted resume, transcoding, aria2 and encrypted WebVTT remain unsupported. Unsupported playlist combinations are rejected before key/media work; container and codec validation requires reading media.
+`capabilities.aes128` indicates this finite profile; `capabilities.decryption` describes methods, containers, codecs, external audio and the absence of encrypted recovery. Live/EVENT, GCM, encrypted resume, transcoding, aria2 and encrypted WebVTT remain unsupported. Discontinuities require explicit `timeline`; finite sample encryption is described below. Unsupported playlist combinations are rejected before key/media work; container and codec validation requires reading media.
 
 Errors distinguish `KEY_UNAVAILABLE`, `KEY_RESOLUTION_FAILED`, `KEY_INVALID`, `KEY_EXPIRED`, `ENCRYPTION_INVALID`, `DECRYPT_FAILED`, `MEDIA_INVALID` and `RESOURCE_LIMIT_EXCEEDED`. CBC decryption is not authenticated encryption. A wrong key is not guaranteed to be detectable. Resolver messages, key bytes and key versions are excluded from public errors/events.
 
 `DECRYPTION_PROGRESS` carries `payload.decryption`: per-input discovered/committed counts plus separate media/MAP downloaded, decrypted and ready counters, all as decimal strings. Clear resources do not increase decrypted counts. Committed counts are not recovery checkpoints. The public completion event is emitted only after the destination closes successfully.
+
+## Finite sample encryption
+
+| Container / 容器 | Method | Scheme | Codec |
+| --- | --- | --- | --- |
+| TS | SAMPLE-AES | sample CBC | AVC, AAC-LC |
+| fMP4 | SAMPLE-AES | cbcs | AVC, HEVC, AAC-LC |
+| fMP4 | SAMPLE-AES-CTR | cenc | AVC, HEVC, AAC-LC |
+
+These profiles are selected automatically, including without `timeline`. They support one replacement external audio track, file/Blob, callback stream, writable, ranges and split outputs. `capabilities.decryption.profiles` is the combination matrix; do not infer a Cartesian product from the top-level lists.
+
+`HlsKeyRequest.method` includes all three methods; optional `kid` is 32 lowercase hexadecimal characters. A resolver returns the same 16-byte binary key response and retains the existing TTL, unavailable and cancellation semantics. Only configured identity HTTP or caller-provided raw keys are supported; no license/CDM exchange is implemented. `decryption.limits.samples` defaults to 65,536 per resource; the container parser also imposes a 65,536-entry ceiling. Other resource/key defaults remain unchanged. CBC/CTR cannot authenticate every incorrect key.
+
+TS HEVC SAMPLE-AES, TS SAMPLE-AES-CTR, Packed AAC, arbitrary ciphertext slices, GCM, live, recovery, transcoding, aria2 and encrypted subtitles remain unsupported. The supported cenc/cbcs container metadata profile follows [hls-transmux 0.8.0](https://github.com/Logosww/hls-transmux/blob/8d6c54f/docs/sample-encryption.md).

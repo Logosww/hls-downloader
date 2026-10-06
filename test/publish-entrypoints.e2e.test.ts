@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { encryptedRoutes } from './fixtures/encrypted';
+import { timelineCases, timelineRoutes } from './fixtures/timeline';
 import { startFixtureServer } from './fixtures/http-server';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -41,7 +42,7 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
         writeFileSync(
           join(dir, 'consumer.ts'),
           `
-          import { HlsDownloader, HlsDownloaderErrorCode, type HlsDownloaderWritableOptions } from '@logosw/hls-downloader';
+          import { HlsDownloader, HlsDownloaderErrorCode, exportChapters, type HlsDownloaderWritableOptions } from '@logosw/hls-downloader';
           import { BrowserAdapter, type HlsDownloaderBrowserRequestOptions } from '@logosw/hls-downloader/adapters/browser';
           import { NodeAdapter, type NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
           import type { NodeAdapterResumeOptions as RootResume } from '@logosw/hls-downloader';
@@ -57,6 +58,13 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
           const resolver: import('@logosw/hls-downloader').HlsKeyResolver = async request => { const sequence: string = request.originalSequence; return { key: new Uint8Array(16), expiresInMs: 500 }; };
           node.download({url:'https://example.test/a.m3u8',decryption:{keyResolver:resolver}});
           const typedPlaylist: Promise<import('@logosw/hls-downloader/shared').HlsMediaPlaylist> = node.parseMediaPlaylist('#EXTM3U','https://example.test/a.m3u8');
+          node.downloadOutputs({url:'https://example.test/a.m3u8',timeline:{changePolicy:'split'}}).then(r => {
+            exportChapters({timelineReport:r.timelineReport,chapters:[]});
+            node.downloadSubtitleOutputs({url:'https://example.test/a.m3u8',subtitle:{groupId:'s',name:'en'},timelineReport:r.timelineReport});
+          });
+          node.downloadToWritables({url:'https://example.test/a.m3u8'}, async output => new WritableStream<Uint8Array>());
+          // @ts-expect-error split is only accepted by multiple-output entrypoints
+          node.download({url:'https://example.test/a.m3u8',timeline:{changePolicy:'split'}});
           const decryptionError: 'KEY_INVALID' = HlsDownloaderErrorCode.KEY_INVALID;
           // @ts-expect-error key bytes must be binary
           const badResolver: import('@logosw/hls-downloader').HlsKeyResolver = async () => ({ key: 'secret' });
@@ -110,7 +118,7 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
         writeFileSync(
           join(dir, 'consumer.mjs'),
           `
-          import { HlsDownloader, BrowserAdapter, NodeAdapter } from '@logosw/hls-downloader';
+          import { HlsDownloader, BrowserAdapter, NodeAdapter, exportChapters } from '@logosw/hls-downloader';
           import { readFileSync, writeFileSync } from 'node:fs';
           import assert from 'node:assert/strict';
           const realFetch = globalThis.fetch;
@@ -141,18 +149,64 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
               }
               writeFileSync(options.filename, bytes);
             }
+            assert.equal(d.capabilities.timeline.split, true);
+            for (const [fixture, expected] of [['config-split', 2], ['sample-fmp4_avc_cenc', 1]]) {
+              const options = {url:process.argv[3]+'/'+fixture+'/master.m3u8', filename:name+'-'+fixture,
+                timeline:{changePolicy:'split'},decryption:{keyResolver:async () => ({key:Uint8Array.from(Buffer.from('2b7e151628aed2a6abf7158809cf4f3c','hex'))})}};
+              const result = await d.downloadOutputs(options);
+              assert.equal(result.outputs.length, expected);
+              assert.equal(result.timelineReport.schemaVersion, 1);
+              assert.equal(exportChapters({timelineReport:result.timelineReport,chapters:[{title:'Test',range:result.timelineReport.actual}]}).length, expected);
+              for (const o of result.outputs) {
+                const bytes = 'blobURL' in o ? new Uint8Array(await (await fetch(o.blobURL)).arrayBuffer()) : readFileSync(o.filePath);
+                if ('blobURL' in o) URL.revokeObjectURL(o.blobURL);
+                writeFileSync(name+'-'+fixture+'-'+o.index+'.mp4',bytes);
+              }
+              let closed = 0;
+              const streamed = await d.downloadToWritables(options,async () => new WritableStream({close(){closed++;}}));
+              assert.equal(closed,expected);
+              assert.equal(streamed.timelineReport.outputs.length,expected);
+            }
           }
         `,
         );
         const server = await startFixtureServer(encryptedRoutes('ts', true, true, false));
+        const m2Cases = timelineCases.filter((c) =>
+          ['config-split', 'sample-fmp4_avc_cenc'].includes(c.name),
+        );
+        const timelineServer = await startFixtureServer(
+          Object.assign({}, ...m2Cases.map((c) => timelineRoutes(c, '/' + c.name))),
+        );
         try {
-          await promisify(execFile)(process.execPath, [join(dir, 'consumer.mjs'), server.origin], {
-            cwd: dir,
-            timeout: 30000,
-          });
+          await promisify(execFile)(
+            process.execPath,
+            [join(dir, 'consumer.mjs'), server.origin, timelineServer.origin],
+            {
+              cwd: dir,
+              timeout: 30000,
+            },
+          );
         } finally {
           await server.close();
+          await timelineServer.close();
         }
+        for (const name of ['browser', 'node'])
+          for (const c of m2Cases)
+            for (let i = 0; i < c.outputs; i++)
+              execFileSync(
+                'ffmpeg',
+                [
+                  '-v',
+                  'error',
+                  '-xerror',
+                  '-i',
+                  join(dir, name + '-' + c.name + '-' + i + '.mp4'),
+                  '-f',
+                  'null',
+                  '-',
+                ],
+                { stdio: 'pipe' },
+              );
         const hashes = (file: string) =>
           execFileSync(
             'ffmpeg',

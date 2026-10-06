@@ -1,3 +1,6 @@
+import { exportTimelineSubtitles } from '../timeline-subtitles';
+import { timelineProfile, validateTimeline } from '../timeline';
+import { executeKeyed } from '../keyed';
 import {
   executeMedia,
   requiresKeyed,
@@ -41,6 +44,7 @@ import {
   initFfmpeg,
   preparedNative,
   keyedNative,
+  timelineNative,
   parseMediaPlaylistNative,
   parseHlsNative,
   downloadAndMerge,
@@ -66,6 +70,7 @@ type AdditionalOptions = {
 type DownloadResult = {
   filePath: string;
   totalSegments: number;
+  timelineReport?: import('@hls-downloader/shared').HlsTimelineReport;
 };
 export type HlsDownloaderNodeAdapter = HlsDownloaderAdapterInternal<
   AdditionalOptions,
@@ -327,6 +332,14 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode, signal } =
     mergeDownloadOptions(this, globalOptions, options);
 
+  if (options.timeline) {
+    validateTimeline(options.timeline, false);
+    if (transcode !== undefined || options.resume !== undefined || aria2?.enabled)
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+        'Timeline output cannot use transcoding, recovery or aria2',
+      );
+  }
   emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
@@ -364,6 +377,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
             'file',
             async () => {},
             output,
+            nodeTimelineEngine,
           );
           const filePath = resolve(filename);
           assertActive(request.signal);
@@ -377,7 +391,11 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
             );
           }
           emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-          return { filePath, totalSegments: report.totalSegments };
+          return {
+            filePath,
+            totalSegments: report.totalSegments,
+            timelineReport: report.timelineReport,
+          };
         } finally {
           await rm(workDir, { recursive: true, force: true });
         }
@@ -700,6 +718,7 @@ const nodeEngine: Engine = async (request, read, write, progress, signal) => {
 };
 const downloadToWritable: NonNullable<HlsDownloaderNodeAdapter['downloadToWritable']> =
   async function (this: HlsDownloaderNodeAdapter, options, write) {
+    if (options.timeline) validateTimeline(options.timeline, false);
     const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
     const merged = { ...mergeDownloadOptions(this, globalOptions, options), transcode: undefined };
     return withOperation(
@@ -730,12 +749,14 @@ const downloadToWritable: NonNullable<HlsDownloaderNodeAdapter['downloadToWritab
           nodeKeyedEngine,
           'stream',
           write,
+          undefined,
+          nodeTimelineEngine,
         );
         emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
           completed: report.totalSegments,
           total: report.totalSegments,
         });
-        return { totalSegments: report.totalSegments };
+        return { totalSegments: report.totalSegments, timelineReport: report.timelineReport };
       },
       this.name,
     );
@@ -793,6 +814,138 @@ const downloadSubtitles: NonNullable<HlsDownloaderNodeAdapter['downloadSubtitles
     );
   };
 
+const downloadToWritables: NonNullable<HlsDownloaderNodeAdapter['downloadToWritables']> =
+  async function (this: HlsDownloaderNodeAdapter, options, write, control) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
+    const merged = { ...mergeDownloadOptions(this, globalOptions, options), transcode: undefined };
+    if (
+      options.transcode !== undefined ||
+      (options as Record<string, unknown>).resume !== undefined ||
+      merged.aria2?.enabled
+    )
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+        'Timeline output cannot use transcoding, recovery or aria2',
+      );
+    const timeline = options.timeline ?? {};
+    validateTimeline(timeline, true);
+    return withOperation(
+      { ...options, ...merged, timeline },
+      async (request) => {
+        emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+        const media = await resolveMedia(request, false, true);
+        emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+        const report = await executeKeyed(
+          this,
+          request,
+          media,
+          nodeTimelineEngine,
+          'stream-outputs',
+          (bytes, index) => write(bytes, index!),
+          undefined,
+          control,
+        );
+        return { totalSegments: report.totalSegments, timelineReport: report.timelineReport! };
+      },
+      this.name,
+    );
+  };
+const downloadOutputs: NonNullable<HlsDownloaderNodeAdapter['downloadOutputs']> = async function (
+  this: HlsDownloaderNodeAdapter,
+  options,
+) {
+  const merged = mergeDownloadOptions(
+    this,
+    getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options),
+    options,
+  );
+  if (
+    merged.transcode !== undefined ||
+    merged.aria2?.enabled ||
+    (options as Record<string, unknown>).resume !== undefined
+  )
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'Timeline output cannot use transcoding, recovery or aria2',
+    );
+  const timeline = options.timeline ?? {};
+  validateTimeline(timeline, true);
+  return withOperation(
+    { ...options, ...merged, timeline },
+    async (request) => {
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+      const media = await resolveMedia(request, false, true);
+      emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+      const paths = new Map<string, string>();
+      const completed: import('@hls-downloader/shared').HlsCompletedOutput[] = [];
+      try {
+        const report = await executeKeyed(
+          this,
+          request,
+          media,
+          nodeTimelineEngine,
+          'file-outputs',
+          async () => {},
+          undefined,
+          async (r) => {
+            if (r.action === 'acquire') {
+              const path = resolve(
+                merged.filename.replace(/\.mp4$/i, '') +
+                  '.' +
+                  (BigInt(r.output.index) + 1n).toString().padStart(3, '0') +
+                  '.mp4',
+              );
+              paths.set(r.output.index, path);
+              return path;
+            }
+            completed.push({ ...r.output, filePath: paths.get(r.output.index)! });
+            return '';
+          },
+        );
+        const outputs = completed.map((o) => ({
+          index: o.index,
+          filePath: o.filePath!,
+        }));
+        emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+        return {
+          outputs,
+          totalSegments: report.totalSegments,
+          timelineReport: report.timelineReport!,
+        };
+      } catch (error) {
+        if (error instanceof HlsDownloaderError)
+          throw new HlsDownloaderError(error.code, error.message, {
+            ...error,
+            cause: error.cause,
+            completedOutputs: completed,
+          });
+        throw error;
+      }
+    },
+    this.name,
+  );
+};
+
+const downloadSubtitleOutputs: NonNullable<HlsDownloaderNodeAdapter['downloadSubtitleOutputs']> =
+  async function (this: HlsDownloaderNodeAdapter, options) {
+    const merged = mergeFetchOptions(
+      getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options),
+      options,
+    );
+    return withOperation(
+      { ...options, ...merged },
+      (request) =>
+        exportTimelineSubtitles(this, {
+          ...request,
+          subtitle: options.subtitle,
+          timelineReport: options.timelineReport,
+          track: options.track,
+          filename: options.filename,
+        }),
+      this.name,
+    );
+  };
+
 const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   name: 'NodeAdapter',
   capabilities: {
@@ -803,6 +956,7 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
     byteRange: true,
     aes128: true,
     decryption: decryptionProfile,
+    timeline: timelineProfile,
     liveRecording: false,
     persistentOutput: true,
     writableOutput: true,
@@ -822,6 +976,9 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   downloadToStream,
   downloadToWritable,
   downloadSubtitles,
+  downloadSubtitleOutputs,
+  downloadOutputs,
+  downloadToWritables,
   clearCache: () => parseResultCache.clear(),
 }) as HlsDownloaderNodeAdapter;
 
@@ -838,6 +995,11 @@ const nodeKeyedEngine: KeyedEngine = async (
   progress,
   signal,
 ) => {
+  if (typeof timelineNative !== 'function')
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
+      'Incompatible native bridge',
+    );
   const { jobId, cleanup } = await setupCancelToken(signal);
   let active = true;
   try {
@@ -862,6 +1024,54 @@ const nodeKeyedEngine: KeyedEngine = async (
       },
       (err: Error | null, event: string) => {
         if (!err && active) progress(event);
+      },
+    );
+  } finally {
+    active = false;
+    cleanup();
+  }
+};
+
+const nodeTimelineEngine: KeyedEngine = async (
+  request,
+  read,
+  write,
+  resolve,
+  abort,
+  _progress,
+  signal,
+  control,
+) => {
+  if (typeof timelineNative !== 'function')
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
+      'Incompatible native bridge',
+    );
+  const { jobId, cleanup } = await setupCancelToken(signal);
+  let active = true;
+  try {
+    return await timelineNative(
+      request,
+      jobId!,
+      async (err: Error | null, value: string) => {
+        if (err) throw err;
+        return Buffer.from(await read(value));
+      },
+      async (err: Error | null, value: [Buffer, string]) => {
+        if (err) throw err;
+        await write(new Uint8Array(value[0]), value[1]);
+      },
+      async (err: Error | null, value: string) => {
+        if (err) throw err;
+        const r = await resolve(value);
+        return { ...r, key: Buffer.from(r.key) };
+      },
+      (err: Error | null, id: string) => {
+        if (!err && active) abort(id);
+      },
+      async (err: Error | null, value: string) => {
+        if (err) throw err;
+        return control ? control(JSON.parse(value)) : '';
       },
     );
   } finally {

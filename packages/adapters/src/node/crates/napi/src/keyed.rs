@@ -162,3 +162,75 @@ pub async fn keyed_native(
     }
     .to_string())
 }
+
+struct TimelineOutputHost {
+    control: Arc<ThreadsafeFunction<String, Promise<String>>>,
+    write: Arc<ThreadsafeFunction<(Buffer, String), Promise<()>>>,
+}
+impl wire::timeline::OutputHost for TimelineOutputHost {
+    fn control(&self, value: String) -> wire::timeline::OutputFuture<String> {
+        let callback = self.control.clone();
+        Box::pin(async move {
+            callback
+                .call_async(Ok(value))
+                .await
+                .map_err(|_| std::io::Error::other("output control failed"))?
+                .await
+                .map_err(|_| std::io::Error::other("output control failed"))
+        })
+    }
+    fn write(&self, index: String, bytes: Vec<u8>) -> wire::timeline::OutputFuture<()> {
+        let callback = self.write.clone();
+        Box::pin(async move {
+            callback
+                .call_async(Ok((Buffer::from(bytes), index)))
+                .await
+                .map_err(|_| std::io::Error::other("output write failed"))?
+                .await
+                .map_err(|_| std::io::Error::other("output write failed"))
+        })
+    }
+}
+#[napi]
+pub async fn timeline_native(
+    request: String,
+    cancel_job_id: String,
+    read: ThreadsafeFunction<String, Promise<Buffer>>,
+    write: ThreadsafeFunction<(Buffer, String), Promise<()>>,
+    resolve: ThreadsafeFunction<String, Promise<KeyReply>>,
+    abort: ThreadsafeFunction<String>,
+    control: ThreadsafeFunction<String, Promise<String>>,
+) -> napi::Result<String> {
+    let r: wire::Request = match serde_json::from_str(&request) {
+        Ok(r) => r,
+        Err(_) => return Ok(wire::error("RANGE_INVALID", "InvalidOptions").to_string()),
+    };
+    let cancel = super::registry()
+        .get(&cancel_job_id)
+        .map(|e| Arc::clone(&e))
+        .ok_or_else(|| napi::Error::from_reason("missing cancel token"))?;
+    let host = Arc::new(Host {
+        read: Arc::new(read),
+        resolve: Arc::new(resolve),
+        abort,
+        start: Instant::now(),
+    });
+    let output = Arc::new(TimelineOutputHost {
+        control: Arc::new(control),
+        write: Arc::new(write),
+    });
+    // Timeline leases intentionally allow non-Send futures. Own their local executor
+    // on a blocking worker; only thread-safe callback handles cross this boundary.
+    tokio::task::spawn_blocking(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map(|rt| {
+                rt.block_on(wire::timeline::run(&r, host, output, Some(cancel)))
+                    .to_string()
+            })
+            .map_err(|_| napi::Error::from_reason("timeline executor failed"))
+    })
+    .await
+    .map_err(|_| napi::Error::from_reason("timeline worker failed"))?
+}

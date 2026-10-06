@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Timeline runtime contract</title>
+  </head>
+  <body>
+    <script type="module">
+      import { HlsDownloader } from '/packages/core/src/index.ts';
+      import { BrowserAdapter } from '/packages/adapters/src/browser/index.ts';
+      function canonical(bytes) {
+        const b = bytes.slice();
+        const view = new DataView(b.buffer);
+        const visit = (start, end) => {
+          for (let i = start; i + 8 <= end;) {
+            const size = view.getUint32(i),
+              kind = String.fromCharCode(...b.slice(i + 4, i + 8));
+            if (size < 8 || i + size > end) throw Error('MP4 bounds');
+            if (['moov', 'trak', 'mdia'].includes(kind)) visit(i + 8, i + size);
+            if (['mvhd', 'tkhd', 'mdhd'].includes(kind))
+              b.fill(0, i + 12, i + (b[i + 8] === 1 ? 28 : 20));
+            i += size;
+          }
+        };
+        visit(0, b.length);
+        return b;
+      }
+      const key = (hex) => Uint8Array.from(hex.match(/../g).map((n) => parseInt(n, 16)));
+      window.runTimeline = async () => {
+        const cases = await (await fetch('/timeline-cases.json')).json(),
+          results = [];
+        for (const [index, c] of cases.entries()) {
+          const d = new HlsDownloader({ adapter: BrowserAdapter });
+          const options = {
+            url: location.origin + '/cases/' + index + '/master.m3u8',
+            timeline: {
+              ...(c.selection.range ? { range: c.selection.range } : {}),
+              gapPolicy: c.selection.collapse ? 'collapse' : 'preserve',
+              ...(c.selection.split ? { changePolicy: 'split' } : {}),
+            },
+            decryption: {
+              encryptedRanges: 'complete-resources',
+              keyResolver: async (r) => ({
+                key: key(
+                  r.resourceKind === 'media' && r.originalSequence === '9007199254740994'
+                    ? '603deb1015ca71be2b73aef0857d7781'
+                    : '2b7e151628aed2a6abf7158809cf4f3c',
+                ),
+              }),
+            },
+          };
+          let report;
+          const outputs = [];
+          if (c.request.mode === 'stream') {
+            const chunks = [];
+            let closed = false;
+            const result = await d.downloadToWritable(
+              options,
+              new WritableStream({
+                async write(b) {
+                  await new Promise((r) => setTimeout(r, 1));
+                  chunks.push(b);
+                },
+                close() {
+                  closed = true;
+                },
+              }),
+            );
+            if (!closed) throw Error('early completion');
+            report = result.timelineReport;
+            outputs.push(new Uint8Array(await new Blob(chunks).arrayBuffer()));
+          } else {
+            const result = await d.downloadOutputs(options);
+            report = result.timelineReport;
+            for (const o of result.outputs) {
+              outputs.push(new Uint8Array(await (await fetch(o.blobURL)).arrayBuffer()));
+              URL.revokeObjectURL(o.blobURL);
+            }
+          }
+          const hashes = [];
+          for (const b of outputs)
+            hashes.push(
+              Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', canonical(b))))
+                .map((n) => n.toString(16).padStart(2, '0'))
+                .join(''),
+            );
+          results.push({ name: c.name, report, hashes });
+        }
+        // Non-cooperative key resolvers must release the operation and observe late completion.
+        for (const name of [
+          'sample-fmp4_avc_cenc',
+          'sample-fmp4_hevc_cbcs',
+          'sample-ts_avc_sample',
+        ]) {
+          const index = cases.findIndex((c) => c.name === name),
+            controller = new AbortController();
+          let entered, late;
+          const ready = new Promise((r) => (entered = r));
+          let writes = 0;
+          const task = new HlsDownloader({ adapter: BrowserAdapter })
+            .downloadToWritable(
+              {
+                url: location.origin + '/cases/' + index + '/master.m3u8',
+                signal: controller.signal,
+                timeline: {},
+                decryption: {
+                  keyResolver: () => {
+                    entered();
+                    return new Promise((_, reject) => (late = reject));
+                  },
+                },
+              },
+              new WritableStream({
+                write() {
+                  writes++;
+                },
+              }),
+            )
+            .catch((e) => e);
+          await ready;
+          controller.abort();
+          const error = await task;
+          if (error.code !== 'ABORTED' || writes) throw Error('cancel contract');
+          late(Error('late provider failure'));
+          await new Promise((r) => setTimeout(r, 10));
+        }
+        return results;
+      };
+    </script>
+  </body>
+</html>

@@ -1,3 +1,12 @@
+import type {
+  HlsTimelineOptions,
+  HlsMultiTimelineOptions,
+  HlsTimelineReport,
+  HlsOutputsResult,
+  HlsSidecar,
+  HlsTimelineTrackSelection,
+  HlsTimelineOutputDescriptor,
+} from './timeline';
 import type { HlsDecryptionOptions, HlsDecryptionProgress, HlsMediaPlaylist } from './decryption';
 import type { HlsDownloaderError } from './errors';
 
@@ -104,13 +113,20 @@ export type AdapterCapabilities = Readonly<{
   byteRange: boolean | 'unknown';
   aes128: boolean | 'unknown';
   decryption?: Readonly<{
-    methods: readonly ['AES-128'];
+    methods: readonly ('AES-128' | 'SAMPLE-AES' | 'SAMPLE-AES-CTR')[];
+    profiles?: readonly Readonly<{
+      method: string;
+      container: string;
+      scheme: string;
+      codecs: readonly string[];
+    }>[];
     containers: readonly ['ts', 'fmp4'];
     codecs: readonly ['avc', 'hevc', 'aac-lc'];
     finite: true;
     externalAudio: true;
     resume: false;
   }>;
+  timeline?: Readonly<{ finite: true; ranges: true; epochs: true; split: true; resume: false }>;
   liveRecording: boolean;
   persistentOutput: boolean;
   /** Supports backpressured fMP4 output to a caller-provided writable stream. */
@@ -181,6 +197,7 @@ export type HlsDownloaderBrowserTranscodeOptions = {
 };
 
 export type HlsDownloaderDownloadOptions = {
+  timeline?: HlsTimelineOptions;
   decryption?: HlsDecryptionOptions;
   /** Stable identifier used to correlate lifecycle events for this operation. */
   operationId?: string;
@@ -215,7 +232,21 @@ export type HlsDownloaderSubtitleResult = {
   totalSegments: number;
 };
 
+export type HlsDownloaderOutputsOptions = Omit<HlsDownloaderWritableOptions, 'timeline'> & {
+  timeline?: HlsMultiTimelineOptions;
+};
+export type HlsDownloaderSubtitleOutputsOptions = HlsDownloaderSubtitleOptions & {
+  timelineReport: HlsTimelineReport;
+  track?: HlsTimelineTrackSelection;
+};
+/** Internal output control, completed after the upstream flush. */
+export type HlsOutputControl = (request: {
+  action: 'acquire' | 'complete';
+  output: HlsTimelineOutputDescriptor;
+}) => Promise<string>;
+
 export type HlsDownloaderStreamResult = {
+  timelineReport?: HlsTimelineReport;
   operationId: string;
   totalSegments: number;
 };
@@ -252,6 +283,19 @@ export interface HlsDownloaderAdapterInternal<
   downloadSubtitles?(
     options: HlsDownloaderSubtitleOptions & RequestOptions,
   ): Promise<Omit<HlsDownloaderSubtitleResult, 'operationId'>>;
+  downloadOutputs?(
+    options: HlsDownloaderOutputsOptions & Partial<AdditionalOptions> & RequestOptions,
+  ): Promise<Omit<HlsOutputsResult<DownloadResult>, 'operationId'>>;
+  downloadToWritables?(
+    options: HlsDownloaderOutputsOptions & RequestOptions,
+    write: (bytes: Uint8Array, index: string) => Promise<void>,
+    control: HlsOutputControl,
+  ): Promise<
+    Omit<HlsDownloaderStreamResult, 'operationId'> & { timelineReport: HlsTimelineReport }
+  >;
+  downloadSubtitleOutputs?(
+    options: HlsDownloaderSubtitleOutputsOptions & RequestOptions,
+  ): Promise<{ outputs: HlsSidecar[]; totalSegments: number }>;
   /** 清空 adapter 内部的 parseHls / poster 缓存。可选实现。 */
   clearCache?(): void;
 }

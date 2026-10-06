@@ -401,7 +401,7 @@ describe('writable output (real WASM)', () => {
   });
 
   it.each([
-    ['SAMPLE-AES', '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="key.bin"', 'UNSUPPORTED_ENCRYPTION'],
+    ['AES-256-GCM', '#EXT-X-KEY:METHOD=AES-256-GCM,URI="key.bin"', 'UNSUPPORTED_ENCRYPTION'],
     ['discontinuity', '#EXT-X-DISCONTINUITY', 'TRANSMUX_FAILED'],
     ['event', '#EXT-X-PLAYLIST-TYPE:EVENT', 'TRANSMUX_FAILED'],
   ])('rejects unsupported %s before requesting media', async (_, tag, code) => {

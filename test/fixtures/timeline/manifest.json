@@ -1,0 +1,457 @@
+{
+  "upstreamCommit": "8d6c54f",
+  "upstreamVersion": "0.8.0",
+  "source": "hls-transmux SDK compatibility fixtures; synthetic media and keys only",
+  "files": [
+    {
+      "file": "19b6677ca6b6bca349be742912a917e5ef4d39417e21541ab59f491572685065.ts",
+      "sha256": "19b6677ca6b6bca349be742912a917e5ef4d39417e21541ab59f491572685065",
+      "source": "tests/fixtures/media/ts_avc_regular/seg2.ts"
+    },
+    {
+      "file": "fb0201bbf7aa14dae95749359830f248eeae70ff82d7a83b331ccd44a9fb08be.ts",
+      "sha256": "fb0201bbf7aa14dae95749359830f248eeae70ff82d7a83b331ccd44a9fb08be",
+      "source": "tests/fixtures/media/ts_avc_regular/seg0.ts"
+    },
+    {
+      "file": "79fa33ed67b1205666d3776615a4363aa98d365e736e58dac04ee04c7d100865.ts",
+      "sha256": "79fa33ed67b1205666d3776615a4363aa98d365e736e58dac04ee04c7d100865",
+      "source": "tests/fixtures/media/ts_avc_regular/seg1.ts"
+    },
+    {
+      "file": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8",
+      "sha256": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca",
+      "source": "tests/fixtures/media/ts_avc_regular/input.m3u8"
+    },
+    {
+      "file": "777c61454114733fd49d10bbfeb42c5cd441a72c4dd20055d29cf2392a62bf72.fmp4",
+      "sha256": "777c61454114733fd49d10bbfeb42c5cd441a72c4dd20055d29cf2392a62bf72",
+      "source": "tests/fixtures/media/fmp4_aac_audio_only/init.fmp4"
+    },
+    {
+      "file": "b3a01786604acf1b85196df1187800696545404aca65657962ba352d07fc3c04.m4s",
+      "sha256": "b3a01786604acf1b85196df1187800696545404aca65657962ba352d07fc3c04",
+      "source": "tests/fixtures/media/fmp4_aac_audio_only/seg3.m4s"
+    },
+    {
+      "file": "2d079b57cc4819f2f5bf5726d76fe014b37f9f2cc4a7fcb30500d4c3808a9942.m4s",
+      "sha256": "2d079b57cc4819f2f5bf5726d76fe014b37f9f2cc4a7fcb30500d4c3808a9942",
+      "source": "tests/fixtures/media/fmp4_aac_audio_only/seg2.m4s"
+    },
+    {
+      "file": "7fc071fd8b715db720744ccbfb8dc9906dcf624dc6025ae45aeeef875d513e93.m4s",
+      "sha256": "7fc071fd8b715db720744ccbfb8dc9906dcf624dc6025ae45aeeef875d513e93",
+      "source": "tests/fixtures/media/fmp4_aac_audio_only/seg0.m4s"
+    },
+    {
+      "file": "0ff91eec5c9f88bd4e47423850758e53d7024ab66689857dbe17d004266c1f39.m4s",
+      "sha256": "0ff91eec5c9f88bd4e47423850758e53d7024ab66689857dbe17d004266c1f39",
+      "source": "tests/fixtures/media/fmp4_aac_audio_only/seg1.m4s"
+    },
+    {
+      "file": "0d33c7c034f6a1b4b9b0014c9737e09f8e3f75161b2082ad6725376b597a664a.m3u8",
+      "sha256": "0d33c7c034f6a1b4b9b0014c9737e09f8e3f75161b2082ad6725376b597a664a",
+      "source": "tests/fixtures/media/fmp4_aac_audio_only/input.m3u8"
+    },
+    {
+      "file": "1c17ab9a0b93698d2ed6b6e50cb995461989a165deadb1c0b074f3b562e0596e.bin",
+      "sha256": "1c17ab9a0b93698d2ed6b6e50cb995461989a165deadb1c0b074f3b562e0596e",
+      "source": "tests/fixtures/crypto/ts_avc_regular/bundle.bin"
+    },
+    {
+      "file": "254015a6e1f164c63ea7c06045b42d84c14ccd1fb999b0f44d85bee895a733e5.cbc",
+      "sha256": "254015a6e1f164c63ea7c06045b42d84c14ccd1fb999b0f44d85bee895a733e5",
+      "source": "tests/fixtures/crypto/ts_avc_regular/seg0.cbc"
+    },
+    {
+      "file": "933db888fb7e60fce133ecdc19495ff02de84976ef1c1930e62c496a7fc2f3d8.cbc",
+      "sha256": "933db888fb7e60fce133ecdc19495ff02de84976ef1c1930e62c496a7fc2f3d8",
+      "source": "tests/fixtures/crypto/ts_avc_regular/seg1.cbc"
+    },
+    {
+      "file": "8ffb3a6919e10a668be4a17ba19dac9dc1e928d719ae4ee5a57675d78355f0a6.m3u8",
+      "sha256": "8ffb3a6919e10a668be4a17ba19dac9dc1e928d719ae4ee5a57675d78355f0a6",
+      "source": "tests/fixtures/crypto/ts_avc_regular/range.m3u8"
+    },
+    {
+      "file": "2dfe199d1ecfcb42cdec25b38c0808f8d7e25d62e34eb2e2dc0c58067b801941.m3u8",
+      "sha256": "2dfe199d1ecfcb42cdec25b38c0808f8d7e25d62e34eb2e2dc0c58067b801941",
+      "source": "tests/fixtures/crypto/ts_avc_regular/input.m3u8"
+    },
+    {
+      "file": "dd29c8f9f40746a465a1748d927ef3759ff58e9bc2b55194b84d34c6897099f1.bin",
+      "sha256": "dd29c8f9f40746a465a1748d927ef3759ff58e9bc2b55194b84d34c6897099f1",
+      "source": "tests/fixtures/crypto/fmp4_aac_audio_only/map-range.bin"
+    },
+    {
+      "file": "cc1ec2b4db0184288020400be5abc35e141e44190919e868367c1c2b1f744d24.bin",
+      "sha256": "cc1ec2b4db0184288020400be5abc35e141e44190919e868367c1c2b1f744d24",
+      "source": "tests/fixtures/crypto/fmp4_aac_audio_only/bundle.bin"
+    },
+    {
+      "file": "ade94c0417215b62134aaa05327810db836ac95f5961296da6736859e7c3d79b.cbc",
+      "sha256": "ade94c0417215b62134aaa05327810db836ac95f5961296da6736859e7c3d79b",
+      "source": "tests/fixtures/crypto/fmp4_aac_audio_only/seg0.cbc"
+    },
+    {
+      "file": "695ab27a57b7cce9ae498d5cd8b1e261bedf2b8e59b1f257706fa2230d1db59b.cbc",
+      "sha256": "695ab27a57b7cce9ae498d5cd8b1e261bedf2b8e59b1f257706fa2230d1db59b",
+      "source": "tests/fixtures/crypto/fmp4_aac_audio_only/seg1.cbc"
+    },
+    {
+      "file": "0694b9888cb5ed17ed047e8c1e0a8ce1e5b7222ce178cd111947b311bf3aa0bb.m3u8",
+      "sha256": "0694b9888cb5ed17ed047e8c1e0a8ce1e5b7222ce178cd111947b311bf3aa0bb",
+      "source": "tests/fixtures/crypto/fmp4_aac_audio_only/range.m3u8"
+    },
+    {
+      "file": "2796e2f2c6e201bae75de0be028128c5f9e45a98106cbfb68afdeb108246dad8.m3u8",
+      "sha256": "2796e2f2c6e201bae75de0be028128c5f9e45a98106cbfb68afdeb108246dad8",
+      "source": "tests/fixtures/crypto/fmp4_aac_audio_only/input.m3u8"
+    },
+    {
+      "file": "8b4b1104b171021546141ef05761f0924876d596bb77a45e7665a9c156e28753.cbc",
+      "sha256": "8b4b1104b171021546141ef05761f0924876d596bb77a45e7665a9c156e28753",
+      "source": "tests/fixtures/crypto/fmp4_aac_audio_only/init.cbc"
+    },
+    {
+      "file": "60f6beb524a6e6e05b7f92107e642697d3c82fcc4f8516a505d2ec75ec8750e0.ts",
+      "sha256": "60f6beb524a6e6e05b7f92107e642697d3c82fcc4f8516a505d2ec75ec8750e0",
+      "source": "tests/fixtures/media/ts_avc_video_only/seg2.ts"
+    },
+    {
+      "file": "775207aba2a74277d21534cadd7aacb031d601910bbf24284b2572cb45a53ae5.ts",
+      "sha256": "775207aba2a74277d21534cadd7aacb031d601910bbf24284b2572cb45a53ae5",
+      "source": "tests/fixtures/media/ts_avc_video_only/seg0.ts"
+    },
+    {
+      "file": "b54b6694f010b6d1cf260c089c3505a62402b1cc4b2d09dfb3b5f56831f88911.ts",
+      "sha256": "b54b6694f010b6d1cf260c089c3505a62402b1cc4b2d09dfb3b5f56831f88911",
+      "source": "tests/fixtures/media/ts_avc_video_only/seg1.ts"
+    },
+    {
+      "file": "f877ded3ba3f31efab72cfe5f8375284b00826418670fb091aa6b250826bf946.ts",
+      "sha256": "f877ded3ba3f31efab72cfe5f8375284b00826418670fb091aa6b250826bf946",
+      "source": "tests/fixtures/media/ts_hevc_regular/seg2.ts"
+    },
+    {
+      "file": "db300f3b88da02e99af6a38072d490d164c610a0c50ef895f95680942585f18c.ts",
+      "sha256": "db300f3b88da02e99af6a38072d490d164c610a0c50ef895f95680942585f18c",
+      "source": "tests/fixtures/media/ts_hevc_regular/seg0.ts"
+    },
+    {
+      "file": "0e6dc1a22956a11728cace6fde70df283da19b577dcf2032169ad697291cd4b8.ts",
+      "sha256": "0e6dc1a22956a11728cace6fde70df283da19b577dcf2032169ad697291cd4b8",
+      "source": "tests/fixtures/media/ts_hevc_regular/seg1.ts"
+    },
+    {
+      "file": "3ade08d924ff9b1062b8cf5d3de0a8e0cf16569f84054bf0a05fd3b5f673ffe9.m3u8",
+      "sha256": "3ade08d924ff9b1062b8cf5d3de0a8e0cf16569f84054bf0a05fd3b5f673ffe9",
+      "source": "tests/fixtures/media/ts_hevc_regular/input.m3u8"
+    },
+    {
+      "file": "ebb8db78e5ed8f1154e402a5f4b77abef2a744646e2c2d3855625e44060d7e35.m4s",
+      "sha256": "ebb8db78e5ed8f1154e402a5f4b77abef2a744646e2c2d3855625e44060d7e35",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cenc/seg3.m4s"
+    },
+    {
+      "file": "305be630d3565ddbb205ffa4cdf75cf2323e3119ccafaeb980170ba10b820a12.m4s",
+      "sha256": "305be630d3565ddbb205ffa4cdf75cf2323e3119ccafaeb980170ba10b820a12",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cenc/seg2.m4s"
+    },
+    {
+      "file": "9e08ff29dad8b29a00d8d686a1786a6ee47f8871898369e0e453bbc44f5d49b2.m3u8",
+      "sha256": "9e08ff29dad8b29a00d8d686a1786a6ee47f8871898369e0e453bbc44f5d49b2",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cenc/master.m3u8"
+    },
+    {
+      "file": "37fd734d394bdf2ce9021a0b2e4faffc3546ee48cbe2a5fa9f5243c069e1d1be.m4s",
+      "sha256": "37fd734d394bdf2ce9021a0b2e4faffc3546ee48cbe2a5fa9f5243c069e1d1be",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cenc/seg1.m4s"
+    },
+    {
+      "file": "a4df4d2bc52c60016e1c7ec4f34b4e1c05de1c36ec368eaa5a507be7f0b80b74.mp4",
+      "sha256": "a4df4d2bc52c60016e1c7ec4f34b4e1c05de1c36ec368eaa5a507be7f0b80b74",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cenc/init.mp4"
+    },
+    {
+      "file": "08992d78cf13ff4836146c703723a99f26f46adbfd7ee8d875974847d6fdf0a1.m3u8",
+      "sha256": "08992d78cf13ff4836146c703723a99f26f46adbfd7ee8d875974847d6fdf0a1",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cenc/input.m3u8"
+    },
+    {
+      "file": "b379cb4b65f9889992f8458a7526786720486913bde4231c88aea38b678611f7.m4s",
+      "sha256": "b379cb4b65f9889992f8458a7526786720486913bde4231c88aea38b678611f7",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cbcs/seg4.m4s"
+    },
+    {
+      "file": "34ebc9d09c5ec6c05bab937fbe494383a45122b97ac064d4d58b964ca48f2db7.m4s",
+      "sha256": "34ebc9d09c5ec6c05bab937fbe494383a45122b97ac064d4d58b964ca48f2db7",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cbcs/seg3.m4s"
+    },
+    {
+      "file": "958d884666b66fd8edc8422d54725598b704e0699b275cc6deea26fdeec0585b.m4s",
+      "sha256": "958d884666b66fd8edc8422d54725598b704e0699b275cc6deea26fdeec0585b",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cbcs/seg2.m4s"
+    },
+    {
+      "file": "bc02fdbf5f578b9f9676cda3003c9b1c7f4198c4dd77201cc6e77ecde9a841ba.m3u8",
+      "sha256": "bc02fdbf5f578b9f9676cda3003c9b1c7f4198c4dd77201cc6e77ecde9a841ba",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cbcs/master.m3u8"
+    },
+    {
+      "file": "c08795f5a9e8f15fe9291dec2d27fcda4648757c674435ee802500a618e007f4.m4s",
+      "sha256": "c08795f5a9e8f15fe9291dec2d27fcda4648757c674435ee802500a618e007f4",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cbcs/seg1.m4s"
+    },
+    {
+      "file": "c0d335d7e75be7335bc31483388745b4303f635f389fc541236572550bf56a7d.mp4",
+      "sha256": "c0d335d7e75be7335bc31483388745b4303f635f389fc541236572550bf56a7d",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cbcs/init.mp4"
+    },
+    {
+      "file": "a7df4cc583306d7d13072da9012960110352a3acd199d67f9024981d0a73e5ef.m3u8",
+      "sha256": "a7df4cc583306d7d13072da9012960110352a3acd199d67f9024981d0a73e5ef",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cbcs/input.m3u8"
+    },
+    {
+      "file": "0c799fb640cdd9e8c37c2aa879d7eea17addaa6b8f230a74b642386ead262fe4.m4s",
+      "sha256": "0c799fb640cdd9e8c37c2aa879d7eea17addaa6b8f230a74b642386ead262fe4",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cbcs/seg2.m4s"
+    },
+    {
+      "file": "ca5aa7c81bcfa758938157a4029235cc99a1038cd5c0ed87abdea07df086e2b9.m3u8",
+      "sha256": "ca5aa7c81bcfa758938157a4029235cc99a1038cd5c0ed87abdea07df086e2b9",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cbcs/master.m3u8"
+    },
+    {
+      "file": "f01b4a45b2e494cd7e5045c5098768f47a4f42c74094c25824a8178ce5e48935.m4s",
+      "sha256": "f01b4a45b2e494cd7e5045c5098768f47a4f42c74094c25824a8178ce5e48935",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cbcs/seg1.m4s"
+    },
+    {
+      "file": "202c46011401c7cdc242fe3a95fbf03c19a790af17bd2c75c2e0cf02388081ef.mp4",
+      "sha256": "202c46011401c7cdc242fe3a95fbf03c19a790af17bd2c75c2e0cf02388081ef",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cbcs/init.mp4"
+    },
+    {
+      "file": "f82b6ff9f122817a250367349d1b80087855038f28ba364028c8efbd7e6982bc.m3u8",
+      "sha256": "f82b6ff9f122817a250367349d1b80087855038f28ba364028c8efbd7e6982bc",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cbcs/input.m3u8"
+    },
+    {
+      "file": "1660b0517145cf7d0a59db699e39a0a42135533b7ca7c40f843eea8419382f90.m4s",
+      "sha256": "1660b0517145cf7d0a59db699e39a0a42135533b7ca7c40f843eea8419382f90",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cenc/seg4.m4s"
+    },
+    {
+      "file": "f3ebdb78aa6aa9d3fb9712b0abe5eaa91704b47dae3ef0d4d3c418afb3e38088.m4s",
+      "sha256": "f3ebdb78aa6aa9d3fb9712b0abe5eaa91704b47dae3ef0d4d3c418afb3e38088",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cenc/seg3.m4s"
+    },
+    {
+      "file": "0a0920767d9034e39c309d7285fafef5c42a9192829d7a5b5d05ebe757827e40.m4s",
+      "sha256": "0a0920767d9034e39c309d7285fafef5c42a9192829d7a5b5d05ebe757827e40",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cenc/seg2.m4s"
+    },
+    {
+      "file": "dc1c0d09e002383d22ae6a525a6bba447da824820a2662b5e14c02172ba4b870.m3u8",
+      "sha256": "dc1c0d09e002383d22ae6a525a6bba447da824820a2662b5e14c02172ba4b870",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cenc/master.m3u8"
+    },
+    {
+      "file": "482a568d3badb971aa2acd26ba650339a07f2ad970bb0243cfe5295a987baf8e.m4s",
+      "sha256": "482a568d3badb971aa2acd26ba650339a07f2ad970bb0243cfe5295a987baf8e",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cenc/seg1.m4s"
+    },
+    {
+      "file": "b31d5cc33b02b8d491526818662c371bf6bcf23e3d524263447ae9c008bc3d46.mp4",
+      "sha256": "b31d5cc33b02b8d491526818662c371bf6bcf23e3d524263447ae9c008bc3d46",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cenc/init.mp4"
+    },
+    {
+      "file": "3d8d69311b6f750127fad48de82fd34ab988afbfab35e5266b182853e7c93881.m3u8",
+      "sha256": "3d8d69311b6f750127fad48de82fd34ab988afbfab35e5266b182853e7c93881",
+      "source": "tests/fixtures/sample_crypto/fmp4_aac_cenc/input.m3u8"
+    },
+    {
+      "file": "a96f9b08c27bc84eb79250ea5f7d1ba50acc48ebf3f38d80bc926e906809060c.ts",
+      "sha256": "a96f9b08c27bc84eb79250ea5f7d1ba50acc48ebf3f38d80bc926e906809060c",
+      "source": "tests/fixtures/sample_crypto/ts_avc_sample/seg2.ts"
+    },
+    {
+      "file": "a978a68bc9d2cc69ee15d3d6e430af7f3c66cdd406bc49b2c45b16d836807d58.m3u8",
+      "sha256": "a978a68bc9d2cc69ee15d3d6e430af7f3c66cdd406bc49b2c45b16d836807d58",
+      "source": "tests/fixtures/sample_crypto/ts_avc_sample/master.m3u8"
+    },
+    {
+      "file": "3cf1ad4d48382e807e7a1e66be1ac2ca405e4156f64f3e8bc86eedfe08180875.ts",
+      "sha256": "3cf1ad4d48382e807e7a1e66be1ac2ca405e4156f64f3e8bc86eedfe08180875",
+      "source": "tests/fixtures/sample_crypto/ts_avc_sample/seg3.ts"
+    },
+    {
+      "file": "870ab224a157848cfc74e24c0db49fce66e97fa22636108de525b47c7d7e54d2.ts",
+      "sha256": "870ab224a157848cfc74e24c0db49fce66e97fa22636108de525b47c7d7e54d2",
+      "source": "tests/fixtures/sample_crypto/ts_avc_sample/seg1.ts"
+    },
+    {
+      "file": "2610016ecf416de7f3019b141df894e3e7f536b7ff9ac3d6751e6daae60869ad.m3u8",
+      "sha256": "2610016ecf416de7f3019b141df894e3e7f536b7ff9ac3d6751e6daae60869ad",
+      "source": "tests/fixtures/sample_crypto/ts_avc_sample/input.m3u8"
+    },
+    {
+      "file": "81f05c990297d2e7c833d9be7081ce8d66e7db5bb3a2354b0d1b6395f711adfd.ts",
+      "sha256": "81f05c990297d2e7c833d9be7081ce8d66e7db5bb3a2354b0d1b6395f711adfd",
+      "source": "tests/fixtures/sample_crypto/ts_aac_sample/seg2.ts"
+    },
+    {
+      "file": "724ccc12c771e72af97b3b783d7e86dfefaa383aaf9248be5e9b9d2cef1674fb.m3u8",
+      "sha256": "724ccc12c771e72af97b3b783d7e86dfefaa383aaf9248be5e9b9d2cef1674fb",
+      "source": "tests/fixtures/sample_crypto/ts_aac_sample/master.m3u8"
+    },
+    {
+      "file": "3239ef2b39e698157356ac743b53694139a07ff8842c656d71c4711f3fe77705.ts",
+      "sha256": "3239ef2b39e698157356ac743b53694139a07ff8842c656d71c4711f3fe77705",
+      "source": "tests/fixtures/sample_crypto/ts_aac_sample/seg3.ts"
+    },
+    {
+      "file": "0e1284e2c09b15f1c6b5ef80dd4cc140bbbd07dcdb8d2124f1d37f8908063bb2.ts",
+      "sha256": "0e1284e2c09b15f1c6b5ef80dd4cc140bbbd07dcdb8d2124f1d37f8908063bb2",
+      "source": "tests/fixtures/sample_crypto/ts_aac_sample/seg4.ts"
+    },
+    {
+      "file": "46ab9bcc7834575e901048838643bca2874f9aa196ac0eb4069ea904d5d54659.ts",
+      "sha256": "46ab9bcc7834575e901048838643bca2874f9aa196ac0eb4069ea904d5d54659",
+      "source": "tests/fixtures/sample_crypto/ts_aac_sample/seg1.ts"
+    },
+    {
+      "file": "f5194eb297e70360c6c08a50f0d71e515feabd4333bbf2ba8fdf02a7bb6d729e.m3u8",
+      "sha256": "f5194eb297e70360c6c08a50f0d71e515feabd4333bbf2ba8fdf02a7bb6d729e",
+      "source": "tests/fixtures/sample_crypto/ts_aac_sample/input.m3u8"
+    },
+    {
+      "file": "e3b36750b67a917cded825f9d08f9f61903aba4ad5ccfc1116d60d7d2282bef2.m4s",
+      "sha256": "e3b36750b67a917cded825f9d08f9f61903aba4ad5ccfc1116d60d7d2282bef2",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cbcs/seg3.m4s"
+    },
+    {
+      "file": "a726b6351cc601d11f65bb696b18921aff31d26f1d02cf789a749fdef14664d6.m4s",
+      "sha256": "a726b6351cc601d11f65bb696b18921aff31d26f1d02cf789a749fdef14664d6",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cbcs/seg2.m4s"
+    },
+    {
+      "file": "e5e0f902ed8f32ff29b77534aa286bc3cc33eb6853a81d1b1a1286d5e01535e1.m3u8",
+      "sha256": "e5e0f902ed8f32ff29b77534aa286bc3cc33eb6853a81d1b1a1286d5e01535e1",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cbcs/master.m3u8"
+    },
+    {
+      "file": "1d14ba49d97d067580d5cada9d524434c2d9ccdf9f21172392811083dca85dc6.m4s",
+      "sha256": "1d14ba49d97d067580d5cada9d524434c2d9ccdf9f21172392811083dca85dc6",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cbcs/seg1.m4s"
+    },
+    {
+      "file": "aef05b6a2b51ad38a34b42e0a20486e550c8aedd1b60296d7cc0db0ff315a6e0.mp4",
+      "sha256": "aef05b6a2b51ad38a34b42e0a20486e550c8aedd1b60296d7cc0db0ff315a6e0",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cbcs/init.mp4"
+    },
+    {
+      "file": "3e127bc87d37a60c925f7d83e998795b4d77301cc4222d2a1ab470a4c99df263.m3u8",
+      "sha256": "3e127bc87d37a60c925f7d83e998795b4d77301cc4222d2a1ab470a4c99df263",
+      "source": "tests/fixtures/sample_crypto/fmp4_avc_cbcs/input.m3u8"
+    },
+    {
+      "file": "dcbd67e54cf4cade694ea46b477674f76985c0670ffbe73c6a0119932b577dc1.m4s",
+      "sha256": "dcbd67e54cf4cade694ea46b477674f76985c0670ffbe73c6a0119932b577dc1",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cenc/seg2.m4s"
+    },
+    {
+      "file": "1f2699834eb3a36d8267fc1b322d9ba7e721216c061cb6c84d40d4e801893eea.m3u8",
+      "sha256": "1f2699834eb3a36d8267fc1b322d9ba7e721216c061cb6c84d40d4e801893eea",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cenc/master.m3u8"
+    },
+    {
+      "file": "70362a5ef7a3d472de59c7ffe2f289d9bb363cbe52537f9d6abce44c3292479b.m4s",
+      "sha256": "70362a5ef7a3d472de59c7ffe2f289d9bb363cbe52537f9d6abce44c3292479b",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cenc/seg1.m4s"
+    },
+    {
+      "file": "2b185b5183ed69d0e2e24d462b5f9ce4330eb5a3a23e74a6a9f4987cf7c0da59.mp4",
+      "sha256": "2b185b5183ed69d0e2e24d462b5f9ce4330eb5a3a23e74a6a9f4987cf7c0da59",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cenc/init.mp4"
+    },
+    {
+      "file": "2a6c19f26a0f8fcb63c3ed8252fc7afe04d9bfc0b271ed5225eac9c03a412912.m3u8",
+      "sha256": "2a6c19f26a0f8fcb63c3ed8252fc7afe04d9bfc0b271ed5225eac9c03a412912",
+      "source": "tests/fixtures/sample_crypto/fmp4_hevc_cenc/input.m3u8"
+    },
+    {
+      "file": "b42189cb16b7867f7e833ffa77bdd5b890bfb724917d0350639f8751a801ce7e.ts",
+      "sha256": "b42189cb16b7867f7e833ffa77bdd5b890bfb724917d0350639f8751a801ce7e",
+      "source": "sdk-generated/long-gop/seg2.ts"
+    },
+    {
+      "file": "2df12c1d3852b160b7295135a457f2ae17b14b7f061f225b170b9ca72b3f9b9b.ts",
+      "sha256": "2df12c1d3852b160b7295135a457f2ae17b14b7f061f225b170b9ca72b3f9b9b",
+      "source": "sdk-generated/long-gop/seg6.ts"
+    },
+    {
+      "file": "b9f150728e2ff5e24e12f4b84fb9d2df2de097120f746e3abc75f7a925ee2200.ts",
+      "sha256": "b9f150728e2ff5e24e12f4b84fb9d2df2de097120f746e3abc75f7a925ee2200",
+      "source": "sdk-generated/long-gop/seg7.ts"
+    },
+    {
+      "file": "f700ef8b1c3511e9ac2fcf68f03cf8348b7307bbe31772b072abeadeff95fd38.ts",
+      "sha256": "f700ef8b1c3511e9ac2fcf68f03cf8348b7307bbe31772b072abeadeff95fd38",
+      "source": "sdk-generated/long-gop/seg3.ts"
+    },
+    {
+      "file": "4111b287329cc080f02cb554d0d3d4a02d9deed419d42199a2de32c423b696ce.ts",
+      "sha256": "4111b287329cc080f02cb554d0d3d4a02d9deed419d42199a2de32c423b696ce",
+      "source": "sdk-generated/long-gop/seg4.ts"
+    },
+    {
+      "file": "4351364fc30e955043cedb082b0996b8e52e66099da5c9c4efb825b2858c5722.ts",
+      "sha256": "4351364fc30e955043cedb082b0996b8e52e66099da5c9c4efb825b2858c5722",
+      "source": "sdk-generated/long-gop/seg0.ts"
+    },
+    {
+      "file": "71d3ef00895c6b73b11aea2fa264b73250ee6499e0d160bdbea8f1ad0b06fd98.ts",
+      "sha256": "71d3ef00895c6b73b11aea2fa264b73250ee6499e0d160bdbea8f1ad0b06fd98",
+      "source": "sdk-generated/long-gop/seg1.ts"
+    },
+    {
+      "file": "21b91b6c4d7e3afc44b65e5a85eca90bbdf312a0a7c3994a2881acc7e178c6e1.ts",
+      "sha256": "21b91b6c4d7e3afc44b65e5a85eca90bbdf312a0a7c3994a2881acc7e178c6e1",
+      "source": "sdk-generated/long-gop/seg5.ts"
+    },
+    {
+      "file": "0f3b13301e620f9d0681962e443b72b62be9db845330bd97955de288ff6a2010.m3u8",
+      "sha256": "0f3b13301e620f9d0681962e443b72b62be9db845330bd97955de288ff6a2010",
+      "source": "sdk-generated/long-gop/input.m3u8"
+    },
+    {
+      "file": "065fe046330fe0b8a5105bb5ae15e1eed06f69e0930d7c46f8a1ae8f3f4cea52.fmp4",
+      "sha256": "065fe046330fe0b8a5105bb5ae15e1eed06f69e0930d7c46f8a1ae8f3f4cea52",
+      "source": "tests/fixtures/media/fmp4_avc_negative_cts/init.fmp4"
+    },
+    {
+      "file": "df5171ab162c7549a6e5180c78c3b39daa6a4cac39f18c3fe7fe03c859bf6d99.m4s",
+      "sha256": "df5171ab162c7549a6e5180c78c3b39daa6a4cac39f18c3fe7fe03c859bf6d99",
+      "source": "tests/fixtures/media/fmp4_avc_negative_cts/seg2.m4s"
+    },
+    {
+      "file": "4fcc5172a9d395124b1012ace466af7445bbe09fbe1078ff84636699657016f3.m4s",
+      "sha256": "4fcc5172a9d395124b1012ace466af7445bbe09fbe1078ff84636699657016f3",
+      "source": "tests/fixtures/media/fmp4_avc_negative_cts/seg0.m4s"
+    },
+    {
+      "file": "96c0fda98e77230b091af799d8f62f483b1376196a7ad3b7048f84c7266bfac3.m4s",
+      "sha256": "96c0fda98e77230b091af799d8f62f483b1376196a7ad3b7048f84c7266bfac3",
+      "source": "tests/fixtures/media/fmp4_avc_negative_cts/seg1.m4s"
+    },
+    {
+      "file": "76d25aa7e5b324374290eda8ab5e702eb0a6c776a2136b5baad4cf7476330fb5.m3u8",
+      "sha256": "76d25aa7e5b324374290eda8ab5e702eb0a6c776a2136b5baad4cf7476330fb5",
+      "source": "tests/fixtures/media/fmp4_avc_negative_cts/input.m3u8"
+    }
+  ]
+}

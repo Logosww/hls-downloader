@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **BrowserAdapter / NodeAdapter**: Add opt-in `timeline` ranges, epoch mapping and gap policies, with actual decodable ranges and timeline reports. Add `downloadOutputs()` and backpressured `downloadToWritables()` for explicit configuration/gap splitting; failures retain completed files or closed writable outputs.
+- Support finite TS SAMPLE-AES (AVC/AAC-LC) and fMP4 cbcs/cenc (AVC/HEVC/AAC-LC), including external audio and timeline outputs. Key resolvers now receive sample methods and optional KIDs; decryption capabilities describe supported combinations.
+- Add `downloadSubtitleOutputs()` and `exportChapters()` for WebVTT sidecars aligned to completed timeline reports, including split outputs. Add typed range, timeline, resource-change and bridge-version errors.
 - **BrowserAdapter / NodeAdapter**: Support finite AES-128 TS/fMP4 VOD with AVC/HEVC/AAC-LC, key rotation, encrypted MAPs and one external audio track across download, stream and writable output. Add per-operation `decryption` providers, budgets, structured progress and typed key/decryption errors; encrypted recovery, transcoding, aria2 and subtitles remain unsupported.
 - Add `parseMediaPlaylist(text, url)` for structured metadata with lossless protocol integers, and `capabilities.decryption` to describe the supported profile.
 

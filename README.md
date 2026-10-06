@@ -491,3 +491,9 @@ Both adapters support one selected audio rendition across download, stream and w
 AES-128 有限 VOD 已支持 TS/fMP4、AVC/HEVC/AAC-LC 和单条外置音轨，可输出 MP4 文件/Blob 或 fMP4 stream/writable。默认按媒体请求策略读取 identity key；可通过每次调用的 `decryption.keyResolver` 替换。暂不支持加密恢复、转码、aria2、加密字幕或 live。完整选项和预算见[适配器 API](docs/content/docs/zh/api/adapters.mdx#aes-128-vod)。
 
 Finite AES-128 VOD supports TS/fMP4, AVC/HEVC/AAC-LC and one external audio track, with classic MP4 file/Blob and fMP4 stream/writable output. Identity keys use the media request policy by default; per-call `decryption.keyResolver` replaces it. Encrypted recovery, transcoding, aria2, subtitles and live are unsupported. See the [adapter API](docs/content/docs/en/api/adapters.mdx#aes-128-vod) for options and resource budgets.
+
+### 时间轴与 sample 解密 / Timeline and sample decryption
+
+显式 `timeline` 支持有限范围、epoch 和 gap 策略，返回请求/实际可解码区间。`downloadOutputs()` 和 `downloadToWritables()` 提供多输出，`downloadSubtitleOutputs()` / `exportChapters()` 按报告生成 WebVTT sidecar。有限 TS SAMPLE-AES（AVC/AAC）及 fMP4 cbcs/cenc（AVC/HEVC/AAC）按清单自动启用。范围恢复、live、转码和 aria2 组合仍不支持；详见[时间轴 API](docs/content/docs/zh/api/hls-downloader.mdx#时间范围与多输出)。
+
+Opt-in `timeline` adds finite ranges, epochs, gap policies and requested/actual decodable intervals. `downloadOutputs()` / `downloadToWritables()` support multiple outputs; `downloadSubtitleOutputs()` / `exportChapters()` produce aligned WebVTT sidecars. Finite TS SAMPLE-AES (AVC/AAC) and fMP4 cbcs/cenc (AVC/HEVC/AAC) are selected automatically. Range recovery, live, transcoding and aria2 combinations remain unsupported. See the [timeline API](docs/content/docs/en/api/hls-downloader.mdx#timeline-ranges-and-multiple-outputs).

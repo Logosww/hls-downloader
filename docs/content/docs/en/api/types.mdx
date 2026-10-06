@@ -275,3 +275,9 @@ type Rendition = {
 Master results add optional `renditions`; variants add `audioGroup`, `subtitlesGroup`, and `videoGroup`. Audio language matches are exact and case-insensitive. Explicit missing selections fail with `RENDITION_NOT_FOUND`; unsupported rendition kinds use `UNSUPPORTED_RENDITION`. Errors may include `inputRole` (`primary`, `audio`, `subtitles`) and `phase` diagnostics. Node also supports writable output.
 
 `HlsDownloaderSubtitleOptions` contains fetch options plus required `subtitle: { groupId, name }`, optional `variant`, `audio`, `operationId`, `filename`, `maxRetry`, and `downloadConcurrency`. Browser additionally accepts `browserRequest`. `HlsDownloaderSubtitleResult` contains `operationId`, `text`, `mimeType: 'text/vtt'`, `filename`, and `totalSegments`.
+
+## Timeline types
+
+Root and shared exports include `HlsMediaTime`, `HlsPresentationRange`, `HlsTimelineOptions`, `HlsMultiTimelineOptions`, `HlsTimelineReport`, `HlsTimelineMapping`, `HlsTimelineOutputDescriptor`, `HlsOutputFactory`, `HlsCompletedOutput`, `HlsSidecar` and `HlsChapterOptions`. `HlsDownloaderOutputsOptions` excludes transcoding/recovery; only its timeline accepts `changePolicy`. Sample key requests include optional `kid` and the expanded method union.
+
+`RANGE_INVALID`, `TIMELINE_FAILED`, `RESOURCE_CHANGED` and `BRIDGE_VERSION_MISMATCH` extend `HlsDownloaderErrorCode`. Safe errors may expose `trackId`, decimal-string `sampleIndex`, `scheme` and `completedOutputs`; raw keys and provider messages are excluded.

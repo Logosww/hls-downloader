@@ -1,0 +1,122 @@
+{
+  "upstream": "hls-transmux 0.8.0 / 8d6c54f",
+  "license": "MIT",
+  "files": [
+    {
+      "file": "ts_avc_clear/seg2.ts",
+      "sha256": "f70eafd5f913fe6233c31d075b1dc363742b97ac7947067e1375ec64e5121670"
+    },
+    {
+      "file": "ts_avc_clear/master.m3u8",
+      "sha256": "a978a68bc9d2cc69ee15d3d6e430af7f3c66cdd406bc49b2c45b16d836807d58"
+    },
+    {
+      "file": "ts_avc_clear/seg3.ts",
+      "sha256": "fa9982f734a308242def484076d92cfeaa0a078138ea449d858279c03a7cc591"
+    },
+    {
+      "file": "ts_avc_clear/seg1.ts",
+      "sha256": "03385068cb34e6d593c2bfad7ad95f4744e5c89e02659f3649856476929248dd"
+    },
+    {
+      "file": "ts_avc_clear/input.m3u8",
+      "sha256": "e90224dcce065070e328dca72ae22395d6bb14566f5899d52c2e72a4d2d8b87e"
+    },
+    {
+      "file": "fmp4_aac_clear/seg4.m4s",
+      "sha256": "a53a308186fb057a33208029e3d88f12b08214406a7449718316e3f7265b3dbd"
+    },
+    {
+      "file": "fmp4_aac_clear/seg3.m4s",
+      "sha256": "15879dd467631df537403de59eaa5a69e90951efb1f0433a50bb44236cc56384"
+    },
+    {
+      "file": "fmp4_aac_clear/seg2.m4s",
+      "sha256": "c13301dc77d58cede7677f28a7d14f8c1b560226172b98f242e647da4ce92de8"
+    },
+    {
+      "file": "fmp4_aac_clear/master.m3u8",
+      "sha256": "20dcf3f4586aabaf37a8ff7ba106412c4d6bf6447a6de0637374ee8da9d0b110"
+    },
+    {
+      "file": "fmp4_aac_clear/seg1.m4s",
+      "sha256": "21e7d6430ee600a051f9ea4d7a5399f15299723a503192c0e199e232dd7788c4"
+    },
+    {
+      "file": "fmp4_aac_clear/init.mp4",
+      "sha256": "466384561b782c8768dedf6fd5b3f66b6d322cc120d04a28fcc5e45e1b74f34c"
+    },
+    {
+      "file": "fmp4_aac_clear/input.m3u8",
+      "sha256": "dcac0da443c32ce49066679d52e5584c9d68dadabbb968887e8cdb5a32ecbeeb"
+    },
+    {
+      "file": "ts_aac_clear/seg2.ts",
+      "sha256": "4956610f918e0d2d41da86f42718776eeac662e5206095cc81c7d8c33dfbe2cb"
+    },
+    {
+      "file": "ts_aac_clear/master.m3u8",
+      "sha256": "724ccc12c771e72af97b3b783d7e86dfefaa383aaf9248be5e9b9d2cef1674fb"
+    },
+    {
+      "file": "ts_aac_clear/seg3.ts",
+      "sha256": "c95c6e3f6edc6495a94b008b1788726f13786ccb13bc69ba48008ca771fb9405"
+    },
+    {
+      "file": "ts_aac_clear/seg4.ts",
+      "sha256": "118d62a1af619dd3a48de82157a5fd786acee9bb4ae5b0ea18216713309950c3"
+    },
+    {
+      "file": "ts_aac_clear/seg1.ts",
+      "sha256": "df8edbc42bb73fb6ec1f82197e31c33d151ff5bcba9cd87534a024a252ebd299"
+    },
+    {
+      "file": "ts_aac_clear/input.m3u8",
+      "sha256": "74296fdca12925acf0d25bcc906bd0aafd901a09fc0cb95abec606e43480e585"
+    },
+    {
+      "file": "fmp4_hevc_clear/seg2.m4s",
+      "sha256": "563dc43c667a8c8242c9b06ee2f1d7d109031ef87353612d8e8bc0c0b30b4e7f"
+    },
+    {
+      "file": "fmp4_hevc_clear/master.m3u8",
+      "sha256": "b55313aa8a66d47976107bc2465bcbe6becb7dd7935caa1edf43317d9aad5404"
+    },
+    {
+      "file": "fmp4_hevc_clear/seg1.m4s",
+      "sha256": "cf8ab21aa32b9753160896af0fb692a955e655f5a59ae3a5384c68bfd08b756f"
+    },
+    {
+      "file": "fmp4_hevc_clear/init.mp4",
+      "sha256": "c810229f3e3e7c38f4817efffc9e82aba8902427c63fa81ce7cedb27237799d2"
+    },
+    {
+      "file": "fmp4_hevc_clear/input.m3u8",
+      "sha256": "a9f146b11732b165ccafebe53d0882c52caa9ff0a5080b2cb044706aaec6825e"
+    },
+    {
+      "file": "fmp4_avc_clear/seg3.m4s",
+      "sha256": "d822bf2ba88a4fd593409c51e51d82330590c3daf59351d1850f814570ca1113"
+    },
+    {
+      "file": "fmp4_avc_clear/seg2.m4s",
+      "sha256": "3f8eb7467d40e8d06b73ef4a4d96b335087ff065a0e2232d60ff867ad52dfcac"
+    },
+    {
+      "file": "fmp4_avc_clear/master.m3u8",
+      "sha256": "60c31686f04189154b1d210bb1998b90912fc7b4dc8162dcff6c94c062778736"
+    },
+    {
+      "file": "fmp4_avc_clear/seg1.m4s",
+      "sha256": "fde7b8a7ef05fbd79d70c8107188b0ea542f8b499596b416f11a1446e5458f5d"
+    },
+    {
+      "file": "fmp4_avc_clear/init.mp4",
+      "sha256": "2547cdd94dd07140585b7b4356637d4bd50650a2b38ba80e9c302f56e57eb2f5"
+    },
+    {
+      "file": "fmp4_avc_clear/input.m3u8",
+      "sha256": "7048a68f9fb7ed0be8c2b41d47bae8e11957ae94b174d3df7f20ebdd7855b43a"
+    }
+  ]
+}

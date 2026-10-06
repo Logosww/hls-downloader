@@ -1,0 +1,860 @@
+[
+  {
+    "name": "range-False",
+    "files": {
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg2.ts": "19b6677ca6b6bca349be742912a917e5ef4d39417e21541ab59f491572685065.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg0.ts": "fb0201bbf7aa14dae95749359830f248eeae70ff82d7a83b331ccd44a9fb08be.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg1.ts": "79fa33ed67b1205666d3776615a4363aa98d365e736e58dac04ee04c7d100865.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/input.m3u8": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/media/ts_avc_regular/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2.000000,\nseg0.ts\n#EXTINF:2.000000,\nseg1.ts\n#EXTINF:2.000000,\nseg2.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "range-False",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "dual-False",
+    "files": {
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg2.ts": "19b6677ca6b6bca349be742912a917e5ef4d39417e21541ab59f491572685065.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg0.ts": "fb0201bbf7aa14dae95749359830f248eeae70ff82d7a83b331ccd44a9fb08be.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg1.ts": "79fa33ed67b1205666d3776615a4363aa98d365e736e58dac04ee04c7d100865.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/input.m3u8": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8",
+      "https://sdk.test/tests/fixtures/media/fmp4_aac_audio_only/init.fmp4": "777c61454114733fd49d10bbfeb42c5cd441a72c4dd20055d29cf2392a62bf72.fmp4",
+      "https://sdk.test/tests/fixtures/media/fmp4_aac_audio_only/seg3.m4s": "b3a01786604acf1b85196df1187800696545404aca65657962ba352d07fc3c04.m4s",
+      "https://sdk.test/tests/fixtures/media/fmp4_aac_audio_only/seg2.m4s": "2d079b57cc4819f2f5bf5726d76fe014b37f9f2cc4a7fcb30500d4c3808a9942.m4s",
+      "https://sdk.test/tests/fixtures/media/fmp4_aac_audio_only/seg0.m4s": "7fc071fd8b715db720744ccbfb8dc9906dcf624dc6025ae45aeeef875d513e93.m4s",
+      "https://sdk.test/tests/fixtures/media/fmp4_aac_audio_only/seg1.m4s": "0ff91eec5c9f88bd4e47423850758e53d7024ab66689857dbe17d004266c1f39.m4s",
+      "https://sdk.test/tests/fixtures/media/fmp4_aac_audio_only/input.m3u8": "0d33c7c034f6a1b4b9b0014c9737e09f8e3f75161b2082ad6725376b597a664a.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "2200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/media/ts_avc_regular/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2.000000,\nseg0.ts\n#EXTINF:2.000000,\nseg1.ts\n#EXTINF:2.000000,\nseg2.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": {
+        "url": "https://sdk.test/tests/fixtures/media/fmp4_aac_audio_only/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-MAP:URI=\"init.fmp4\"\n#EXTINF:2.005333,\nseg0.m4s\n#EXTINF:2.005333,\nseg1.m4s\n#EXTINF:2.005333,\nseg2.m4s\n#EXTINF:0.021333,\nseg3.m4s\n#EXT-X-ENDLIST\n"
+      },
+      "mode": "bytes",
+      "output": null,
+      "operationId": "dual-False",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "range-True",
+    "files": {
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/bundle.bin": "1c17ab9a0b93698d2ed6b6e50cb995461989a165deadb1c0b074f3b562e0596e.bin",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/seg0.cbc": "254015a6e1f164c63ea7c06045b42d84c14ccd1fb999b0f44d85bee895a733e5.cbc",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/seg1.cbc": "933db888fb7e60fce133ecdc19495ff02de84976ef1c1930e62c496a7fc2f3d8.cbc",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/range.m3u8": "8ffb3a6919e10a668be4a17ba19dac9dc1e928d719ae4ee5a57675d78355f0a6.m3u8",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/input.m3u8": "2dfe199d1ecfcb42cdec25b38c0808f8d7e25d62e34eb2e2dc0c58067b801941.m3u8",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/clear.bin": "19b6677ca6b6bca349be742912a917e5ef4d39417e21541ab59f491572685065.ts"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:9007199254740993\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:2,\nseg0.cbc\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",IV=0x000102030405060708090a0b0c0d0e0f\n#EXTINF:2,\nseg1.cbc\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:2,\nclear.bin\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "range-True",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "dual-True",
+    "files": {
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/bundle.bin": "1c17ab9a0b93698d2ed6b6e50cb995461989a165deadb1c0b074f3b562e0596e.bin",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/seg0.cbc": "254015a6e1f164c63ea7c06045b42d84c14ccd1fb999b0f44d85bee895a733e5.cbc",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/seg1.cbc": "933db888fb7e60fce133ecdc19495ff02de84976ef1c1930e62c496a7fc2f3d8.cbc",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/range.m3u8": "8ffb3a6919e10a668be4a17ba19dac9dc1e928d719ae4ee5a57675d78355f0a6.m3u8",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/input.m3u8": "2dfe199d1ecfcb42cdec25b38c0808f8d7e25d62e34eb2e2dc0c58067b801941.m3u8",
+      "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/clear.bin": "19b6677ca6b6bca349be742912a917e5ef4d39417e21541ab59f491572685065.ts",
+      "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/map-range.bin": "dd29c8f9f40746a465a1748d927ef3759ff58e9bc2b55194b84d34c6897099f1.bin",
+      "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/bundle.bin": "cc1ec2b4db0184288020400be5abc35e141e44190919e868367c1c2b1f744d24.bin",
+      "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/seg0.cbc": "ade94c0417215b62134aaa05327810db836ac95f5961296da6736859e7c3d79b.cbc",
+      "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/seg1.cbc": "695ab27a57b7cce9ae498d5cd8b1e261bedf2b8e59b1f257706fa2230d1db59b.cbc",
+      "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/range.m3u8": "0694b9888cb5ed17ed047e8c1e0a8ce1e5b7222ce178cd111947b311bf3aa0bb.m3u8",
+      "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/input.m3u8": "2796e2f2c6e201bae75de0be028128c5f9e45a98106cbfb68afdeb108246dad8.m3u8",
+      "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/init.cbc": "8b4b1104b171021546141ef05761f0924876d596bb77a45e7665a9c156e28753.cbc",
+      "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/clear.bin": "2d079b57cc4819f2f5bf5726d76fe014b37f9f2cc4a7fcb30500d4c3808a9942.m4s"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "2200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/crypto/ts_avc_regular/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:9007199254740993\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:2,\nseg0.cbc\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",IV=0x000102030405060708090a0b0c0d0e0f\n#EXTINF:2,\nseg1.cbc\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:2,\nclear.bin\n#EXT-X-ENDLIST\n"
+      },
+      "audio": {
+        "url": "https://sdk.test/tests/fixtures/crypto/fmp4_aac_audio_only/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:9007199254740993\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",IV=0x000102030405060708090a0b0c0d0e0f\n#EXT-X-MAP:URI=\"init.cbc\"\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXTINF:2,\nseg0.cbc\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\",IV=0x000102030405060708090a0b0c0d0e0f\n#EXTINF:2,\nseg1.cbc\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:2,\nclear.bin\n#EXT-X-ENDLIST\n"
+      },
+      "mode": "bytes",
+      "output": null,
+      "operationId": "dual-True",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "clock-reset",
+    "files": {
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg2.ts": "60f6beb524a6e6e05b7f92107e642697d3c82fcc4f8516a505d2ec75ec8750e0.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg0.ts": "775207aba2a74277d21534cadd7aacb031d601910bbf24284b2572cb45a53ae5.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg1.ts": "b54b6694f010b6d1cf260c089c3505a62402b1cc4b2d09dfb3b5f56831f88911.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": null,
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2,\nseg0.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:2,\nseg0.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "clock-reset",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "gap-collapse",
+    "files": {
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg2.ts": "60f6beb524a6e6e05b7f92107e642697d3c82fcc4f8516a505d2ec75ec8750e0.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg0.ts": "775207aba2a74277d21534cadd7aacb031d601910bbf24284b2572cb45a53ae5.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg1.ts": "b54b6694f010b6d1cf260c089c3505a62402b1cc4b2d09dfb3b5f56831f88911.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": null,
+      "collapse": true,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2.000000,\nseg0.ts\n#EXT-X-GAP\n#EXTINF:2.000000,\nseg1.ts\n#EXTINF:2.000000,\nseg2.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "gap-collapse",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "gap-split",
+    "files": {
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg2.ts": "60f6beb524a6e6e05b7f92107e642697d3c82fcc4f8516a505d2ec75ec8750e0.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg0.ts": "775207aba2a74277d21534cadd7aacb031d601910bbf24284b2572cb45a53ae5.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg1.ts": "b54b6694f010b6d1cf260c089c3505a62402b1cc4b2d09dfb3b5f56831f88911.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8"
+    },
+    "outputs": 2,
+    "selection": {
+      "range": null,
+      "collapse": false,
+      "split": true
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2.000000,\nseg0.ts\n#EXT-X-GAP\n#EXTINF:2.000000,\nseg1.ts\n#EXTINF:2.000000,\nseg2.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "gap-split",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "gap-preserve-stream",
+    "files": {
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg2.ts": "60f6beb524a6e6e05b7f92107e642697d3c82fcc4f8516a505d2ec75ec8750e0.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg0.ts": "775207aba2a74277d21534cadd7aacb031d601910bbf24284b2572cb45a53ae5.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg1.ts": "b54b6694f010b6d1cf260c089c3505a62402b1cc4b2d09dfb3b5f56831f88911.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": null,
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2.000000,\nseg0.ts\n#EXT-X-GAP\n#EXTINF:2.000000,\nseg1.ts\n#EXTINF:2.000000,\nseg2.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "stream",
+      "output": null,
+      "operationId": "gap-preserve-stream",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "config-split",
+    "files": {
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg2.ts": "60f6beb524a6e6e05b7f92107e642697d3c82fcc4f8516a505d2ec75ec8750e0.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg0.ts": "775207aba2a74277d21534cadd7aacb031d601910bbf24284b2572cb45a53ae5.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/seg1.ts": "b54b6694f010b6d1cf260c089c3505a62402b1cc4b2d09dfb3b5f56831f88911.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_video_only/input.m3u8": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg2.ts": "19b6677ca6b6bca349be742912a917e5ef4d39417e21541ab59f491572685065.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg0.ts": "fb0201bbf7aa14dae95749359830f248eeae70ff82d7a83b331ccd44a9fb08be.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/seg1.ts": "79fa33ed67b1205666d3776615a4363aa98d365e736e58dac04ee04c7d100865.ts",
+      "https://sdk.test/tests/fixtures/media/ts_avc_regular/input.m3u8": "ae79e70cd42f5a3f83a3a29a97b1facae87b679d02fed3390000769db14ac7ca.m3u8",
+      "https://sdk.test/tests/fixtures/media/ts_hevc_regular/seg2.ts": "f877ded3ba3f31efab72cfe5f8375284b00826418670fb091aa6b250826bf946.ts",
+      "https://sdk.test/tests/fixtures/media/ts_hevc_regular/seg0.ts": "db300f3b88da02e99af6a38072d490d164c610a0c50ef895f95680942585f18c.ts",
+      "https://sdk.test/tests/fixtures/media/ts_hevc_regular/seg1.ts": "0e6dc1a22956a11728cace6fde70df283da19b577dcf2032169ad697291cd4b8.ts",
+      "https://sdk.test/tests/fixtures/media/ts_hevc_regular/input.m3u8": "3ade08d924ff9b1062b8cf5d3de0a8e0cf16569f84054bf0a05fd3b5f673ffe9.m3u8"
+    },
+    "outputs": 2,
+    "selection": {
+      "range": null,
+      "collapse": false,
+      "split": true
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/media/ts_avc_regular/input.m3u8",
+        "text": "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2,\nseg0.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:2,\nhttps://sdk.test/tests/fixtures/media/ts_hevc_regular/seg0.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "config-split",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "sample-fmp4_avc_cenc",
+    "files": {
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg3.m4s": "ebb8db78e5ed8f1154e402a5f4b77abef2a744646e2c2d3855625e44060d7e35.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg2.m4s": "305be630d3565ddbb205ffa4cdf75cf2323e3119ccafaeb980170ba10b820a12.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/master.m3u8": "9e08ff29dad8b29a00d8d686a1786a6ee47f8871898369e0e453bbc44f5d49b2.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg1.m4s": "37fd734d394bdf2ce9021a0b2e4faffc3546ee48cbe2a5fa9f5243c069e1d1be.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/init.mp4": "a4df4d2bc52c60016e1c7ec4f34b4e1c05de1c36ec368eaa5a507be7f0b80b74.mp4",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/input.m3u8": "08992d78cf13ff4836146c703723a99f26f46adbfd7ee8d875974847d6fdf0a1.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/input.m3u8",
+        "text": "#EXTM3U\n## Generated with https://github.com/shaka-project/shaka-packager version v3.9.3-0a8ba4f-release\n#EXT-X-TARGETDURATION:2\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI=\"key\",KEYFORMAT=\"identity\"\n#EXTINF:2.000,\nseg1.m4s\n#EXTINF:2.000,\nseg2.m4s\n#EXTINF:2.000,\nseg3.m4s\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "sample-fmp4_avc_cenc",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "sample-dual-schemes",
+    "files": {
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg3.m4s": "ebb8db78e5ed8f1154e402a5f4b77abef2a744646e2c2d3855625e44060d7e35.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg2.m4s": "305be630d3565ddbb205ffa4cdf75cf2323e3119ccafaeb980170ba10b820a12.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/master.m3u8": "9e08ff29dad8b29a00d8d686a1786a6ee47f8871898369e0e453bbc44f5d49b2.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg1.m4s": "37fd734d394bdf2ce9021a0b2e4faffc3546ee48cbe2a5fa9f5243c069e1d1be.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/init.mp4": "a4df4d2bc52c60016e1c7ec4f34b4e1c05de1c36ec368eaa5a507be7f0b80b74.mp4",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/input.m3u8": "08992d78cf13ff4836146c703723a99f26f46adbfd7ee8d875974847d6fdf0a1.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cbcs/seg4.m4s": "b379cb4b65f9889992f8458a7526786720486913bde4231c88aea38b678611f7.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cbcs/seg3.m4s": "34ebc9d09c5ec6c05bab937fbe494383a45122b97ac064d4d58b964ca48f2db7.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cbcs/seg2.m4s": "958d884666b66fd8edc8422d54725598b704e0699b275cc6deea26fdeec0585b.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cbcs/master.m3u8": "bc02fdbf5f578b9f9676cda3003c9b1c7f4198c4dd77201cc6e77ecde9a841ba.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cbcs/seg1.m4s": "c08795f5a9e8f15fe9291dec2d27fcda4648757c674435ee802500a618e007f4.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cbcs/init.mp4": "c0d335d7e75be7335bc31483388745b4303f635f389fc541236572550bf56a7d.mp4",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cbcs/input.m3u8": "a7df4cc583306d7d13072da9012960110352a3acd199d67f9024981d0a73e5ef.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/input.m3u8",
+        "text": "#EXTM3U\n## Generated with https://github.com/shaka-project/shaka-packager version v3.9.3-0a8ba4f-release\n#EXT-X-TARGETDURATION:2\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI=\"key\",KEYFORMAT=\"identity\"\n#EXTINF:2.000,\nseg1.m4s\n#EXTINF:2.000,\nseg2.m4s\n#EXTINF:2.000,\nseg3.m4s\n#EXT-X-ENDLIST\n"
+      },
+      "audio": {
+        "url": "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cbcs/input.m3u8",
+        "text": "#EXTM3U\n## Generated with https://github.com/shaka-project/shaka-packager version v3.9.3-0a8ba4f-release\n#EXT-X-TARGETDURATION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\",IV=0x000102030405060708090a0b0c0d0e0f,KEYFORMAT=\"identity\"\n#EXTINF:2.005,\nseg1.m4s\n#EXTINF:2.005,\nseg2.m4s\n#EXTINF:2.005,\nseg3.m4s\n#EXTINF:0.005,\nseg4.m4s\n#EXT-X-ENDLIST\n"
+      },
+      "mode": "bytes",
+      "output": null,
+      "operationId": "sample-dual-schemes",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "sample-range-key-redeclaration",
+    "files": {
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg3.m4s": "ebb8db78e5ed8f1154e402a5f4b77abef2a744646e2c2d3855625e44060d7e35.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg2.m4s": "305be630d3565ddbb205ffa4cdf75cf2323e3119ccafaeb980170ba10b820a12.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/master.m3u8": "9e08ff29dad8b29a00d8d686a1786a6ee47f8871898369e0e453bbc44f5d49b2.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/seg1.m4s": "37fd734d394bdf2ce9021a0b2e4faffc3546ee48cbe2a5fa9f5243c069e1d1be.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/init.mp4": "a4df4d2bc52c60016e1c7ec4f34b4e1c05de1c36ec368eaa5a507be7f0b80b74.mp4",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/input.m3u8": "08992d78cf13ff4836146c703723a99f26f46adbfd7ee8d875974847d6fdf0a1.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/sample_crypto/fmp4_avc_cenc/input.m3u8",
+        "text": "#EXTM3U\n## Generated with https://github.com/shaka-project/shaka-packager version v3.9.3-0a8ba4f-release\n#EXT-X-TARGETDURATION:2\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI=\"key\",KEYFORMAT=\"identity\"\n#EXTINF:2.000,\nseg1.m4s\n#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI=\"key-rotation\"\n#EXTINF:2.000,\nseg2.m4s\n#EXTINF:2.000,\nseg3.m4s\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "sample-range-key-redeclaration",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "sample-fmp4_hevc_cbcs",
+    "files": {
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_hevc_cbcs/seg2.m4s": "0c799fb640cdd9e8c37c2aa879d7eea17addaa6b8f230a74b642386ead262fe4.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_hevc_cbcs/master.m3u8": "ca5aa7c81bcfa758938157a4029235cc99a1038cd5c0ed87abdea07df086e2b9.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_hevc_cbcs/seg1.m4s": "f01b4a45b2e494cd7e5045c5098768f47a4f42c74094c25824a8178ce5e48935.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_hevc_cbcs/init.mp4": "202c46011401c7cdc242fe3a95fbf03c19a790af17bd2c75c2e0cf02388081ef.mp4",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_hevc_cbcs/input.m3u8": "f82b6ff9f122817a250367349d1b80087855038f28ba364028c8efbd7e6982bc.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/sample_crypto/fmp4_hevc_cbcs/input.m3u8",
+        "text": "#EXTM3U\n## Generated with https://github.com/shaka-project/shaka-packager version v3.9.3-0a8ba4f-release\n#EXT-X-TARGETDURATION:4\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\",IV=0x000102030405060708090a0b0c0d0e0f,KEYFORMAT=\"identity\"\n#EXTINF:3.967,\nseg1.m4s\n#EXTINF:2.033,\nseg2.m4s\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "sample-fmp4_hevc_cbcs",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "sample-fmp4_aac_cenc",
+    "files": {
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cenc/seg4.m4s": "1660b0517145cf7d0a59db699e39a0a42135533b7ca7c40f843eea8419382f90.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cenc/seg3.m4s": "f3ebdb78aa6aa9d3fb9712b0abe5eaa91704b47dae3ef0d4d3c418afb3e38088.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cenc/seg2.m4s": "0a0920767d9034e39c309d7285fafef5c42a9192829d7a5b5d05ebe757827e40.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cenc/master.m3u8": "dc1c0d09e002383d22ae6a525a6bba447da824820a2662b5e14c02172ba4b870.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cenc/seg1.m4s": "482a568d3badb971aa2acd26ba650339a07f2ad970bb0243cfe5295a987baf8e.m4s",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cenc/init.mp4": "b31d5cc33b02b8d491526818662c371bf6bcf23e3d524263447ae9c008bc3d46.mp4",
+      "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cenc/input.m3u8": "3d8d69311b6f750127fad48de82fd34ab988afbfab35e5266b182853e7c93881.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/sample_crypto/fmp4_aac_cenc/input.m3u8",
+        "text": "#EXTM3U\n## Generated with https://github.com/shaka-project/shaka-packager version v3.9.3-0a8ba4f-release\n#EXT-X-TARGETDURATION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI=\"key\",KEYFORMAT=\"identity\"\n#EXTINF:2.005,\nseg1.m4s\n#EXTINF:2.005,\nseg2.m4s\n#EXTINF:2.005,\nseg3.m4s\n#EXTINF:0.005,\nseg4.m4s\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "sample-fmp4_aac_cenc",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "sample-ts_avc_sample",
+    "files": {
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_avc_sample/seg2.ts": "a96f9b08c27bc84eb79250ea5f7d1ba50acc48ebf3f38d80bc926e906809060c.ts",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_avc_sample/master.m3u8": "a978a68bc9d2cc69ee15d3d6e430af7f3c66cdd406bc49b2c45b16d836807d58.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_avc_sample/seg3.ts": "3cf1ad4d48382e807e7a1e66be1ac2ca405e4156f64f3e8bc86eedfe08180875.ts",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_avc_sample/seg1.ts": "870ab224a157848cfc74e24c0db49fce66e97fa22636108de525b47c7d7e54d2.ts",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_avc_sample/input.m3u8": "2610016ecf416de7f3019b141df894e3e7f536b7ff9ac3d6751e6daae60869ad.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/sample_crypto/ts_avc_sample/input.m3u8",
+        "text": "#EXTM3U\n## Generated with https://github.com/shaka-project/shaka-packager version v3.9.3-0a8ba4f-release\n#EXT-X-TARGETDURATION:2\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\",IV=0x000102030405060708090a0b0c0d0e0f,KEYFORMAT=\"identity\"\n#EXTINF:2.000,\nseg1.ts\n#EXTINF:2.000,\nseg2.ts\n#EXTINF:2.000,\nseg3.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "sample-ts_avc_sample",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  },
+  {
+    "name": "sample-ts_aac_sample",
+    "files": {
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_aac_sample/seg2.ts": "81f05c990297d2e7c833d9be7081ce8d66e7db5bb3a2354b0d1b6395f711adfd.ts",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_aac_sample/master.m3u8": "724ccc12c771e72af97b3b783d7e86dfefaa383aaf9248be5e9b9d2cef1674fb.m3u8",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_aac_sample/seg3.ts": "3239ef2b39e698157356ac743b53694139a07ff8842c656d71c4711f3fe77705.ts",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_aac_sample/seg4.ts": "0e1284e2c09b15f1c6b5ef80dd4cc140bbbd07dcdb8d2124f1d37f8908063bb2.ts",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_aac_sample/seg1.ts": "46ab9bcc7834575e901048838643bca2874f9aa196ac0eb4069ea904d5d54659.ts",
+      "https://sdk.test/tests/fixtures/sample_crypto/ts_aac_sample/input.m3u8": "f5194eb297e70360c6c08a50f0d71e515feabd4333bbf2ba8fdf02a7bb6d729e.m3u8"
+    },
+    "outputs": 1,
+    "selection": {
+      "range": {
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        },
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        }
+      },
+      "collapse": false,
+      "split": false
+    },
+    "request": {
+      "wireVersion": 2,
+      "primary": {
+        "url": "https://sdk.test/tests/fixtures/sample_crypto/ts_aac_sample/input.m3u8",
+        "text": "#EXTM3U\n## Generated with https://github.com/shaka-project/shaka-packager version v3.9.3-0a8ba4f-release\n#EXT-X-TARGETDURATION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\",IV=0x000102030405060708090a0b0c0d0e0f,KEYFORMAT=\"identity\"\n#EXTINF:2.005,\nseg1.ts\n#EXTINF:2.005,\nseg2.ts\n#EXTINF:2.005,\nseg3.ts\n#EXTINF:0.005,\nseg4.ts\n#EXT-X-ENDLIST\n"
+      },
+      "audio": null,
+      "mode": "bytes",
+      "output": null,
+      "operationId": "sample-ts_aac_sample",
+      "scope": "fixture",
+      "limits": {
+        "resourceBytes": 16777216,
+        "waitingBytes": 33554432,
+        "resources": 2,
+        "keyRequests": 2,
+        "cachedKeys": 16,
+        "keyWaiters": 16
+      },
+      "keyFormats": [
+        {
+          "format": "identity",
+          "versions": [
+            1
+          ]
+        }
+      ],
+      "encryptedRanges": "complete-resources"
+    }
+  }
+]

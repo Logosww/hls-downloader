@@ -241,3 +241,9 @@ type Rendition = {
 master 结果增加可选 `renditions`，variant 增加 `audioGroup`、`subtitlesGroup`、`videoGroup`。音轨语言精确匹配且忽略大小写；显式选择不存在时报 `RENDITION_NOT_FOUND`，不支持的轨道类型报 `UNSUPPORTED_RENDITION`。错误可携带 `inputRole`（`primary`、`audio`、`subtitles`）及 `phase` 诊断字段。Node 同样支持 writable 输出。
 
 `HlsDownloaderSubtitleOptions` 包含请求配置和必填 `subtitle: { groupId, name }`，以及可选的 `variant`、`audio`、`operationId`、`filename`、`maxRetry`、`downloadConcurrency`。Browser 额外接受 `browserRequest`。`HlsDownloaderSubtitleResult` 包含 `operationId`、`text`、`mimeType: 'text/vtt'`、`filename` 和 `totalSegments`。
+
+## Timeline types
+
+根包及 shared 导出 `HlsMediaTime`、`HlsPresentationRange`、`HlsTimelineOptions`、`HlsMultiTimelineOptions`、`HlsTimelineReport`、`HlsTimelineMapping`、`HlsTimelineOutputDescriptor`、`HlsOutputFactory`、`HlsCompletedOutput`、`HlsSidecar` 和 `HlsChapterOptions`。`HlsDownloaderOutputsOptions` 不接受转码/恢复，仅多输出选项的 timeline 接受 `changePolicy`。sample key request 包含可选 `kid` 及扩展的 method 联合类型。
+
+`HlsDownloaderErrorCode` 新增 `RANGE_INVALID`、`TIMELINE_FAILED`、`RESOURCE_CHANGED` 和 `BRIDGE_VERSION_MISMATCH`。安全错误上下文可包含 `trackId`、十进制字符串 `sampleIndex`、`scheme` 和 `completedOutputs`，不公开原始 key 或 provider 消息。

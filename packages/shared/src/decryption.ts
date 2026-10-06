@@ -4,7 +4,8 @@ export interface HlsKeyRequest {
   inputId: string;
   resourceKind: 'media' | 'map';
   uri: string;
-  method: 'AES-128';
+  method: 'AES-128' | 'SAMPLE-AES' | 'SAMPLE-AES-CTR';
+  kid?: string;
   keyFormat: string;
   keyFormatVersions: readonly number[];
   originalSequence: string;
@@ -30,6 +31,7 @@ export interface HlsDecryptionOptions {
   encryptedRanges?: 'reject' | 'complete-resources';
   limits?: {
     manifestBytes?: number;
+    samples?: number;
     resourceBytes?: number;
     waitingBytes?: number;
     resources?: number;

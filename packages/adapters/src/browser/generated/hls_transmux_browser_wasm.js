@@ -197,6 +197,61 @@ function debugString(val) {
     // TODO we could test for more things here, like `Set`s and `Map`s.
     return className;
 }
+/**
+ * @param {string} text
+ * @param {string} url
+ * @returns {string}
+ */
+export function parse_media_playlist_browser(text, url) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.parse_media_playlist_browser(ptr0, len0, ptr1, len1);
+        deferred3_0 = ret[0];
+        deferred3_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * @param {string} request
+ * @param {Function} read
+ * @param {Function} write
+ * @param {Function} resolve
+ * @param {Function} abort
+ * @param {Function} progress
+ * @param {Promise<any>} cancel
+ * @returns {Promise<any>}
+ */
+export function keyed_browser(request, read, write, resolve, abort, progress, cancel) {
+    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.keyed_browser(ptr0, len0, read, write, resolve, abort, progress, cancel);
+    return ret;
+}
+
+/**
+ * @param {string} request
+ * @param {Function} read
+ * @param {Function} write
+ * @param {Function} resolve
+ * @param {Function} abort
+ * @param {Function} control
+ * @param {Promise<any>} cancel
+ * @returns {Promise<any>}
+ */
+export function timeline_browser(request, read, write, resolve, abort, control, cancel) {
+    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.timeline_browser(ptr0, len0, read, write, resolve, abort, control, cancel);
+    return ret;
+}
 
 export function start() {
     wasm.start();
@@ -251,51 +306,12 @@ export function prepared_browser(request, read, write, progress) {
     return ret;
 }
 
-/**
- * @param {string} text
- * @param {string} url
- * @returns {string}
- */
-export function parse_media_playlist_browser(text, url) {
-    let deferred3_0;
-    let deferred3_1;
-    try {
-        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.parse_media_playlist_browser(ptr0, len0, ptr1, len1);
-        deferred3_0 = ret[0];
-        deferred3_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
-    }
-}
-
-/**
- * @param {string} request
- * @param {Function} read
- * @param {Function} write
- * @param {Function} resolve
- * @param {Function} abort
- * @param {Function} progress
- * @param {Promise<any>} cancel
- * @returns {Promise<any>}
- */
-export function keyed_browser(request, read, write, resolve, abort, progress, cancel) {
-    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.keyed_browser(ptr0, len0, read, write, resolve, abort, progress, cancel);
-    return ret;
-}
-
 function __wbg_adapter_28(arg0, arg1, arg2) {
-    wasm.closure173_externref_shim(arg0, arg1, arg2);
+    wasm.closure235_externref_shim(arg0, arg1, arg2);
 }
 
-function __wbg_adapter_62(arg0, arg1, arg2, arg3) {
-    wasm.closure231_externref_shim(arg0, arg1, arg2, arg3);
+function __wbg_adapter_63(arg0, arg1, arg2, arg3) {
+    wasm.closure286_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 async function __wbg_load(module, imports) {
@@ -410,7 +426,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_62(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_63(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -511,8 +527,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper592 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 174, __wbg_adapter_28);
+    imports.wbg.__wbindgen_closure_wrapper879 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 236, __wbg_adapter_28);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {

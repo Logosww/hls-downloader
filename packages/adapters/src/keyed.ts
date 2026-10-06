@@ -20,7 +20,26 @@ import {
 } from './renditions';
 
 export const decryptionProfile = Object.freeze({
-  methods: Object.freeze(['AES-128'] as const),
+  methods: Object.freeze(['AES-128', 'SAMPLE-AES', 'SAMPLE-AES-CTR'] as const),
+  profiles: Object.freeze(
+    [
+      { method: 'AES-128', container: 'ts', scheme: 'cbc', codecs: ['avc', 'hevc', 'aac-lc'] },
+      { method: 'AES-128', container: 'fmp4', scheme: 'cbc', codecs: ['avc', 'hevc', 'aac-lc'] },
+      { method: 'SAMPLE-AES', container: 'ts', scheme: 'sample-cbc', codecs: ['avc', 'aac-lc'] },
+      {
+        method: 'SAMPLE-AES',
+        container: 'fmp4',
+        scheme: 'cbcs',
+        codecs: ['avc', 'hevc', 'aac-lc'],
+      },
+      {
+        method: 'SAMPLE-AES-CTR',
+        container: 'fmp4',
+        scheme: 'cenc',
+        codecs: ['avc', 'hevc', 'aac-lc'],
+      },
+    ].map((p) => Object.freeze({ ...p, codecs: Object.freeze(p.codecs) })),
+  ),
   containers: Object.freeze(['ts', 'fmp4'] as const),
   codecs: Object.freeze(['avc', 'hevc', 'aac-lc'] as const),
   finite: true as const,
@@ -31,14 +50,16 @@ export type KeyReply = { status: string; key: Uint8Array; version?: string; ttl?
 export type KeyedEngine = (
   request: string,
   read: (request: string) => Promise<Uint8Array>,
-  write: (bytes: Uint8Array) => Promise<void>,
+  write: (bytes: Uint8Array, index?: string) => Promise<void>,
   resolve: (request: string) => Promise<KeyReply>,
   abort: (id: string) => void,
   progress: (event: string) => void,
   signal: AbortSignal,
+  control?: import('@hls-downloader/shared').HlsOutputControl,
 ) => Promise<string>;
 export function requiresKeyed(media: SelectedMedia, options: RequestOptions): boolean {
   return (
+    options.timeline !== undefined ||
     options.decryption !== undefined ||
     [media.primary, media.audio].some((s) => s && /^\s*#EXT-X-KEY:/m.test(s.text))
   );
@@ -49,6 +70,7 @@ export function parseMediaMetadata(result: string): HlsMediaPlaylist {
   return value as HlsMediaPlaylist;
 }
 const defaults = {
+  samples: 65536,
   resourceBytes: 16 * 1024 * 1024,
   waitingBytes: 32 * 1024 * 1024,
   resources: 2,
@@ -63,8 +85,9 @@ export async function executeKeyed(
   media: SelectedMedia,
   engine: KeyedEngine,
   mode: string,
-  write: (bytes: Uint8Array) => Promise<void>,
+  write: (bytes: Uint8Array, index?: string) => Promise<void>,
   output?: string,
+  control?: import('@hls-downloader/shared').HlsOutputControl,
 ): Promise<PreparedReport> {
   if (options.transcode !== undefined)
     throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Encrypted input cannot be transcoded');
@@ -124,7 +147,8 @@ export async function executeKeyed(
   try {
     const result = await engine(
       JSON.stringify({
-        wireVersion: 2,
+        wireVersion: 3,
+        timeline: options.timeline,
         primary: snapshot(media.primary),
         audio: media.audio && snapshot(media.audio),
         operationId: options.operationId ?? scope,
@@ -163,11 +187,11 @@ export async function executeKeyed(
           throw error;
         }
       },
-      async (bytes) => {
+      async (bytes, index) => {
         assertActive(options.signal);
         if (!active) throw new HlsDownloaderError(Code.ABORTED, 'Operation ended');
         try {
-          await cancellable(write(bytes), options.signal);
+          await cancellable(write(bytes, index), options.signal);
         } catch (error) {
           originalError ??= error;
           throw error;
@@ -183,7 +207,11 @@ export async function executeKeyed(
               try {
                 reply = await cancellable(
                   Promise.resolve().then(() =>
-                    options.decryption!.keyResolver!({ ...data, signal } as HlsKeyRequest),
+                    options.decryption!.keyResolver!({
+                      ...data,
+                      kid: data.kid ?? undefined,
+                      signal,
+                    } as HlsKeyRequest),
                   ),
                   signal,
                 );
@@ -256,10 +284,23 @@ export async function executeKeyed(
           });
       },
       options.signal,
+      control &&
+        (async (request) => {
+          if (active && mode.startsWith('file') && request.action === 'complete')
+            return control(request);
+          assertActive(options.signal);
+          if (!active) throw new HlsDownloaderError(Code.ABORTED, 'Operation ended');
+          try {
+            return await cancellable(control(request), options.signal);
+          } catch (error) {
+            originalError ??= error;
+            throw error;
+          }
+        }),
     );
     if (originalError) throw originalError;
     assertActive(options.signal);
-    return checkPreparedReport(JSON.parse(result));
+    return checkPreparedReport(camelCaseReport(JSON.parse(result)));
   } catch (error) {
     throw originalError ?? error;
   } finally {
@@ -276,11 +317,22 @@ export function executeMedia(
   legacy: import('./prepared').Engine,
   keyed: KeyedEngine,
   mode: string,
-  write: (bytes: Uint8Array) => Promise<void>,
+  write: (bytes: Uint8Array, index?: string) => Promise<void>,
   output?: string,
+  timeline?: KeyedEngine,
 ): Promise<PreparedReport> {
+  if (options.timeline) {
+    validateTimeline(options.timeline, false);
+    if (!timeline)
+      throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Timeline engine unavailable');
+    return executeKeyed(adapter, options, media, timeline, mode, write, output, async (r) =>
+      r.action === 'acquire' ? (output ?? '') : '',
+    );
+  }
   return requiresKeyed(media, options)
     ? executeKeyed(adapter, options, media, keyed, mode, write, output)
     : executePrepared(adapter, options, media, legacy, mode, write, output);
 }
 import { executePrepared } from './prepared';
+
+import { validateTimeline, camelCaseReport } from './timeline';

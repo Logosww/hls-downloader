@@ -1,4 +1,4 @@
-export const encryptedPlaylist = (method: 'AES-128' | 'SAMPLE-AES') =>
+export const encryptedPlaylist = (method: 'AES-128' | 'SAMPLE-AES' | 'AES-256-GCM') =>
   `#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=${method},URI="key.bin"\n#EXTINF:4,\nsegment.ts\n#EXT-X-ENDLIST\n`;
 
 export const unsupportedMediaScenarios = [

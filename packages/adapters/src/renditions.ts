@@ -140,7 +140,10 @@ export async function resolveMedia(
         Code.RENDITION_NOT_FOUND,
         'Audio selection requires a master playlist',
       );
-    if (!allowKeyed || (!options.decryption && !/^\s*#EXT-X-KEY:/m.test(resource.text)))
+    if (
+      !allowKeyed ||
+      (!options.timeline && !options.decryption && !/^\s*#EXT-X-KEY:/m.test(resource.text))
+    )
       assertSupportedSegments(parsed.data, 'HlsDownloader');
     const primary = { url: resource.url, text: resource.text, segments: parsed.data };
     let external: MediaSnapshot | undefined;
@@ -152,7 +155,10 @@ export async function resolveMedia(
           'Audio rendition must be a media playlist',
           { inputRole: 'audio' },
         );
-      if (!allowKeyed || (!options.decryption && !/^\s*#EXT-X-KEY:/m.test(a.text)))
+      if (
+        !allowKeyed ||
+        (!options.timeline && !options.decryption && !/^\s*#EXT-X-KEY:/m.test(a.text))
+      )
         assertSupportedSegments(a.parsed.data, 'HlsDownloader');
       external = { url: a.url, text: a.text, segments: a.parsed.data };
     }
@@ -171,6 +177,7 @@ export type Timeline = {
   tracks: { role: string; timescale: number; editOffset: string; wrapAnchor?: string | null }[];
 };
 export type PreparedReport = {
+  timelineReport?: import('@hls-downloader/shared').HlsTimelineReport;
   totalSegments: number;
   timeline: Timeline;
   error?: {

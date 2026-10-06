@@ -1,0 +1,4233 @@
+[
+  {
+    "hashes": [
+      "47272496215bdb2e25c9488c5cd8b55fe531c1902a3f6da3d0282769994f69eb"
+    ],
+    "name": "range-False",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "2264",
+          "timescale": 375
+        },
+        "start": {
+          "ticks": "8",
+          "timescale": 375
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "3",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "2264",
+              "timescale": 375
+            },
+            "start": {
+              "ticks": "8",
+              "timescale": 375
+            }
+          },
+          "bytes_written": "274654",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                97,
+                27,
+                90,
+                239,
+                245,
+                6,
+                112,
+                28,
+                33,
+                185,
+                253,
+                138,
+                28,
+                149,
+                47,
+                225,
+                228,
+                150,
+                104,
+                105,
+                177,
+                11,
+                41,
+                117,
+                100,
+                227,
+                215,
+                94,
+                228,
+                131,
+                96,
+                148
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2258",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "8",
+                  "timescale": 375
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            },
+            {
+              "configuration_id": [
+                97,
+                27,
+                90,
+                239,
+                245,
+                6,
+                112,
+                28,
+                33,
+                185,
+                253,
+                138,
+                28,
+                149,
+                47,
+                225,
+                228,
+                150,
+                104,
+                105,
+                177,
+                11,
+                41,
+                117,
+                100,
+                227,
+                215,
+                94,
+                228,
+                131,
+                96,
+                148
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2264",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "8",
+                  "timescale": 375
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 2,
+              "wrap_anchor": {
+                "ticks": "132000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "546000",
+              "sample_count": "180",
+              "timescale": 90000
+            },
+            {
+              "codec": "Aac",
+              "duration": "291968",
+              "sample_count": "282",
+              "timescale": 48000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "311",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "8",
+            "timescale": 375
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "9",
+      "schema_version": 1,
+      "source_bytes": "915936"
+    }
+  },
+  {
+    "hashes": [
+      "472b87960e7c465d369f208e678cb95b377977c2812a2ce753e86d27e596b5f0"
+    ],
+    "name": "dual-False",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "2056",
+          "timescale": 375
+        },
+        "start": {
+          "ticks": "544",
+          "timescale": 375
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "6",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "2056",
+              "timescale": 375
+            },
+            "start": {
+              "ticks": "544",
+              "timescale": 375
+            }
+          },
+          "bytes_written": "184991",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                189,
+                225,
+                141,
+                202,
+                201,
+                243,
+                177,
+                141,
+                155,
+                255,
+                238,
+                74,
+                183,
+                26,
+                249,
+                242,
+                56,
+                57,
+                193,
+                9,
+                223,
+                188,
+                115,
+                124,
+                32,
+                149,
+                204,
+                168,
+                131,
+                91,
+                233,
+                71
+              ],
+              "epoch": "0",
+              "input_id": "audio",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "19",
+                "timescale": 375
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2056",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "544",
+                  "timescale": 375
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "69632",
+                "timescale": 48000
+              },
+              "source_origin": {
+                "ticks": "69632",
+                "timescale": 48000
+              },
+              "track_id": 2,
+              "wrap_anchor": null
+            },
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "82",
+                  "timescale": 15
+                },
+                "start": {
+                  "ticks": "22",
+                  "timescale": 15
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "366000",
+              "sample_count": "120",
+              "timescale": 90000
+            },
+            {
+              "codec": "Aac",
+              "duration": "195968",
+              "sample_count": "189",
+              "timescale": 48000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "188",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "22",
+            "timescale": 15
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "2200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "16",
+      "schema_version": 1,
+      "source_bytes": "937436"
+    }
+  },
+  {
+    "hashes": [
+      "47272496215bdb2e25c9488c5cd8b55fe531c1902a3f6da3d0282769994f69eb"
+    ],
+    "name": "range-True",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "2264",
+          "timescale": 375
+        },
+        "start": {
+          "ticks": "8",
+          "timescale": 375
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "9007199254740993"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "9007199254740994"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "9007199254740995"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "3",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "2264",
+              "timescale": 375
+            },
+            "start": {
+              "ticks": "8",
+              "timescale": 375
+            }
+          },
+          "bytes_written": "274654",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                97,
+                27,
+                90,
+                239,
+                245,
+                6,
+                112,
+                28,
+                33,
+                185,
+                253,
+                138,
+                28,
+                149,
+                47,
+                225,
+                228,
+                150,
+                104,
+                105,
+                177,
+                11,
+                41,
+                117,
+                100,
+                227,
+                215,
+                94,
+                228,
+                131,
+                96,
+                148
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2258",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "8",
+                  "timescale": 375
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            },
+            {
+              "configuration_id": [
+                97,
+                27,
+                90,
+                239,
+                245,
+                6,
+                112,
+                28,
+                33,
+                185,
+                253,
+                138,
+                28,
+                149,
+                47,
+                225,
+                228,
+                150,
+                104,
+                105,
+                177,
+                11,
+                41,
+                117,
+                100,
+                227,
+                215,
+                94,
+                228,
+                131,
+                96,
+                148
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2264",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "8",
+                  "timescale": 375
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 2,
+              "wrap_anchor": {
+                "ticks": "132000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "546000",
+              "sample_count": "180",
+              "timescale": 90000
+            },
+            {
+              "codec": "Aac",
+              "duration": "291968",
+              "sample_count": "282",
+              "timescale": 48000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "311",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "8",
+            "timescale": 375
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "9007199254740993"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "9",
+      "schema_version": 1,
+      "source_bytes": "915996"
+    }
+  },
+  {
+    "hashes": [
+      "472b87960e7c465d369f208e678cb95b377977c2812a2ce753e86d27e596b5f0"
+    ],
+    "name": "dual-True",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "2056",
+          "timescale": 375
+        },
+        "start": {
+          "ticks": "544",
+          "timescale": 375
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "9007199254740993"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "9007199254740994"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "3",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "2",
+            "revision": "0"
+          },
+          "map_keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "9007199254740993"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "4",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "2",
+            "revision": "0"
+          },
+          "map_keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "9007199254740994"
+          }
+        },
+        {
+          "keys": [],
+          "map": {
+            "ordinal": "2",
+            "revision": "0"
+          },
+          "map_keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "9007199254740995"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "6",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "2056",
+              "timescale": 375
+            },
+            "start": {
+              "ticks": "544",
+              "timescale": 375
+            }
+          },
+          "bytes_written": "184991",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                189,
+                225,
+                141,
+                202,
+                201,
+                243,
+                177,
+                141,
+                155,
+                255,
+                238,
+                74,
+                183,
+                26,
+                249,
+                242,
+                56,
+                57,
+                193,
+                9,
+                223,
+                188,
+                115,
+                124,
+                32,
+                149,
+                204,
+                168,
+                131,
+                91,
+                233,
+                71
+              ],
+              "epoch": "0",
+              "input_id": "audio",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "19",
+                "timescale": 375
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2056",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "544",
+                  "timescale": 375
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "69632",
+                "timescale": 48000
+              },
+              "source_origin": {
+                "ticks": "69632",
+                "timescale": 48000
+              },
+              "track_id": 2,
+              "wrap_anchor": null
+            },
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "82",
+                  "timescale": 15
+                },
+                "start": {
+                  "ticks": "22",
+                  "timescale": 15
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "366000",
+              "sample_count": "120",
+              "timescale": 90000
+            },
+            {
+              "codec": "Aac",
+              "duration": "195968",
+              "sample_count": "189",
+              "timescale": 48000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "188",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "22",
+            "timescale": 15
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "9007199254740993"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "2200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "16",
+      "schema_version": 1,
+      "source_bytes": "937529"
+    }
+  },
+  {
+    "hashes": [
+      "089c307cf8d8e1e6d44667a9c25c9494100ef2139f5414be70d2e9ec04120974"
+    ],
+    "name": "clock-reset",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "4",
+          "timescale": 1
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "1",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "2",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "4",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "126410",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            },
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "1",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "31",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "4",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "2",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "366000",
+              "sample_count": "120",
+              "timescale": 90000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "120",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "0",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": null,
+      "resource_reads": "6",
+      "schema_version": 1,
+      "source_bytes": "432024"
+    }
+  },
+  {
+    "hashes": [
+      "02f2ded29e26b396935899cf2aab33125fafa21e7d6801d4c925b38b392fa28a"
+    ],
+    "name": "gap-collapse",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "6",
+          "timescale": 1
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [
+        {
+          "end": {
+            "ticks": "4",
+            "timescale": 1
+          },
+          "start": {
+            "ticks": "2",
+            "timescale": 1
+          }
+        }
+      ],
+      "indexed_resources": "2",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "6",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "129137",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            },
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "31",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "6",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "4",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "486000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "492000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "486000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "366000",
+              "sample_count": "120",
+              "timescale": 90000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "120",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "0",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": null,
+      "resource_reads": "6",
+      "schema_version": 1,
+      "source_bytes": "438228"
+    }
+  },
+  {
+    "hashes": [
+      "25960790e9326d4fc4667ffa01f6a0a6165eab477cb1200f580d99302b615c31",
+      "2553049411ae0a93b5ed47ae6583fb2e14aad751ea0fd86e456b425860b1b93a"
+    ],
+    "name": "gap-split",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "6",
+          "timescale": 1
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [
+        {
+          "end": {
+            "ticks": "4",
+            "timescale": 1
+          },
+          "start": {
+            "ticks": "2",
+            "timescale": 1
+          }
+        }
+      ],
+      "indexed_resources": "2",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "2",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "63590",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "186000",
+              "sample_count": "60",
+              "timescale": 90000
+            }
+          ]
+        },
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "6",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "4",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "66317",
+          "index": "1",
+          "mappings": [
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "1",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "6",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "4",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "486000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "492000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "486000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Gap",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "186000",
+              "sample_count": "60",
+              "timescale": 90000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "120",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "0",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        },
+        {
+          "output_index": "1",
+          "presentation": {
+            "ticks": "4",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          },
+          "source": {
+            "ticks": "492000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": null,
+      "resource_reads": "6",
+      "schema_version": 1,
+      "source_bytes": "438228"
+    }
+  },
+  {
+    "hashes": [
+      "fd545997d37226829c4a92ba417374d09a83acfce55f8103b82c8312838bd92c"
+    ],
+    "name": "gap-preserve-stream",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "6",
+          "timescale": 1
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [
+        {
+          "end": {
+            "ticks": "4",
+            "timescale": 1
+          },
+          "start": {
+            "ticks": "2",
+            "timescale": 1
+          }
+        }
+      ],
+      "indexed_resources": "2",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "6",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "130245",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            },
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "61",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "6",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "4",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "486000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "492000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "486000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "546000",
+              "sample_count": "120",
+              "timescale": 90000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "120",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "0",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": null,
+      "resource_reads": "6",
+      "schema_version": 1,
+      "source_bytes": "438228"
+    }
+  },
+  {
+    "hashes": [
+      "f89d2631a170d083ec76e73117fd74b444e6b25a1f12cefa6cc47f332f5a2d40",
+      "b57809fc94e241c0322561ab951955fe44918e9486d9362df46697ab3716cb1a"
+    ],
+    "name": "config-split",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "997",
+          "timescale": 250
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "1",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "2",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "758",
+              "timescale": 375
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "88258",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                97,
+                27,
+                90,
+                239,
+                245,
+                6,
+                112,
+                28,
+                33,
+                185,
+                253,
+                138,
+                28,
+                149,
+                47,
+                225,
+                228,
+                150,
+                104,
+                105,
+                177,
+                11,
+                41,
+                117,
+                100,
+                227,
+                215,
+                94,
+                228,
+                131,
+                96,
+                148
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "17",
+                "timescale": 375
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "736",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "130080",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "130080",
+                "timescale": 90000
+              },
+              "track_id": 2,
+              "wrap_anchor": {
+                "ticks": "130080",
+                "timescale": 90000
+              }
+            },
+            {
+              "configuration_id": [
+                97,
+                27,
+                90,
+                239,
+                245,
+                6,
+                112,
+                28,
+                33,
+                185,
+                253,
+                138,
+                28,
+                149,
+                47,
+                225,
+                228,
+                150,
+                104,
+                105,
+                177,
+                11,
+                41,
+                117,
+                100,
+                227,
+                215,
+                94,
+                228,
+                131,
+                96,
+                148
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "758",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "8",
+                  "timescale": 375
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "186000",
+              "sample_count": "60",
+              "timescale": 90000
+            },
+            {
+              "codec": "Aac",
+              "duration": "96384",
+              "sample_count": "92",
+              "timescale": 48000
+            }
+          ]
+        },
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "997",
+              "timescale": 250
+            },
+            "start": {
+              "ticks": "2",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "71601",
+          "index": "1",
+          "mappings": [
+            {
+              "configuration_id": [
+                151,
+                206,
+                65,
+                216,
+                241,
+                54,
+                144,
+                165,
+                21,
+                239,
+                182,
+                142,
+                182,
+                254,
+                117,
+                151,
+                175,
+                228,
+                241,
+                89,
+                217,
+                32,
+                31,
+                69,
+                133,
+                30,
+                59,
+                88,
+                11,
+                255,
+                171,
+                188
+              ],
+              "epoch": "1",
+              "input_id": "primary",
+              "output_index": "1",
+              "output_start": {
+                "ticks": "17",
+                "timescale": 375
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "1478",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "2",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "130080",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "130080",
+                "timescale": 90000
+              },
+              "track_id": 2,
+              "wrap_anchor": {
+                "ticks": "130080",
+                "timescale": 90000
+              }
+            },
+            {
+              "configuration_id": [
+                151,
+                206,
+                65,
+                216,
+                241,
+                54,
+                144,
+                165,
+                21,
+                239,
+                182,
+                142,
+                182,
+                254,
+                117,
+                151,
+                175,
+                228,
+                241,
+                89,
+                217,
+                32,
+                31,
+                69,
+                133,
+                30,
+                59,
+                88,
+                11,
+                255,
+                171,
+                188
+              ],
+              "epoch": "1",
+              "input_id": "primary",
+              "output_index": "1",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "997",
+                  "timescale": 250
+                },
+                "start": {
+                  "ticks": "758",
+                  "timescale": 375
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "126000",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "132000",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "126000",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "ConfigurationChanged",
+          "tracks": [
+            {
+              "codec": "Hevc",
+              "duration": "183000",
+              "sample_count": "59",
+              "timescale": 90000
+            },
+            {
+              "codec": "Aac",
+              "duration": "95360",
+              "sample_count": "91",
+              "timescale": 48000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "302",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "8",
+            "timescale": 375
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        },
+        {
+          "output_index": "1",
+          "presentation": {
+            "ticks": "758",
+            "timescale": 375
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "1",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          },
+          "source": {
+            "ticks": "132000",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": null,
+      "resource_reads": "6",
+      "schema_version": 1,
+      "source_bytes": "531852"
+    }
+  },
+  {
+    "hashes": [
+      "88ff4dca251b205dedf4f7bc969378c9982a90ab7533622b232f105cf241397b"
+    ],
+    "name": "sample-fmp4_avc_cenc",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "6",
+          "timescale": 1
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "3",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "6",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "199739",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                204,
+                25,
+                138,
+                228,
+                125,
+                64,
+                204,
+                54,
+                12,
+                16,
+                197,
+                136,
+                164,
+                178,
+                7,
+                56,
+                172,
+                239,
+                128,
+                168,
+                159,
+                116,
+                103,
+                114,
+                244,
+                175,
+                101,
+                121,
+                141,
+                133,
+                50,
+                122
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "6",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "-11",
+                "timescale": 15360
+              },
+              "source_origin": {
+                "ticks": "1013",
+                "timescale": 15360
+              },
+              "track_id": 1,
+              "wrap_anchor": null
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "93184",
+              "sample_count": "180",
+              "timescale": 15360
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "120",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "0",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "1013",
+            "timescale": 15360
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "9",
+      "schema_version": 1,
+      "source_bytes": "613164"
+    }
+  },
+  {
+    "hashes": [
+      "abda778363f15ebe78771b132c044fe7893b56c9abd604cd50a5571876905692"
+    ],
+    "name": "sample-dual-schemes",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "93173",
+          "timescale": 15360
+        },
+        "start": {
+          "ticks": "8",
+          "timescale": 125
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "audio",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "6",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "93173",
+              "timescale": 15360
+            },
+            "start": {
+              "ticks": "8",
+              "timescale": 125
+            }
+          },
+          "bytes_written": "273033",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                189,
+                225,
+                141,
+                202,
+                201,
+                243,
+                177,
+                141,
+                155,
+                255,
+                238,
+                74,
+                183,
+                26,
+                249,
+                242,
+                56,
+                57,
+                193,
+                9,
+                223,
+                188,
+                115,
+                124,
+                32,
+                149,
+                204,
+                168,
+                131,
+                91,
+                233,
+                71
+              ],
+              "epoch": "0",
+              "input_id": "audio",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "24851",
+                "timescale": 384000
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "752",
+                  "timescale": 125
+                },
+                "start": {
+                  "ticks": "8",
+                  "timescale": 125
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "3072",
+                "timescale": 48000
+              },
+              "source_origin": {
+                "ticks": "3072",
+                "timescale": 48000
+              },
+              "track_id": 2,
+              "wrap_anchor": null
+            },
+            {
+              "configuration_id": [
+                204,
+                25,
+                138,
+                228,
+                125,
+                64,
+                204,
+                54,
+                12,
+                16,
+                197,
+                136,
+                164,
+                178,
+                7,
+                56,
+                172,
+                239,
+                128,
+                168,
+                159,
+                116,
+                103,
+                114,
+                244,
+                175,
+                101,
+                121,
+                141,
+                133,
+                50,
+                122
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "93173",
+                  "timescale": 15360
+                },
+                "start": {
+                  "ticks": "1013",
+                  "timescale": 15360
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "-11",
+                "timescale": 15360
+              },
+              "source_origin": {
+                "ticks": "1013",
+                "timescale": 15360
+              },
+              "track_id": 1,
+              "wrap_anchor": null
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "93184",
+              "sample_count": "180",
+              "timescale": 15360
+            },
+            {
+              "codec": "Aac",
+              "duration": "288802",
+              "sample_count": "279",
+              "timescale": 48000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "188",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "1013",
+            "timescale": 15360
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "1013",
+            "timescale": 15360
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "18",
+      "schema_version": 1,
+      "source_bytes": "837156"
+    }
+  },
+  {
+    "hashes": [
+      "88ff4dca251b205dedf4f7bc969378c9982a90ab7533622b232f105cf241397b"
+    ],
+    "name": "sample-range-key-redeclaration",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "6",
+          "timescale": 1
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "3",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "3",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "3",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "6",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "199739",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                204,
+                25,
+                138,
+                228,
+                125,
+                64,
+                204,
+                54,
+                12,
+                16,
+                197,
+                136,
+                164,
+                178,
+                7,
+                56,
+                172,
+                239,
+                128,
+                168,
+                159,
+                116,
+                103,
+                114,
+                244,
+                175,
+                101,
+                121,
+                141,
+                133,
+                50,
+                122
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "6",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "-11",
+                "timescale": 15360
+              },
+              "source_origin": {
+                "ticks": "1013",
+                "timescale": 15360
+              },
+              "track_id": 1,
+              "wrap_anchor": null
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "93184",
+              "sample_count": "180",
+              "timescale": 15360
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "120",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "0",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "1013",
+            "timescale": 15360
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "9",
+      "schema_version": 1,
+      "source_bytes": "613164"
+    }
+  },
+  {
+    "hashes": [
+      "bc26736044ec800cfdec24ee74e94deec8d2a77540c37c00dd9f95328be8157b"
+    ],
+    "name": "sample-fmp4_hevc_cbcs",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "6",
+          "timescale": 1
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        }
+      ],
+      "gaps": [
+        {
+          "end": {
+            "ticks": "61",
+            "timescale": 30
+          },
+          "start": {
+            "ticks": "2",
+            "timescale": 1
+          }
+        },
+        {
+          "end": {
+            "ticks": "121",
+            "timescale": 30
+          },
+          "start": {
+            "ticks": "4",
+            "timescale": 1
+          }
+        }
+      ],
+      "indexed_resources": "2",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "6",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "139694",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                198,
+                33,
+                237,
+                233,
+                98,
+                102,
+                200,
+                52,
+                148,
+                206,
+                204,
+                4,
+                166,
+                169,
+                175,
+                228,
+                180,
+                205,
+                81,
+                132,
+                13,
+                78,
+                202,
+                130,
+                54,
+                203,
+                94,
+                84,
+                29,
+                129,
+                190,
+                240
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "2",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "-1024",
+                "timescale": 15360
+              },
+              "source_origin": {
+                "ticks": "0",
+                "timescale": 15360
+              },
+              "track_id": 1,
+              "wrap_anchor": null
+            },
+            {
+              "configuration_id": [
+                198,
+                33,
+                237,
+                233,
+                98,
+                102,
+                200,
+                52,
+                148,
+                206,
+                204,
+                4,
+                166,
+                169,
+                175,
+                228,
+                180,
+                205,
+                81,
+                132,
+                13,
+                78,
+                202,
+                130,
+                54,
+                203,
+                94,
+                84,
+                29,
+                129,
+                190,
+                240
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "21",
+                "timescale": 10
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "4",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "61",
+                  "timescale": 30
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "30208",
+                "timescale": 15360
+              },
+              "source_origin": {
+                "ticks": "31232",
+                "timescale": 15360
+              },
+              "track_id": 1,
+              "wrap_anchor": null
+            },
+            {
+              "configuration_id": [
+                198,
+                33,
+                237,
+                233,
+                98,
+                102,
+                200,
+                52,
+                148,
+                206,
+                204,
+                4,
+                166,
+                169,
+                175,
+                228,
+                180,
+                205,
+                81,
+                132,
+                13,
+                78,
+                202,
+                130,
+                54,
+                203,
+                94,
+                84,
+                29,
+                129,
+                190,
+                240
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "41",
+                "timescale": 10
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "6",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "121",
+                  "timescale": 30
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "60928",
+                "timescale": 15360
+              },
+              "source_origin": {
+                "ticks": "61952",
+                "timescale": 15360
+              },
+              "track_id": 1,
+              "wrap_anchor": null
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Hevc",
+              "duration": "93184",
+              "sample_count": "180",
+              "timescale": 15360
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "180",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "0",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "0",
+            "timescale": 15360
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "6",
+      "schema_version": 1,
+      "source_bytes": "423126"
+    }
+  },
+  {
+    "hashes": [
+      "c06edd5cf02a3725eacd00e8a2052ae7c28565e4e783fcdc1c067dba959773cd"
+    ],
+    "name": "sample-fmp4_aac_cenc",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "1576",
+          "timescale": 375
+        },
+        "start": {
+          "ticks": "24",
+          "timescale": 125
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "2",
+              "revision": "0"
+            }
+          ],
+          "map": {
+            "ordinal": "1",
+            "revision": "0"
+          },
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "3",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "1576",
+              "timescale": 375
+            },
+            "start": {
+              "ticks": "24",
+              "timescale": 125
+            }
+          },
+          "bytes_written": "49587",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                189,
+                225,
+                141,
+                202,
+                201,
+                243,
+                177,
+                141,
+                155,
+                255,
+                238,
+                74,
+                183,
+                26,
+                249,
+                242,
+                56,
+                57,
+                193,
+                9,
+                223,
+                188,
+                115,
+                124,
+                32,
+                149,
+                204,
+                168,
+                131,
+                91,
+                233,
+                71
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "0",
+                "timescale": 1
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "1576",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "24",
+                  "timescale": 125
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "9216",
+                "timescale": 48000
+              },
+              "source_origin": {
+                "ticks": "9216",
+                "timescale": 48000
+              },
+              "track_id": 1,
+              "wrap_anchor": null
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Aac",
+              "duration": "192512",
+              "sample_count": "188",
+              "timescale": 48000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "188",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "24",
+            "timescale": 125
+          },
+          "sample_index": "9",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "9216",
+            "timescale": 48000
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "9",
+      "schema_version": 1,
+      "source_bytes": "238194"
+    }
+  },
+  {
+    "hashes": [
+      "2dd6576cfb43aeffbb789c0d6439650f3f7b172d83f8097d5790ce97c8703d1b"
+    ],
+    "name": "sample-ts_avc_sample",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "6",
+          "timescale": 1
+        },
+        "start": {
+          "ticks": "0",
+          "timescale": 1
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "3",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "6",
+              "timescale": 1
+            },
+            "start": {
+              "ticks": "0",
+              "timescale": 1
+            }
+          },
+          "bytes_written": "200819",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                203,
+                57,
+                161,
+                134,
+                13,
+                130,
+                171,
+                62,
+                210,
+                124,
+                181,
+                77,
+                156,
+                54,
+                139,
+                123,
+                224,
+                222,
+                60,
+                149,
+                202,
+                249,
+                64,
+                36,
+                41,
+                247,
+                108,
+                255,
+                174,
+                185,
+                60,
+                49
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "1",
+                "timescale": 15
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "6",
+                  "timescale": 1
+                },
+                "start": {
+                  "ticks": "0",
+                  "timescale": 1
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "8935",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "14935",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "8935",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Avc",
+              "duration": "546000",
+              "sample_count": "180",
+              "timescale": 90000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "120",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "0",
+            "timescale": 1
+          },
+          "sample_index": "0",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "14935",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "9",
+      "schema_version": 1,
+      "source_bytes": "680184"
+    }
+  },
+  {
+    "hashes": [
+      "769f9fdfddbe7af52026f20cf7098dd180f36e3f260ae1589ab5b5d144b9ea13"
+    ],
+    "name": "sample-ts_aac_sample",
+    "report": {
+      "actual": {
+        "end": {
+          "ticks": "1576",
+          "timescale": 375
+        },
+        "start": {
+          "ticks": "24",
+          "timescale": 125
+        }
+      },
+      "dependencies": [
+        {
+          "keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "1"
+          }
+        },
+        {
+          "keys": [
+            {
+              "ordinal": "1",
+              "revision": "0"
+            }
+          ],
+          "map": null,
+          "map_keys": [],
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "2"
+          }
+        }
+      ],
+      "gaps": [],
+      "indexed_resources": "3",
+      "outputs": [
+        {
+          "actual_range": {
+            "end": {
+              "ticks": "1576",
+              "timescale": 375
+            },
+            "start": {
+              "ticks": "24",
+              "timescale": 125
+            }
+          },
+          "bytes_written": "49584",
+          "index": "0",
+          "mappings": [
+            {
+              "configuration_id": [
+                171,
+                8,
+                173,
+                1,
+                173,
+                27,
+                11,
+                153,
+                238,
+                20,
+                161,
+                79,
+                77,
+                181,
+                8,
+                19,
+                162,
+                2,
+                169,
+                51,
+                240,
+                46,
+                129,
+                109,
+                152,
+                132,
+                25,
+                192,
+                139,
+                48,
+                185,
+                91
+              ],
+              "epoch": "0",
+              "input_id": "primary",
+              "output_index": "0",
+              "output_start": {
+                "ticks": "0",
+                "timescale": 1
+              },
+              "presentation": {
+                "end": {
+                  "ticks": "1576",
+                  "timescale": 375
+                },
+                "start": {
+                  "ticks": "24",
+                  "timescale": 125
+                }
+              },
+              "program_date_time": null,
+              "source_decode_start": {
+                "ticks": "26280",
+                "timescale": 90000
+              },
+              "source_origin": {
+                "ticks": "26280",
+                "timescale": 90000
+              },
+              "track_id": 1,
+              "wrap_anchor": {
+                "ticks": "26280",
+                "timescale": 90000
+              }
+            }
+          ],
+          "reason": "Initial",
+          "tracks": [
+            {
+              "codec": "Aac",
+              "duration": "192512",
+              "sample_count": "188",
+              "timescale": 48000
+            }
+          ]
+        }
+      ],
+      "peak_planned_resources": "2",
+      "peak_planned_samples": "188",
+      "random_access_points": [
+        {
+          "output_index": "0",
+          "presentation": {
+            "ticks": "24",
+            "timescale": 125
+          },
+          "sample_index": "9",
+          "slot": {
+            "epoch": "0",
+            "generation": "0",
+            "input_id": "primary",
+            "sequence": "0"
+          },
+          "source": {
+            "ticks": "26280",
+            "timescale": 90000
+          }
+        }
+      ],
+      "requested": {
+        "end": {
+          "ticks": "4200",
+          "timescale": 1000
+        },
+        "start": {
+          "ticks": "200",
+          "timescale": 1000
+        }
+      },
+      "resource_reads": "9",
+      "schema_version": 1,
+      "source_bytes": "323172"
+    }
+  }
+]

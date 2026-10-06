@@ -1,24 +1,26 @@
 /* tslint:disable */
 /* eslint-disable */
+export function parse_media_playlist_browser(text: string, url: string): string;
+export function keyed_browser(request: string, read: Function, write: Function, resolve: Function, abort: Function, progress: Function, cancel: Promise<any>): Promise<any>;
+export function timeline_browser(request: string, read: Function, write: Function, resolve: Function, abort: Function, control: Function, cancel: Promise<any>): Promise<any>;
 export function start(): void;
 export function transmux_preloaded_to_mp4_report(resources: any): Promise<any>;
 export function transmux_preloaded_to_fmp4_stream(resources: any, on_chunk: Function): Promise<any>;
 export function transmux_demand_to_fmp4(playlist_url: string, playlist: string, read: Function, write: Function): Promise<any>;
 export function prepared_browser(request: string, read: Function, write: Function, progress: Function): Promise<any>;
-export function parse_media_playlist_browser(text: string, url: string): string;
-export function keyed_browser(request: string, read: Function, write: Function, resolve: Function, abort: Function, progress: Function, cancel: Promise<any>): Promise<any>;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly keyed_browser: (a: number, b: number, c: any, d: any, e: any, f: any, g: any, h: any) => any;
+  readonly parse_media_playlist_browser: (a: number, b: number, c: number, d: number) => [number, number];
+  readonly timeline_browser: (a: number, b: number, c: any, d: any, e: any, f: any, g: any, h: any) => any;
   readonly prepared_browser: (a: number, b: number, c: any, d: any, e: any) => any;
   readonly start: () => void;
   readonly transmux_demand_to_fmp4: (a: number, b: number, c: number, d: number, e: any, f: any) => any;
   readonly transmux_preloaded_to_fmp4_stream: (a: any, b: any) => any;
   readonly transmux_preloaded_to_mp4_report: (a: any) => any;
-  readonly keyed_browser: (a: number, b: number, c: any, d: any, e: any, f: any, g: any, h: any) => any;
-  readonly parse_media_playlist_browser: (a: number, b: number, c: number, d: number) => [number, number];
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
@@ -26,8 +28,8 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_6: WebAssembly.Table;
-  readonly closure173_externref_shim: (a: number, b: number, c: any) => void;
-  readonly closure231_externref_shim: (a: number, b: number, c: any, d: any) => void;
+  readonly closure235_externref_shim: (a: number, b: number, c: any) => void;
+  readonly closure286_externref_shim: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_start: () => void;
 }
 

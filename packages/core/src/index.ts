@@ -1,3 +1,11 @@
+import { createOutputManager } from './outputs';
+import type {
+  HlsDownloaderOutputsOptions,
+  HlsOutputFactory,
+  HlsOutputsResult,
+  HlsDownloaderSubtitleOutputsOptions,
+  HlsSidecar,
+} from '@hls-downloader/shared';
 import type { HlsDecryptionOptions, HlsMediaPlaylist } from '@hls-downloader/shared';
 import {
   getInternalAdapter,
@@ -159,6 +167,13 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     const decryption = (options as O & { decryption?: HlsDecryptionOptions }).decryption;
     return {
       ...options,
+      ...('timeline' in options && options.timeline
+        ? { timeline: structuredClone(options.timeline) }
+        : {}),
+      ...('timelineReport' in options && options.timelineReport
+        ? { timelineReport: structuredClone(options.timelineReport) }
+        : {}),
+      ...('track' in options && options.track ? { track: { ...(options.track as object) } } : {}),
       ...(decryption
         ? {
             decryption: {
@@ -356,31 +371,39 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
           'This output requires a writable-capable adapter and does not support transcoding',
         );
       }
-      try {
-        writer = writable.getWriter();
-      } catch (cause) {
-        throw new HlsDownloaderError(
-          HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
-          'Cannot acquire output writer',
-          { cause },
-        );
-      }
-      // Observe asynchronous sink failures even while waiting for a network request.
-      void writer.closed.catch((cause) => {
-        if (!controller.signal.aborted)
-          controller.abort(
-            new HlsDownloaderError(
-              HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
-              'Writable output failed',
-              { cause },
-            ),
+      const acquire = () => {
+        if (writer) return;
+        try {
+          writer = writable.getWriter();
+        } catch (cause) {
+          throw new HlsDownloaderError(
+            HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
+            'Cannot acquire output writer',
+            { cause },
           );
-      });
+        }
+        // Observe asynchronous sink failures even while waiting for a network request.
+        void writer.closed.catch((cause) => {
+          if (!controller.signal.aborted)
+            controller.abort(
+              new HlsDownloaderError(
+                HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
+                'Writable output failed',
+                { cause },
+              ),
+            );
+        });
+      };
+      if (!options.timeline) acquire();
       await wait(this.init());
       const result = await this.#adapter.downloadToWritable(
         injectContext({ ...options, signal: controller.signal }, context),
-        (bytes) => output(() => writer!.write(bytes)),
+        (bytes) => {
+          acquire();
+          return output(() => writer!.write(bytes));
+        },
       );
+      acquire();
       await output(() => writer!.close());
       context.emit?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
       return { ...result, operationId };
@@ -398,6 +421,106 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     } finally {
       options.signal?.removeEventListener('abort', onAbort);
       writer?.releaseLock();
+    }
+  }
+
+  async downloadOutputs(
+    options: HlsDownloaderOutputsOptions &
+      Partial<HlsDownloaderConfigFactory<T>['additionalOptions']> &
+      HlsDownloaderConfigFactory<T>['requestOptions'],
+  ): Promise<HlsOutputsResult<HlsDownloaderConfigFactory<T>['downloadResult']>> {
+    options = this.#snapshotRequestOptions(options);
+    const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    const context = this.#createOperationContext(operationId);
+    try {
+      if (!this.#adapter.downloadOutputs || !this.capabilities.timeline)
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Multiple outputs unavailable',
+        );
+      await this.init();
+      const result = await this.#adapter.downloadOutputs(
+        injectContext({ ...options, operationId }, context),
+      );
+      return { ...result, operationId } as HlsOutputsResult<
+        HlsDownloaderConfigFactory<T>['downloadResult']
+      >;
+    } catch (cause) {
+      const error = normalizeHlsError(cause, HlsDownloaderErrorCode.TIMELINE_FAILED, {
+        adapter: this.#adapter.name,
+        url: options.url,
+      });
+      context.emit?.(HlsDownloaderEvent.ERROR, { error });
+      throw error;
+    }
+  }
+  async downloadToWritables(
+    options: HlsDownloaderOutputsOptions & HlsDownloaderConfigFactory<T>['requestOptions'],
+    outputFactory: HlsOutputFactory,
+  ): Promise<
+    HlsDownloaderStreamResult & {
+      timelineReport: import('@hls-downloader/shared').HlsTimelineReport;
+    }
+  > {
+    options = this.#snapshotRequestOptions(options);
+    const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    const context = this.#createOperationContext(operationId);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    options.signal?.addEventListener('abort', abort, { once: true });
+    if (options.signal?.aborted) abort();
+    const manager = createOutputManager(outputFactory, controller.signal, () => controller.abort());
+    try {
+      if (!this.#adapter.downloadToWritables || !this.capabilities.timeline)
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Multiple writable outputs unavailable',
+        );
+      await this.init();
+      const result = await this.#adapter.downloadToWritables(
+        injectContext({ ...options, operationId, signal: controller.signal }, context),
+        manager.write,
+        manager.control,
+      );
+      if (controller.signal.aborted)
+        throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Operation aborted');
+      context.emit?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+      return { ...result, operationId };
+    } catch (cause) {
+      const error = manager.error(cause);
+      controller.abort();
+      context.emit?.(HlsDownloaderEvent.ERROR, { error });
+      throw error;
+    } finally {
+      manager.dispose();
+      options.signal?.removeEventListener('abort', abort);
+    }
+  }
+  async downloadSubtitleOutputs(
+    options: HlsDownloaderSubtitleOutputsOptions & HlsDownloaderConfigFactory<T>['requestOptions'],
+  ): Promise<{ operationId: string; outputs: HlsSidecar[]; totalSegments: number }> {
+    options = this.#snapshotRequestOptions(options);
+    const operationId = options.operationId ?? globalThis.crypto.randomUUID();
+    const context = this.#createOperationContext(operationId);
+    try {
+      if (!this.#adapter.downloadSubtitleOutputs)
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Timeline subtitles unavailable',
+        );
+      await this.init();
+      const result = await this.#adapter.downloadSubtitleOutputs(
+        injectContext({ ...options, operationId }, context),
+      );
+      context.emit?.(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+      return { ...result, operationId };
+    } catch (cause) {
+      const error = normalizeHlsError(cause, HlsDownloaderErrorCode.SUBTITLE_INVALID, {
+        adapter: this.#adapter.name,
+        url: options.url,
+      });
+      context.emit?.(HlsDownloaderEvent.ERROR, { error });
+      throw error;
     }
   }
   /** 清空 adapter 内部的 parseHls / poster 缓存。adapter 未实现时为 no-op。 */

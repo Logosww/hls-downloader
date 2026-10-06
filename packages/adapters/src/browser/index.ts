@@ -1,3 +1,6 @@
+import { exportTimelineSubtitles } from '../timeline-subtitles';
+import { timelineProfile, validateTimeline } from '../timeline';
+import { executeKeyed } from '../keyed';
 import {
   executeMedia,
   requiresKeyed,
@@ -7,7 +10,12 @@ import {
 } from '../keyed';
 import { resolveMedia } from '../renditions';
 import { withOperation, exportSubtitles, type Engine } from '../prepared';
-import { prepared_browser, keyed_browser, parse_media_playlist_browser } from './wasm';
+import {
+  timeline_browser,
+  prepared_browser,
+  keyed_browser,
+  parse_media_playlist_browser,
+} from './wasm';
 import { Parser } from 'm3u8-parser';
 import {
   createAdapter,
@@ -55,6 +63,7 @@ import {
 type DownloadResult = {
   blobURL: string;
   totalSegments: number;
+  timelineReport?: import('@hls-downloader/shared').HlsTimelineReport;
 };
 
 type BrowserAdditionalOptions = HlsDownloaderBrowserOperationOptions & {
@@ -230,6 +239,14 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
   const { url, headers, maxRetry, downloadConcurrency, transcode, signal, browserRequest } =
     mergeDownloadOptions(this, globalOptions, options);
 
+  if (options.timeline) {
+    validateTimeline(options.timeline, false);
+    if (transcode !== undefined)
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+        'Timeline output cannot use transcoding, recovery or aria2',
+      );
+  }
   emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
 
   if (signal?.aborted) {
@@ -288,13 +305,19 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
           async (bytes) => {
             buffer = bytes;
           },
+          undefined,
+          browserTimelineEngine,
         );
         assertActive(request.signal);
         const blobURL = URL.createObjectURL(
           new Blob([Uint8Array.from(buffer!).buffer], { type: 'video/mp4' }),
         );
         emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-        return { blobURL, totalSegments: report.totalSegments };
+        return {
+          blobURL,
+          totalSegments: report.totalSegments,
+          timelineReport: report.timelineReport,
+        };
       },
     );
   }
@@ -648,6 +671,7 @@ const browserEngine: Engine = async (request, read, write, progress, signal) => 
 };
 const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWritable']> =
   async function (this: HlsDownloaderBrowserAdapter, options, write) {
+    if (options.timeline) validateTimeline(options.timeline, false);
     const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
     const merged = { ...mergeDownloadOptions(this, globalOptions, options), transcode: undefined };
     return withOperation({ ...options, ...merged }, async (request) => {
@@ -679,12 +703,14 @@ const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWri
         browserKeyedEngine,
         'stream',
         write,
+        undefined,
+        browserTimelineEngine,
       );
       emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
         completed: report.totalSegments,
         total: report.totalSegments,
       });
-      return { totalSegments: report.totalSegments };
+      return { totalSegments: report.totalSegments, timelineReport: report.timelineReport };
     });
   };
 const downloadToStream: HlsDownloaderBrowserAdapter['downloadToStream'] = async function (
@@ -757,6 +783,106 @@ function scopedOperation<A extends HlsDownloaderFetchOptions, R, Rest extends un
   };
 }
 
+const downloadToWritables: NonNullable<HlsDownloaderBrowserAdapter['downloadToWritables']> =
+  async function (this: HlsDownloaderBrowserAdapter, options, write, control) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
+    const merged = { ...mergeDownloadOptions(this, globalOptions, options), transcode: undefined };
+    if (
+      options.transcode !== undefined ||
+      (options as Record<string, unknown>).resume !== undefined
+    )
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+        'Timeline output cannot use transcoding, recovery or aria2',
+      );
+    const timeline = options.timeline ?? {};
+    validateTimeline(timeline, true);
+    return withOperation({ ...options, ...merged, timeline }, async (request) => {
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+      const media = await resolveMedia(request, false, true);
+      emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+      const report = await executeKeyed(
+        this,
+        request,
+        media,
+        browserTimelineEngine,
+        'stream-outputs',
+        (bytes, index) => write(bytes, index!),
+        undefined,
+        control,
+      );
+      return { totalSegments: report.totalSegments, timelineReport: report.timelineReport! };
+    });
+  };
+const downloadOutputs: NonNullable<HlsDownloaderBrowserAdapter['downloadOutputs']> =
+  async function (this: HlsDownloaderBrowserAdapter, options) {
+    const merged = mergeDownloadOptions(
+      this,
+      getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options),
+      options,
+    );
+    if (merged.transcode !== undefined || (options as Record<string, unknown>).resume !== undefined)
+      throw new HlsDownloaderError(
+        HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+        'Timeline output cannot use transcoding or recovery',
+      );
+    const timeline = options.timeline ?? {};
+    validateTimeline(timeline, true);
+    return withOperation({ ...options, ...merged, timeline }, async (request) => {
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
+      const media = await resolveMedia(request, false, true);
+      emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
+      const buffers: Uint8Array[] = [];
+      const report = await executeKeyed(
+        this,
+        request,
+        media,
+        browserTimelineEngine,
+        'bytes-outputs',
+        async (bytes, index) => {
+          buffers[Number(index)] = bytes;
+        },
+      );
+      assertActive(request.signal);
+      const urls: string[] = [];
+      try {
+        const outputs = buffers.map((b, index) => {
+          const blobURL = URL.createObjectURL(
+            new Blob([Uint8Array.from(b).buffer], { type: 'video/mp4' }),
+          );
+          urls.push(blobURL);
+          return { index: String(index), blobURL };
+        });
+        emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+        return {
+          outputs,
+          totalSegments: report.totalSegments,
+          timelineReport: report.timelineReport!,
+        };
+      } catch (error) {
+        for (const u of urls) URL.revokeObjectURL(u);
+        throw error;
+      }
+    });
+  };
+
+const downloadSubtitleOutputs: NonNullable<HlsDownloaderBrowserAdapter['downloadSubtitleOutputs']> =
+  async function (this: HlsDownloaderBrowserAdapter, options) {
+    const merged = mergeFetchOptions(
+      getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options),
+      options,
+    );
+    return withOperation({ ...options, ...merged }, (request) =>
+      exportTimelineSubtitles(this, {
+        ...request,
+        subtitle: options.subtitle,
+        timelineReport: options.timelineReport,
+        track: options.track,
+        filename: options.filename,
+      }),
+    );
+  };
+
 const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   name: 'BrowserAdapter',
   capabilities: {
@@ -767,6 +893,7 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
     byteRange: true,
     aes128: true,
     decryption: decryptionProfile,
+    timeline: timelineProfile,
     liveRecording: false,
     persistentOutput: false,
     writableOutput: true,
@@ -787,6 +914,9 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   downloadToStream: scopedOperation(downloadToStream),
   downloadToWritable,
   downloadSubtitles,
+  downloadSubtitleOutputs,
+  downloadOutputs,
+  downloadToWritables,
   clearCache: () => {},
 }) as HlsDownloaderBrowserAdapter;
 
@@ -823,5 +953,37 @@ const browserKeyedEngine: KeyedEngine = async (
   } finally {
     signal.removeEventListener('abort', cancel);
     cancel();
+  }
+};
+
+const browserTimelineEngine: KeyedEngine = async (
+  request,
+  read,
+  write,
+  resolve,
+  abort,
+  _progress,
+  signal,
+  control,
+) => {
+  await cancellable(ensureWasm(), signal);
+  let listener: (() => void) | undefined;
+  const cancel = new Promise<void>((r) => {
+    listener = () => r();
+    signal.addEventListener('abort', listener, { once: true });
+    if (signal.aborted) r();
+  });
+  try {
+    return (await timeline_browser(
+      request,
+      read,
+      write,
+      resolve,
+      abort,
+      async (s: string) => (control ? control(JSON.parse(s)) : ''),
+      cancel,
+    )) as string;
+  } finally {
+    if (listener) signal.removeEventListener('abort', listener);
   }
 };

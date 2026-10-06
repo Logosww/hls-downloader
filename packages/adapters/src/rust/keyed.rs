@@ -15,6 +15,9 @@ use std::{
     },
 };
 
+#[path = "timeline.rs"]
+pub mod timeline;
+
 pub type ReadFuture = Pin<Box<dyn Future<Output = hls_transmux::Result<Vec<u8>>> + Send>>;
 pub trait Host: Send + Sync {
     fn read(&self, request: String) -> ReadFuture;
@@ -33,9 +36,14 @@ pub struct Snapshot {
     pub url: String,
     pub text: String,
 }
+fn default_samples() -> usize {
+    65536
+}
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Limits {
+    #[serde(default = "default_samples")]
+    pub samples: usize,
     pub resource_bytes: u64,
     pub waiting_bytes: u64,
     pub resources: usize,
@@ -55,6 +63,7 @@ pub struct Request {
     pub primary: Snapshot,
     pub audio: Option<Snapshot>,
     pub mode: String,
+    pub timeline: Option<timeline::Selection>,
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub output: Option<String>,
     pub operation_id: String,
@@ -125,8 +134,12 @@ pub fn failure(e: KeyedSessionError) -> Value {
         },
         _ => "TRANSMUX_FAILED",
     };
-    let slot = e.resource_context().map(|r| r.slot()).or(e.slot());
-    json!({"error":{"code":code,"reason":format!("{:?}", e.failure()),"phase":format!("{:?}",e.phase()).to_lowercase(),"inputRole":e.input_id().map(|i|i.as_str()),"inputId":slot.map(|s|s.input_id().as_str()),"originalSequence":slot.map(|s|s.sequence().to_string()),"epoch":slot.map(|s|s.epoch().to_string()),"resourceKind":e.resource_context().map(|r|if r.kind()==KeyResourceKind::Map {"map"} else {"media"})}})
+    let code = e.sample_error().map(timeline::sample_code).unwrap_or(code);
+    let slot = e
+        .sample_error()
+        .map(|e| e.resource().slot())
+        .or_else(|| e.resource_context().map(|r| r.slot()).or(e.slot()));
+    json!({"error":{"code":code,"trackId":e.sample_error().and_then(|s|s.track_id()),"sampleIndex":e.sample_error().and_then(|s|s.sample_index()).map(|s|s.to_string()),"scheme":e.sample_error().and_then(|s|s.scheme()),"reason":format!("{:?}", e.failure()),"phase":format!("{:?}",e.phase()).to_lowercase(),"inputRole":e.input_id().map(|i|i.as_str()),"inputId":slot.map(|s|s.input_id().as_str()),"originalSequence":slot.map(|s|s.sequence().to_string()),"epoch":slot.map(|s|s.epoch().to_string()),"resourceKind":e.resource_context().map(|r|if r.kind()==KeyResourceKind::Map {"map"} else {"media"})}})
 }
 fn counters(p: &KeyedResourceProgress) -> Value {
     json!({"downloadedResources":p.downloaded_resources().to_string(),"downloadedBytes":p.downloaded_bytes().to_string(),"decryptedResources":p.decrypted_resources().to_string(),"decryptedBytes":p.decrypted_bytes().to_string(),"readyResources":p.ready_resources().to_string(),"clearBytes":p.clear_bytes().to_string(),"cacheReuses":p.cache_reuses().to_string()})
@@ -137,7 +150,7 @@ pub fn progress(e: KeyedSessionEvent) -> String {
 fn key_request(r: &KeyRequest) -> String {
     let s = r.resource().slot();
     let k = r.reference();
-    json!({"requestId":format!("key:{}",r.resolve_revision()),"operationId":r.operation(),"inputId":s.input_id().as_str(),"resourceKind":if r.resource().kind()==KeyResourceKind::Map {"map"} else {"media"},"uri":location(k.location().location()),"method":k.method().as_str(),"keyFormat":k.format(),"keyFormatVersions":k.versions(),"originalSequence":s.sequence().to_string(),"epoch":s.epoch().to_string(),"generation":s.generation().to_string(),"declaration":{"revision":k.declaration().revision().to_string(),"ordinal":k.declaration().ordinal().to_string()},"resolveRevision":r.resolve_revision().to_string(),"refreshGeneration":r.refresh_generation().to_string(),"refreshReason":format!("{:?}",r.refresh_reason())}).to_string()
+    json!({"requestId":format!("key:{}",r.resolve_revision()),"operationId":r.operation(),"inputId":s.input_id().as_str(),"resourceKind":if r.resource().kind()==KeyResourceKind::Map {"map"} else {"media"},"uri":location(k.location().location()),"method":k.method().as_str(),"kid":r.resource().kid().map(|k|k.iter().map(|b|format!("{b:02x}")).collect::<String>()),"keyFormat":k.format(),"keyFormatVersions":k.versions(),"originalSequence":s.sequence().to_string(),"epoch":s.epoch().to_string(),"generation":s.generation().to_string(),"declaration":{"revision":k.declaration().revision().to_string(),"ordinal":k.declaration().ordinal().to_string()},"resolveRevision":r.resolve_revision().to_string(),"refreshGeneration":r.refresh_generation().to_string(),"refreshReason":format!("{:?}",r.refresh_reason())}).to_string()
 }
 struct Provider(Arc<dyn Host>);
 fn provider_failure(kind: ProviderFailureKind) -> KeyResolution {
@@ -158,7 +171,15 @@ impl KeyProvider for Provider {
                     let Ok(secret) = SecretKey::new(reply.key) else {
                         return provider_failure(ProviderFailureKind::InvalidResponse);
                     };
-                    let mut key = AvailableKey::aes128(secret);
+                    let mut key = match r.reference().method() {
+                        EncryptionMethod::Aes128 => AvailableKey::aes128(secret),
+                        EncryptionMethod::SampleAes => AvailableKey::sample_aes(secret),
+                        EncryptionMethod::SampleAesCtr => AvailableKey::sample_aes_ctr(secret),
+                        _ => return KeyResolution::Unavailable,
+                    };
+                    if let Some(kid) = r.resource().kid() {
+                        key = key.with_kid(kid);
+                    }
                     if let Some(version) = reply.version {
                         key = key.with_version(version);
                     }
@@ -256,8 +277,8 @@ pub async fn prepare(
     host: Arc<dyn Host>,
     options: KeyedPrepareOptions,
 ) -> std::result::Result<KeyedPreparedTransmux, Value> {
-    if r.wire_version != 2 {
-        return Err(error("MANIFEST_INVALID", "wireVersion"));
+    if r.wire_version != 3 {
+        return Err(error("BRIDGE_VERSION_MISMATCH", "wireVersion"));
     }
     let source = Arc::new(SourceHost {
         host: host.clone(),
@@ -292,6 +313,7 @@ pub async fn prepare(
     )
     .map_err(|_| error("KEY_INVALID", "options"))?;
     let resources = ResourceOptions::default()
+        .with_sample_limit(r.limits.samples)
         .with_limits(
             r.limits.resource_bytes,
             r.limits.waiting_bytes,

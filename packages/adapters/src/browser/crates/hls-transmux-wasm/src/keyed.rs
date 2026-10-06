@@ -135,3 +135,71 @@ pub async fn keyed_browser(
     let result = tokio::select! {biased; _=wasm_bindgen_futures::JsFuture::from(cancel)=>wire::error("ABORTED","cancelled"),result=run=>result};
     Ok(JsValue::from_str(&result.to_string()))
 }
+
+struct TimelineOutputHost {
+    control: u32,
+    write: u32,
+}
+impl wire::timeline::OutputHost for TimelineOutputHost {
+    fn control(&self, value: String) -> wire::timeline::OutputFuture<String> {
+        let value = call(self.control, &JsValue::from_str(&value));
+        Box::pin(async move {
+            let value = value.map_err(|_| std::io::Error::other("output control failed"))?;
+            let value = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&value))
+                .await
+                .map_err(|_| std::io::Error::other("output control failed"))?;
+            Ok(value.as_string().unwrap_or_default())
+        })
+    }
+    fn write(&self, index: String, bytes: Vec<u8>) -> wire::timeline::OutputFuture<()> {
+        let receiver = invoke_local(
+            self.write,
+            vec![
+                Uint8Array::from(bytes.as_slice()).into(),
+                JsValue::from_str(&index),
+            ],
+        );
+        Box::pin(async move {
+            match receiver.await {
+                Ok(Ok(_)) => Ok(()),
+                _ => Err(std::io::Error::other("output write failed")),
+            }
+        })
+    }
+}
+#[wasm_bindgen]
+pub async fn timeline_browser(
+    request: String,
+    read: Function,
+    write: Function,
+    resolve: Function,
+    abort: Function,
+    control: Function,
+    cancel: js_sys::Promise,
+) -> std::result::Result<JsValue, JsValue> {
+    let r: wire::Request = match serde_json::from_str(&request) {
+        Ok(r) => r,
+        Err(_) => {
+            return Ok(JsValue::from_str(
+                &wire::error("RANGE_INVALID", "InvalidOptions").to_string(),
+            ));
+        }
+    };
+    let read = CallbackRegistration::new(read);
+    let write = CallbackRegistration::new(write);
+    let resolve = CallbackRegistration::new(resolve);
+    let abort = CallbackRegistration::new(abort);
+    let control = CallbackRegistration::new(control);
+    let host = Arc::new(Host {
+        read: read.0,
+        resolve: resolve.0,
+        abort: abort.0,
+        start: monotonic_ms(),
+    });
+    let output = Arc::new(TimelineOutputHost {
+        control: control.0,
+        write: write.0,
+    });
+    let result = tokio::select! {biased; _=wasm_bindgen_futures::JsFuture::from(cancel)=>wire::error("ABORTED","cancelled"),r=wire::timeline::run(&r,host,output,None)=>r};
+    Ok(JsValue::from_str(&result.to_string()))
+}

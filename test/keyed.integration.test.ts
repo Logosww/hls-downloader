@@ -304,7 +304,7 @@ for (const [name, adapter] of [
       routes['/invalid.m3u8'] = (_, res) =>
         sendText(
           res,
-          '#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-KEY:METHOD=AES-128,URI="/key"\n#EXTINF:1,\nvideo/segment-00.ts\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI="/key"\n#EXTINF:1,\nvideo/segment-01.ts\n#EXT-X-ENDLIST\n',
+          '#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-KEY:METHOD=AES-128,URI="/key"\n#EXTINF:1,\nvideo/segment-00.ts\n#EXT-X-KEY:METHOD=AES-256-GCM,URI="/key"\n#EXTINF:1,\nvideo/segment-01.ts\n#EXT-X-ENDLIST\n',
         );
       const server = await startFixtureServer(routes);
       servers.push(server);
@@ -561,7 +561,7 @@ for (const [name, adapter] of [
       routes['/audio/media.m3u8'] = (_, res) =>
         sendText(
           res,
-          '#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-KEY:METHOD=AES-128,URI="/key"\n#EXTINF:1,\na.ts\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI="/key"\n#EXTINF:1,\nb.ts\n#EXT-X-ENDLIST\n',
+          '#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-KEY:METHOD=AES-128,URI="/key"\n#EXTINF:1,\na.ts\n#EXT-X-KEY:METHOD=AES-256-GCM,URI="/key"\n#EXTINF:1,\nb.ts\n#EXT-X-ENDLIST\n',
         );
       const server = await startFixtureServer(routes);
       servers.push(server);

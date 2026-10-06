@@ -1,4 +1,9 @@
+import type { HlsCompletedOutput } from './timeline';
 export const HlsDownloaderErrorCode = {
+  RANGE_INVALID: 'RANGE_INVALID',
+  TIMELINE_FAILED: 'TIMELINE_FAILED',
+  RESOURCE_CHANGED: 'RESOURCE_CHANGED',
+  BRIDGE_VERSION_MISMATCH: 'BRIDGE_VERSION_MISMATCH',
   KEY_UNAVAILABLE: 'KEY_UNAVAILABLE',
   KEY_RESOLUTION_FAILED: 'KEY_RESOLUTION_FAILED',
   KEY_INVALID: 'KEY_INVALID',
@@ -38,6 +43,10 @@ export type HlsDownloaderErrorDetails = {
   inputId?: string;
   originalSequence?: string;
   epoch?: string;
+  trackId?: number;
+  sampleIndex?: string;
+  scheme?: string;
+  completedOutputs?: HlsCompletedOutput[];
   resourceKind?: 'media' | 'map';
   attempt?: number;
   adapter?: string;
@@ -70,6 +79,10 @@ export class HlsDownloaderError extends Error {
   readonly inputId?: string;
   readonly originalSequence?: string;
   readonly epoch?: string;
+  readonly trackId?: number;
+  readonly sampleIndex?: string;
+  readonly scheme?: string;
+  readonly completedOutputs?: HlsCompletedOutput[];
   readonly resourceKind?: 'media' | 'map';
   readonly attempt?: number;
   readonly adapter?: string;
@@ -93,6 +106,10 @@ export class HlsDownloaderError extends Error {
     this.originalSequence = details.originalSequence;
     this.epoch = details.epoch;
     this.resourceKind = details.resourceKind;
+    this.trackId = details.trackId ?? undefined;
+    this.sampleIndex = details.sampleIndex ?? undefined;
+    this.scheme = details.scheme ?? undefined;
+    this.completedOutputs = details.completedOutputs ?? undefined;
 
     this.attempt = details.attempt;
     this.adapter = details.adapter;

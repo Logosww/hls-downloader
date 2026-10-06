@@ -36,8 +36,8 @@ describe('capability evidence', () => {
       expect(mapped.transcodePresets, preset).toBeTruthy();
     }
     expect(capabilities.aes128).toBe(true);
-    expect(capabilities.decryption).toEqual({
-      methods: ['AES-128'],
+    expect(capabilities.decryption).toMatchObject({
+      methods: ['AES-128', 'SAMPLE-AES', 'SAMPLE-AES-CTR'],
       containers: ['ts', 'fmp4'],
       codecs: ['avc', 'hevc', 'aac-lc'],
       finite: true,
@@ -46,6 +46,14 @@ describe('capability evidence', () => {
     });
     expect(Object.isFrozen(capabilities.decryption)).toBe(true);
     expect(Object.isFrozen(capabilities.decryption!.methods)).toBe(true);
+    expect(capabilities.decryption?.profiles).toHaveLength(5);
+    expect(capabilities.timeline).toEqual({
+      finite: true,
+      ranges: true,
+      epochs: true,
+      split: true,
+      resume: false,
+    });
     expect(capabilities.liveRecording).toBe(false);
   });
 });

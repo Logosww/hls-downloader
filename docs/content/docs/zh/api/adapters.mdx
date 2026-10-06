@@ -179,8 +179,22 @@ resolver 请求包含 `operationId`、`inputId`、`resourceKind`、`uri`、`meth
 
 默认 `limits`：`manifestBytes = 4 MiB`、`resourceBytes = 16 MiB`、`waitingBytes = 32 MiB`、`resources = 2`、`keyRequests = 2`、`cachedKeys = 8`、`keyWaiters = 2`。`waitingBytes` 至少等于 `resourceBytes`。普通下载选择清单时也受 manifest 上限约束；大型有限清单可提高 `manifestBytes`。显式配置 `decryption` 时，明文输入也会进入结构化有限输入路径；`resources` 控制该路径的并发，原有明文路径继续使用 `downloadConcurrency`。
 
-`capabilities.aes128` 表示上述有限能力，`capabilities.decryption` 描述 method、container、codec、外置音频及不支持加密恢复的边界。Live/EVENT、discontinuity、sample encryption/GCM、加密 resume、转码、aria2 和加密 WebVTT 暂不支持。清单已知的不支持组合在 key/media 工作前拒绝；容器和编码验证需要读取媒体。
+`capabilities.aes128` 表示上述有限能力，`capabilities.decryption` 描述 method、container、codec、外置音频及不支持加密恢复的边界。Live/EVENT、GCM、加密 resume、转码、aria2 和加密 WebVTT 暂不支持。discontinuity 需显式配置 `timeline`；有限 sample 解密见下文。清单已知的不支持组合在 key/media 工作前拒绝；容器和编码验证需要读取媒体。
 
 错误区分 `KEY_UNAVAILABLE`、`KEY_RESOLUTION_FAILED`、`KEY_INVALID`、`KEY_EXPIRED`、`ENCRYPTION_INVALID`、`DECRYPT_FAILED`、`MEDIA_INVALID` 和 `RESOURCE_LIMIT_EXCEEDED`。CBC 不提供认证，不保证所有错误 key 都可检测。公共错误和事件不包含 resolver 消息、key bytes 或 key version。
 
 `DECRYPTION_PROGRESS` 的 `payload.decryption` 提供各输入 discovered/committed 计数，以及分开的 media/MAP downloaded、decrypted、ready 计数，均为十进制字符串。明文资源不增加 decrypted 计数，committed 不是恢复 checkpoint。只有目标成功 close 后才发出公共完成事件。
+
+## Finite sample encryption
+
+| Container / 容器 | Method | Scheme | Codec |
+| --- | --- | --- | --- |
+| TS | SAMPLE-AES | sample CBC | AVC, AAC-LC |
+| fMP4 | SAMPLE-AES | cbcs | AVC, HEVC, AAC-LC |
+| fMP4 | SAMPLE-AES-CTR | cenc | AVC, HEVC, AAC-LC |
+
+以上 profile 按清单自动选择，不要求 `timeline`。支持一条替换外置音轨、文件/Blob、callback stream、writable、范围及拆分输出。`capabilities.decryption.profiles` 表示明确组合，不能把顶层 methods/containers/codecs 列表理解为任意组合。
+
+`HlsKeyRequest.method` 包含上述三种方法；可选 `kid` 为 32 位小写十六进制字符串。resolver 仍返回 16 字节二进制 key，沿用 TTL、unavailable 与取消语义。支持 identity HTTP 或调用方提供的原始密钥，不实现 license/CDM 交换。`decryption.limits.samples` 默认每资源 65,536 个 sample；容器解析器另有 65,536 项上限。其他资源/key 默认预算不变。CBC/CTR 不保证检测每个错误密钥。
+
+TS HEVC SAMPLE-AES、TS SAMPLE-AES-CTR、Packed AAC、任意密文切片、GCM、live、恢复、转码、aria2 和加密字幕仍不支持。cenc/cbcs 容器元数据限制遵循 [hls-transmux 0.8.0](https://github.com/Logosww/hls-transmux/blob/8d6c54f/docs/sample-encryption.md)。

@@ -120,8 +120,8 @@ describe('NodeAdapter protocol contract', () => {
       expect(evidence.transcodePresets, preset).toBeTruthy();
     }
     expect(capabilities.aes128).toBe(true);
-    expect(capabilities.decryption).toEqual({
-      methods: ['AES-128'],
+    expect(capabilities.decryption).toMatchObject({
+      methods: ['AES-128', 'SAMPLE-AES', 'SAMPLE-AES-CTR'],
       containers: ['ts', 'fmp4'],
       codecs: ['avc', 'hevc', 'aac-lc'],
       finite: true,
@@ -130,6 +130,14 @@ describe('NodeAdapter protocol contract', () => {
     });
     expect(Object.isFrozen(capabilities.decryption)).toBe(true);
     expect(Object.isFrozen(capabilities.decryption!.methods)).toBe(true);
+    expect(capabilities.decryption?.profiles).toHaveLength(5);
+    expect(capabilities.timeline).toEqual({
+      finite: true,
+      ranges: true,
+      epochs: true,
+      split: true,
+      resume: false,
+    });
     expect(capabilities.liveRecording).toBe(false);
   });
 
@@ -223,10 +231,10 @@ describe('NodeAdapter protocol contract', () => {
     expectMonotonicTimestamps(path);
   });
 
-  it.each(['SAMPLE-AES'])('rejects %s before media requests', async (method) => {
+  it.each(['AES-256-GCM'])('rejects %s before media requests', async (method) => {
     const server = await startFixtureServer({
       '/encrypted.m3u8': (_request, response) =>
-        sendText(response, encryptedPlaylist(method as 'AES-128' | 'SAMPLE-AES')),
+        sendText(response, encryptedPlaylist(method as 'AES-128' | 'AES-256-GCM')),
       '/segment.ts': (_request, response) => sendBytes(response, new Uint8Array([1])),
     });
     servers.push(server);

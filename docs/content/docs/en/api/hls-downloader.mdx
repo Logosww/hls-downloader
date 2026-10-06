@@ -415,7 +415,7 @@ console.log(subtitles.text); // save as subtitles.filename
 
 Audio selection applies after variant selection and only within its referenced audio group. With no explicit selection, DEFAULT wins, then AUTOSELECT, then declaration order. External audio replaces embedded audio; a URI-less rendition keeps embedded audio. Output contains one selected audio track. Unsupported alternate video groups fail explicitly.
 
-Alternate audio supports clear and AES-128 finite VOD TS/fMP4 with AVC/HEVC and AAC-LC. It cannot be combined with resume, transcoding, or aria2. Unselected subtitles are never fetched. Prepared inputs must share a reliable presentation clock; timestamp resets and unrepresentable gaps fail rather than guessing synchronization.
+Alternate audio supports clear, AES-128 and the sample encryption profiles listed in the adapter API for finite VOD TS/fMP4. It cannot be combined with resume, transcoding, or aria2. Unselected subtitles are never fetched. Without `timeline`, prepared inputs must share a reliable presentation clock; timestamp resets and unrepresentable gaps fail. Explicit `timeline` enables the epoch and gap policies below.
 
 `downloadSubtitles()` is a separate operation exporting one external WebVTT rendition. It probes the selected media’s initialization/first segments to obtain the same output timeline, then fetches subtitle segments. It supports MAP, timestamp mapping/wrap, empty segments, cue deduplication, and cue settings. Cues before output zero are omitted or clipped at zero. Malformed subtitles fail with `SUBTITLE_INVALID`; no subtitles are embedded in MP4 and no SRT conversion is performed.
 
@@ -429,3 +429,53 @@ const sequence = BigInt(playlist.segments[0].originalSequence);
 ```
 
 Parses an already-selected media playlist from its raw text and final URL. Returns versioned `HlsMediaPlaylist` metadata, preserving decimal-string sequences/ranges/ticks, KEY candidates, MAP declaration context, NONE transitions, gaps and discontinuities. It does not select a master rendition or request keys/media. Browser may load WASM for this parser; the lightweight `parseHls()` behavior is unchanged. Parsing alone does not guarantee executable media support.
+
+## Timeline ranges and multiple outputs
+
+`timeline` explicitly enables the finite timeline path on `download()`, `downloadToStream()` and `downloadToWritable()`. Omit it to retain the existing route and startup behavior. Times use exact `{ ticks: string, timescale: number }` values. Ranges are half-open presentation intervals; video expands to verified independent access points and retains necessary preroll/tail GOPs. An end beyond EOF clips; empty, wholly out-of-bounds or undecodable ranges fail with `RANGE_INVALID`.
+
+```ts
+const result = await downloader.download({
+  url: 'https://example.com/media.m3u8',
+  timeline: {
+    range: { start: { ticks: '5', timescale: 1 }, end: { ticks: '12', timescale: 1 } },
+    gapPolicy: 'preserve',
+  },
+});
+console.log(result.timelineReport?.actual);
+```
+
+`timelineReport` adds requested/actual intervals, optional preroll/postroll intervals, ordered per-output track/epoch mappings, dependencies and read/planning counters. `schemaVersion: 1` is diagnostic JSON, not a checkpoint. `totalSegments` counts output media resources and can count a resource in more than one split output. All protocol-sized counters and indexes remain decimal strings.
+
+Default `gapPolicy: 'preserve'` keeps representable gaps. `'collapse'` removes only gaps common to the selected tracks. Single outputs fail on configuration changes or gaps they cannot express. `epochAnchors: [{ inputId, epoch, source, presentation }]` supplies explicit reset evidence; inputs are `primary` and optional `audio`. Ambiguous clocks fail rather than synchronizing by rendition sequence. `tailDuration` is an explicit positive media-time fallback when the source provides insufficient tail evidence.
+
+`timeline.limits` defaults to 65,536 sample records and 4,096 cursor resources. Resource/key limits remain under `decryption.limits`, including for clear timeline operations. Scan and validation finish before first output, so startup includes finite scanning and may reread resources; changed bytes or decrypted packets fail with `RESOURCE_CHANGED`. These limits do not bound total RSS: finite catalogs, reports and classic MP4 buffers/indexes have separate costs.
+
+### `downloadOutputs(options)`
+
+This independent API returns `{ operationId, totalSegments, outputs, timelineReport }`. Each output has a decimal-string `index` plus `blobURL` (Browser) or `filePath` (Node). Outputs are classic MP4. Node uses `basename.001.mp4`, `basename.002.mp4`, etc. Browser creates Blob URLs only after every output succeeds; callers must revoke them after use.
+
+Pass `timeline: { changePolicy: 'split' }` to split at decodable configuration changes or otherwise unrepresentable gaps. The default is `'fail'`. A representable fMP4 gap does not itself require splitting. Existing single-output APIs never accept this policy.
+
+### `downloadToWritables(options, outputFactory)`
+
+```ts
+const result = await downloader.downloadToWritables(
+  { url, timeline: { changePolicy: 'split' } },
+  async ({ index, actualRange, reason, tracks }) => {
+    return await createDestination(index); // Promise<WritableStream<Uint8Array>>
+  },
+);
+```
+
+The factory runs after finite validation and returns a distinct fMP4 destination. The next destination is acquired before the old output completes. Writes await backpressure; public completion waits for destination close. A failed next acquisition does not complete the current output. Cancellation aborts acquired, unfinished writers; late factory results are aborted. Failures expose `completedOutputs` containing only published files or successfully closed writable outputs. Their media remains usable; partial writers are not recovery checkpoints.
+
+Timeline operations reject resume, transcoding and aria2. Writable APIs continue ignoring global transcode defaults and reject per-call transcoding. Existing clear single-input recovery remains available outside timeline. Callback streaming still does not await callback promises. Multiplexed fMP4 is not a guarantee of direct MSE compatibility; hosts still need track-aware timestamp mapping where required.
+
+## Timeline subtitle and chapter sidecars
+
+`downloadSubtitleOutputs({ url, subtitle, timelineReport, track?, filename? })` exports finite **clear** WebVTT on a completed report from the same source/track selection. It returns `{ operationId, totalSegments, outputs }`; each sidecar contains `outputIndex`, `text`, `filename` and `mimeType: 'text/vtt'`. It fetches manifests and subtitle resources without decoding the primary media again. X-TIMESTAMP-MAP and available PDT evidence resolve source clocks; ambiguous resets fail with `SUBTITLE_INVALID`.
+
+`exportChapters({ chapters, timelineReport, track?, filename? })` is a synchronous named export from the root/shared package. Each chapter has `{ range: { start, end }, title, id? }` on the public presentation timeline. It returns one WebVTT chapters sidecar per output. Both operations default to the primary video track, or primary audio for audio-only output; `track: { inputId, trackId }` selects a report mapping explicitly. Intervals are clipped and split at mapped boundaries, rebased to output time, then serialized to millisecond WebVTT timestamps. Neither operation writes sidecar files automatically.
+
+Existing `downloadSubtitles()` is unchanged. Encrypted subtitle resources and subtitle embedding remain unsupported.

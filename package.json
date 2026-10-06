@@ -1,6 +1,6 @@
 {
   "name": "@logosw/hls-downloader",
-  "version": "3.8.0",
+  "version": "3.9.0",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -87,7 +87,10 @@
     "test:app-web:renditions": "pnpm --filter @hls-downloader/test run test:app-web:renditions",
     "test:keyed": "pnpm --filter @hls-downloader/test run test:keyed",
     "test:browser:keyed": "pnpm --filter @hls-downloader/test run test:browser:keyed",
-    "test:types:decryption": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/decryption-api.typecheck.ts"
+    "test:types:decryption": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/decryption-api.typecheck.ts",
+    "test:timeline": "pnpm --filter @hls-downloader/test run test:timeline",
+    "test:browser:timeline": "pnpm --filter @hls-downloader/test run test:browser:timeline",
+    "test:types:timeline": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/timeline-api.typecheck.ts"
   },
   "dependencies": {
     "@hls-downloader/adapters": "workspace:*",

@@ -12,6 +12,9 @@ description: '本项目的所有重要变更。'
 
 ### 新增
 
+- **BrowserAdapter / NodeAdapter**：新增显式 `timeline` 范围、epoch 映射及缺口策略，返回实际可解码范围和时间轴报告。新增 `downloadOutputs()` 与有背压的 `downloadToWritables()`，支持显式配置/缺口拆分；失败时保留已完成文件或已关闭的 writable 输出。
+- 支持有限 TS SAMPLE-AES（AVC/AAC-LC）和 fMP4 cbcs/cenc（AVC/HEVC/AAC-LC），可组合外置音轨和时间轴输出。key resolver 新增 sample method 与可选 KID，解密能力明确列出支持组合。
+- 新增 `downloadSubtitleOutputs()` 和 `exportChapters()`，按已完成时间轴报告生成 WebVTT 字幕及章节 sidecar，支持拆分输出；新增范围、时间轴、资源变化及桥接版本错误。
 - **BrowserAdapter / NodeAdapter**：download、stream、writable 支持有限 AES-128 TS/fMP4 VOD、AVC/HEVC/AAC-LC、密钥轮换、加密 MAP 及一条外置音轨。新增单次操作的 `decryption` provider、预算、结构化进度和 key/解密错误；暂不支持加密恢复、转码、aria2 和字幕。
 - 新增 `parseMediaPlaylist(text, url)`，提供无损协议整数的结构化元数据，以及描述支持范围的 `capabilities.decryption`。
 

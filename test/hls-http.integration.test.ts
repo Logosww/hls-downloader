@@ -265,10 +265,10 @@ describe('HTTP HLS integration', () => {
     expect(text.indexOf('mdat')).toBeGreaterThan(text.indexOf('moof'));
   });
 
-  it.each(['SAMPLE-AES'])('rejects %s before fetching keys or segments', async (method) => {
+  it.each(['AES-256-GCM'])('rejects %s before fetching keys or segments', async (method) => {
     const server = await startFixtureServer({
       '/encrypted.m3u8': (_request, response) =>
-        sendText(response, encryptedPlaylist(method as 'AES-128' | 'SAMPLE-AES')),
+        sendText(response, encryptedPlaylist(method as 'AES-128' | 'AES-256-GCM')),
       '/key.bin': (_request, response) => sendBytes(response, new Uint8Array(16)),
       '/segment.ts': (_request, response) => sendBytes(response, new Uint8Array([1, 2, 3])),
     });
