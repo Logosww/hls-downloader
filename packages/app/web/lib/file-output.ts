@@ -28,3 +28,15 @@ export function filePickerOptions(title: string): Parameters<SaveFilePicker>[0] 
 export function isUserAbort(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'name' in error && error.name === 'AbortError';
 }
+
+export type DirectoryPicker = (options: {
+  mode: 'readwrite';
+}) => Promise<FileSystemDirectoryHandle>;
+export function getDirectoryPicker(): DirectoryPicker | undefined {
+  if (typeof window === 'undefined' || !window.isSecureContext) return undefined;
+  const picker = (window as Window & { showDirectoryPicker?: DirectoryPicker }).showDirectoryPicker;
+  return typeof picker === 'function' ? picker.bind(window) : undefined;
+}
+export function hasDirectoryPicker(): boolean {
+  return getDirectoryPicker() !== undefined;
+}

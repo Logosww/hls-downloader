@@ -4,15 +4,29 @@ import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalSt
 import HlsDownloader, { HlsDownloaderEvent } from '@hls-downloader/core';
 import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/adapters/browser';
-import type { VariantSelectOptions } from '@hls-downloader/shared';
-import { HlsDownloaderErrorCode } from '@hls-downloader/shared';
+import type {
+  VariantSelectOptions,
+  HlsMultiTimelineOptions,
+  HlsTimelineReport,
+  HlsChapter,
+  HlsSidecar,
+  HlsCompletedOutput,
+} from '@hls-downloader/shared';
+import { HlsDownloaderErrorCode, exportChapters } from '@hls-downloader/shared';
 import { toast } from 'sonner';
 import {
   getSaveFilePicker,
   hasFilePicker,
   filePickerOptions,
   isUserAbort,
+  getDirectoryPicker,
+  hasDirectoryPicker,
 } from '../lib/file-output';
+
+import { createTimelineFileOutput } from '../lib/timeline-output';
+import { outputFilename } from '../lib/timeline-options';
+
+export type TaskOutput = { index: string; title: string; blobURL?: string; saved: boolean };
 
 const subscribeToBrowser = () => () => {};
 const serverHasFilePicker = () => false;
@@ -40,20 +54,52 @@ export type DownloadTask = {
   headers?: Record<string, string>;
   variant?: VariantSelectOptions;
   transcode?: HlsDownloaderBrowserTranscodeOptions;
+  timeline?: HlsMultiTimelineOptions;
+  timelineReport?: HlsTimelineReport;
+  outputs?: TaskOutput[];
+  subtitle?: { groupId: string; name: string };
+  chapters?: HlsChapter[];
+  sidecars?: HlsSidecar[];
+  sidecarError?: string;
 };
 
 type Action =
   | { type: 'add'; task: DownloadTask }
   | { type: 'update'; id: string; patch: Partial<DownloadTask> }
-  | { type: 'remove'; id: string };
+  | { type: 'remove'; id: string }
+  | { type: 'save-output'; id: string; index: string }
+  | {
+      type: 'artifacts';
+      id: string;
+      patch: Pick<
+        Partial<DownloadTask>,
+        'outputs' | 'sidecars' | 'sidecarError' | 'timelineReport'
+      >;
+    };
 
 export function downloadTaskReducer(tasks: DownloadTask[], action: Action): DownloadTask[] {
   if (action.type === 'add') return [action.task, ...tasks];
   if (action.type === 'remove') return tasks.filter((task) => task.id !== action.id);
   return tasks.map((task) => {
     if (task.id !== action.id) return task;
+    if (action.type === 'save-output') {
+      const outputs = task.outputs?.map((output) =>
+        output.index === action.index ? { ...output, saved: true, blobURL: undefined } : output,
+      );
+      return {
+        ...task,
+        outputs,
+        status:
+          task.status === 'completed' && outputs?.every((output) => output.saved)
+            ? 'saved'
+            : task.status,
+      };
+    }
     // Late library progress must not revive a cancelled/removed/finished operation.
-    if (['saved', 'failed', 'cancelled'].includes(task.status)) return task;
+    if (action.type === 'update' && task.status === 'completed' && action.patch.status !== 'saved')
+      return task;
+    if (action.type !== 'artifacts' && ['saved', 'failed', 'cancelled'].includes(task.status))
+      return task;
     return { ...task, ...action.patch };
   });
 }
@@ -72,10 +118,16 @@ export function useDownloadManager(maxConcurrent = 3) {
   const tasksRef = useRef(tasks);
   const controllers = useRef(new Map<string, AbortController>());
   const fileHandles = useRef(new Map<string, FileSystemFileHandle>());
+  const directories = useRef(new Map<string, FileSystemDirectoryHandle>());
   const mounted = useRef(true);
   const browserHasFilePicker = useSyncExternalStore(
     subscribeToBrowser,
     hasFilePicker,
+    serverHasFilePicker,
+  );
+  const browserHasDirectoryPicker = useSyncExternalStore(
+    subscribeToBrowser,
+    hasDirectoryPicker,
     serverHasFilePicker,
   );
   const [downloader] = useState(
@@ -86,7 +138,12 @@ export function useDownloadManager(maxConcurrent = 3) {
         adapter: BrowserAdapter,
         onEvent(event, payload) {
           const id = payload.operationId;
-          if (!mounted.current || controllers.current.get(id)?.signal.aborted) return;
+          if (
+            !mounted.current ||
+            !controllers.current.has(id) ||
+            controllers.current.get(id)?.signal.aborted
+          )
+            return;
           if (event === HlsDownloaderEvent.STARTING_DOWNLOAD) {
             dispatch({ type: 'update', id, patch: { status: 'downloading', percentage: 1 } });
           } else if (event === HlsDownloaderEvent.DOWNLOADING_SEGMENTS) {
@@ -138,11 +195,72 @@ export function useDownloadManager(maxConcurrent = 3) {
         filename: task.filename,
         headers: task.headers,
         variant: task.variant,
+        timeline: task.timeline,
         operationId: task.id,
         signal: controller.signal,
       };
+      const fileOutput = createTimelineFileOutput({
+        filename: task.filename,
+        signal: controller.signal,
+        directory: directories.current.get(task.id),
+        fileHandle: fileHandles.current.get(task.id),
+        reservedHandles: () =>
+          [...fileHandles.current.entries()]
+            .filter(([id]) => id !== task.id)
+            .map(([, handle]) => handle),
+      });
       void (async () => {
-        if (task.outputMode === 'file') {
+        let report: HlsTimelineReport | undefined;
+        if (task.timeline) {
+          if (task.outputMode === 'file') {
+            const handle = fileHandles.current.get(task.id);
+            const directory = directories.current.get(task.id);
+            const result = await downloader.downloadToWritables(options, fileOutput.factory);
+            report = result.timelineReport;
+            fileOutput.complete(report.outputs);
+            if (!mounted.current || controller.signal.aborted) return;
+            dispatch({
+              type: 'update',
+              id: task.id,
+              patch: {
+                status: 'saved',
+                percentage: 100,
+                timelineReport: report,
+                outputs: report.outputs.map(({ index }) => ({
+                  index,
+                  title: directory ? outputFilename(task.filename, index) : handle!.name,
+                  saved: true,
+                })),
+              },
+            });
+          } else {
+            const result = await downloader.downloadOutputs(options);
+            if (
+              !mounted.current ||
+              controller.signal.aborted ||
+              !tasksRef.current.some((item) => item.id === task.id)
+            ) {
+              for (const output of result.outputs) URL.revokeObjectURL(output.blobURL);
+              return;
+            }
+            report = result.timelineReport;
+            dispatch({
+              type: 'update',
+              id: task.id,
+              patch: {
+                status: 'completed',
+                percentage: 100,
+                timelineReport: report,
+                outputs: result.outputs.map((output) => ({
+                  index: output.index,
+                  title: outputFilename(task.filename, output.index),
+                  blobURL: output.blobURL,
+                  saved: false,
+                })),
+              },
+            });
+          }
+        } else if (task.outputMode === 'file') {
           const handle = fileHandles.current.get(task.id);
           if (!handle) throw new Error('保存位置已失效，请重新创建任务');
           const writable = await handle.createWritable();
@@ -153,7 +271,6 @@ export function useDownloadManager(maxConcurrent = 3) {
           await downloader.downloadToWritable(options, writable);
           if (!mounted.current || controller.signal.aborted) return;
           dispatch({ type: 'update', id: task.id, patch: { percentage: 100, status: 'saved' } });
-          toast.success(`${task.title} 已保存`);
         } else {
           const result = await downloader.download({ ...options, transcode: task.transcode });
           if (
@@ -169,10 +286,78 @@ export function useDownloadManager(maxConcurrent = 3) {
             id: task.id,
             patch: { blobURL: result.blobURL, percentage: 100, status: 'completed' },
           });
-          toast.success(`${task.title} 下载完成，请点击保存`);
+        }
+        toast.success(
+          task.outputMode === 'file'
+            ? `${task.title} 已保存`
+            : `${task.title} 下载完成，请点击保存`,
+        );
+        if (report) {
+          const sidecars: HlsSidecar[] = [];
+          const failures: string[] = [];
+          if (task.chapters?.length) {
+            try {
+              sidecars.push(
+                ...exportChapters({
+                  timelineReport: report,
+                  chapters: task.chapters,
+                  filename: `${task.filename}.chapters`,
+                }),
+              );
+            } catch {
+              failures.push('章节导出失败');
+            }
+          }
+          if (task.subtitle) {
+            try {
+              const result = await downloader.downloadSubtitleOutputs({
+                ...options,
+                operationId: `${task.id}:subtitles`,
+                timelineReport: report,
+                subtitle: task.subtitle,
+                filename: `${task.filename}.subtitles`,
+              });
+              sidecars.push(...result.outputs);
+            } catch {
+              if (!controller.signal.aborted)
+                failures.push('字幕导出失败：无法确认同步或资源不可用');
+            }
+          }
+          if (mounted.current && !controller.signal.aborted)
+            dispatch({
+              type: 'artifacts',
+              id: task.id,
+              patch: { sidecars, sidecarError: failures.join('；') || undefined },
+            });
         }
       })()
         .catch((error: unknown) => {
+          if (
+            task.outputMode === 'file' &&
+            error &&
+            typeof error === 'object' &&
+            'completedOutputs' in error &&
+            Array.isArray(error.completedOutputs)
+          ) {
+            const completed = error.completedOutputs as HlsCompletedOutput[];
+            fileOutput.complete(completed);
+            const directory = directories.current.get(task.id);
+            const handle = fileHandles.current.get(task.id);
+            if (mounted.current)
+              dispatch({
+                type: 'artifacts',
+                id: task.id,
+                patch: {
+                  outputs: completed.map(({ index }) => ({
+                    index,
+                    title: directory
+                      ? outputFilename(task.filename, index)
+                      : (handle?.name ?? task.title),
+                    saved: true,
+                  })),
+                },
+              });
+          }
           if (!mounted.current) return;
           const cancelled = controller.signal.aborted || isUserAbort(error);
           const outputFailure =
@@ -180,12 +365,31 @@ export function useDownloadManager(maxConcurrent = 3) {
             typeof error === 'object' &&
             'code' in error &&
             error.code === HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED;
+          const code =
+            error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+          const timelineMessage =
+            code === 'RANGE_INVALID'
+              ? '范围无效或超出媒体时间轴'
+              : code === 'RESOURCE_LIMIT_EXCEEDED'
+                ? '时间轴规划超出预算，请缩小范围或调整高级设置'
+                : code === 'RESOURCE_CHANGED'
+                  ? '媒体资源已变化，请重新创建任务'
+                  : code === 'TIMELINE_FAILED'
+                    ? '时间轴无法映射或单文件无法表达变化，请检查锚点、缺口或拆分设置'
+                    : code === 'UNSUPPORTED_ENCRYPTION'
+                      ? '此加密容器与编码组合暂不支持'
+                      : code === 'KEY_UNAVAILABLE' ||
+                          code === 'KEY_INVALID' ||
+                          code === 'KEY_RESOLUTION_FAILED'
+                        ? '无法获取有效密钥，请检查资源与请求头'
+                        : undefined;
           const message =
-            task.outputMode === 'file'
+            timelineMessage ??
+            (task.outputMode === 'file'
               ? outputFailure
                 ? '文件写入失败，请检查磁盘空间与写入权限后重试'
                 : '下载或文件写入失败，请重新选择保存位置后重试'
-              : '下载失败，请重试';
+              : '下载失败，请重试');
           dispatch({
             type: 'update',
             id: task.id,
@@ -197,9 +401,11 @@ export function useDownloadManager(maxConcurrent = 3) {
           if (cancelled) toast.info(`${task.title} 已取消`);
           else toast.error(`${task.title}：${message}`);
         })
-        .finally(() => {
+        .finally(async () => {
+          await fileOutput.cleanup();
           controllers.current.delete(task.id);
           fileHandles.current.delete(task.id);
+          directories.current.delete(task.id);
           if (mounted.current) dispatch({ type: 'update', id: task.id, patch: {} });
         });
     }
@@ -209,12 +415,16 @@ export function useDownloadManager(maxConcurrent = 3) {
     mounted.current = true;
     const active = controllers.current;
     const handles = fileHandles.current;
+    const directoryHandles = directories.current;
     return () => {
       mounted.current = false;
       for (const controller of active.values()) controller.abort();
       handles.clear();
+      directoryHandles.clear();
       for (const task of tasksRef.current) {
         if (task.blobURL) URL.revokeObjectURL(task.blobURL);
+        for (const output of task.outputs ?? [])
+          if (output.blobURL) URL.revokeObjectURL(output.blobURL);
       }
     };
   }, []);
@@ -232,16 +442,19 @@ export function useDownloadManager(maxConcurrent = 3) {
     async (
       task: Omit<DownloadTask, 'id' | 'percentage' | 'status' | 'blobURL' | 'outputMode'>,
     ): Promise<boolean> => {
-      const picker = getSaveFilePicker();
+      const split = task.timeline?.changePolicy === 'split';
+      const picker = split ? getDirectoryPicker() : getSaveFilePicker();
       if (!picker || !downloader.capabilities.writableOutput || task.transcode) {
         toast.error('当前设置不支持大文件直存，请选择普通下载');
         return false;
       }
       try {
         // Must be the first asynchronous action in the user click handler.
-        const handle = await picker(filePickerOptions(task.title));
+        const handle = split
+          ? await getDirectoryPicker()!({ mode: 'readwrite' })
+          : await getSaveFilePicker()!(filePickerOptions(task.title));
         if (!mounted.current) return false;
-        for (const existing of fileHandles.current.values()) {
+        for (const existing of [...fileHandles.current.values(), ...directories.current.values()]) {
           if (await handle.isSameEntry(existing)) {
             toast.error('已有任务使用此文件，请选择其他保存位置');
             return false;
@@ -249,13 +462,14 @@ export function useDownloadManager(maxConcurrent = 3) {
         }
         if (!mounted.current) return false;
         const id = globalThis.crypto.randomUUID();
-        fileHandles.current.set(id, handle);
+        if (split) directories.current.set(id, handle as FileSystemDirectoryHandle);
+        else fileHandles.current.set(id, handle as FileSystemFileHandle);
         dispatch({
           type: 'add',
           task: {
             ...task,
             id,
-            title: handle.name,
+            title: split ? task.title : handle.name,
             outputMode: 'file',
             percentage: 0,
             status: 'queued',
@@ -275,6 +489,7 @@ export function useDownloadManager(maxConcurrent = 3) {
     if (controller) controller.abort();
     else {
       fileHandles.current.delete(id);
+      directories.current.delete(id);
       dispatch({ type: 'update', id, patch: { status: 'cancelled' } });
     }
   }, []);
@@ -283,20 +498,27 @@ export function useDownloadManager(maxConcurrent = 3) {
     const controller = controllers.current.get(id);
     controller?.abort();
     // Keep active file reservations until asynchronous writer cleanup finishes.
-    if (!controller) fileHandles.current.delete(id);
+    if (!controller) {
+      fileHandles.current.delete(id);
+      directories.current.delete(id);
+    }
     const task = tasksRef.current.find((item) => item.id === id);
     if (task?.blobURL) URL.revokeObjectURL(task.blobURL);
+    for (const output of task?.outputs ?? [])
+      if (output.blobURL) URL.revokeObjectURL(output.blobURL);
     dispatch({ type: 'remove', id });
   }, []);
 
-  const save = useCallback(async (id: string) => {
+  const save = useCallback(async (id: string, index?: string) => {
     const task = tasksRef.current.find((item) => item.id === id);
-    if (!task?.blobURL) return;
-    const blobUrl = task.blobURL;
+    const output = task?.outputs?.find((item) => item.index === index);
+    const blobUrl = output?.blobURL ?? (index === undefined ? task?.blobURL : undefined);
+    if (!task || !blobUrl) return;
+    const title = output?.title ?? task.title;
     try {
       const showSaveFilePicker = getSaveFilePicker();
       if (showSaveFilePicker) {
-        const handle = await showSaveFilePicker(filePickerOptions(task.title));
+        const handle = await showSaveFilePicker(filePickerOptions(title));
         const blob = await fetch(blobUrl).then((response) => response.blob());
         const writable = await handle.createWritable();
         try {
@@ -311,7 +533,7 @@ export function useDownloadManager(maxConcurrent = 3) {
       } else {
         const anchor = document.createElement('a');
         anchor.href = blobUrl;
-        anchor.download = task.title;
+        anchor.download = title;
         anchor.hidden = true;
         document.body.append(anchor);
         anchor.click();
@@ -319,7 +541,9 @@ export function useDownloadManager(maxConcurrent = 3) {
         setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
       }
 
-      dispatch({ type: 'update', id, patch: { blobURL: undefined, status: 'saved' } });
+      if (output) {
+        dispatch({ type: 'save-output', id, index: output.index });
+      } else dispatch({ type: 'update', id, patch: { blobURL: undefined, status: 'saved' } });
       toast.success(showSaveFilePicker ? '保存成功' : '已交给浏览器保存');
     } catch (error: unknown) {
       if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError')
@@ -328,11 +552,35 @@ export function useDownloadManager(maxConcurrent = 3) {
     }
   }, []);
 
+  const saveArtifact = useCallback((id: string, filename?: string) => {
+    const task = tasksRef.current.find((item) => item.id === id);
+    if (!task) return;
+    const sidecar = task.sidecars?.find((item) => item.filename === filename);
+    const text =
+      sidecar?.text ??
+      (filename === undefined && task.timelineReport
+        ? JSON.stringify(task.timelineReport, null, 2)
+        : undefined);
+    if (text === undefined) return;
+    const url = URL.createObjectURL(
+      new Blob([text], { type: sidecar?.mimeType ?? 'application/json' }),
+    );
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = sidecar?.filename ?? `${task.filename}.timeline.json`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }, []);
+
   return {
     tasks,
     enqueue,
     enqueueToFile,
     canWriteToFile: browserHasFilePicker && downloader.capabilities.writableOutput === true,
+    canWriteToDirectory: browserHasDirectoryPicker,
+    saveArtifact,
     cancel,
     remove,
     save,

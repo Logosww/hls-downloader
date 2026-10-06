@@ -16,6 +16,7 @@ import ConfirmModal, {
   buildBrowserTranscodeOptions,
   type ConfirmFormValues,
 } from '@/components/confirm-modal';
+import { buildTimelineOptions, parseChapters } from '@/lib/timeline-options';
 import DownloadList from '@/components/download-list';
 import { HeadersModal } from '@/components/headers-modal';
 import { ModeToggle } from '@/components/mode-toggle';
@@ -98,6 +99,21 @@ export default function HomePage() {
       previewSrc: metadata?.previewSrc ?? '',
       headers: requestHeaders,
       transcode,
+      timeline: buildTimelineOptions(values),
+      chapters:
+        values.timelineMode === 'timeline' ? parseChapters(values.chaptersText ?? '') : undefined,
+      subtitle: (() => {
+        const selected = metadata?.playlist.find((item) => item.name === values.quality);
+        const rendition = metadata?.renditions?.find(
+          (item) =>
+            item.type === 'subtitles' &&
+            item.groupId === selected?.subtitlesGroup &&
+            JSON.stringify([item.groupId, item.name]) === values.subtitle,
+        );
+        return values.timelineMode === 'timeline' && rendition
+          ? { groupId: rendition.groupId, name: rendition.name }
+          : undefined;
+      })(),
     };
     if (values.outputMode === 'file') return downloads.enqueueToFile(task);
     downloads.enqueue({ ...task, outputMode: 'browser' });
@@ -180,6 +196,7 @@ export default function HomePage() {
         metadata={metadata}
         onConfirm={onConfirmDownload}
         canWriteToFile={downloads.canWriteToFile}
+        canWriteToDirectory={downloads.canWriteToDirectory}
         onStreamPreview={onStreamPreview}
       />
       <HeadersModal
@@ -192,6 +209,7 @@ export default function HomePage() {
         items={downloads.tasks}
         floatButton={platform !== Platform.web}
         onSave={downloads.save}
+        onSaveArtifact={downloads.saveArtifact}
         onCancel={downloads.cancel}
         onRemove={downloads.remove}
       />

@@ -8,53 +8,77 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { MediaSelectionFields } from './media-selection-fields';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Form } from '@/components/ui/form';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { TimelineSettings } from './timeline-settings';
+import { TranscodeFields } from './transcode-fields';
+import { buildTimelineOptions, parseChapters } from '@/lib/timeline-options';
+
 import { Loader2Icon } from 'lucide-react';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  Field,
-  FieldContent,
-  FieldGroup,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-} from '@/components/ui/field';
+import { SaveModeFields } from './save-mode-fields';
 
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/adapters/browser';
-import type { Playlist } from '@hls-downloader/shared';
-import { cn } from '@/lib/utils';
+import type { Playlist, Rendition } from '@hls-downloader/shared';
 
-export const confirmFormSchema = z.object({
-  quality: z.string(),
-  title: z.string(),
-  outputMode: z.enum(['browser', 'file']),
-  transcodePreset: z.enum(['none', 'h264', 'hevc', 'vp9']),
-  videoBitrate: z.string().optional(),
-  audioBitrate: z.string().optional(),
-});
+export const confirmFormSchema = z
+  .object({
+    quality: z.string(),
+    title: z.string(),
+    outputMode: z.enum(['browser', 'file']),
+    transcodePreset: z.enum(['none', 'h264', 'hevc', 'vp9']),
+    videoBitrate: z.string().optional(),
+    audioBitrate: z.string().optional(),
+    timelineMode: z.enum(['legacy', 'timeline']).optional(),
+    rangeStart: z.string().optional(),
+    rangeEnd: z.string().optional(),
+    gapPolicy: z.enum(['preserve', 'collapse']).optional(),
+    changePolicy: z.enum(['fail', 'split']).optional(),
+    timelineAdvanced: z.string().optional(),
+    chaptersText: z.string().optional(),
+    subtitle: z.string().optional(),
+  })
+  .superRefine((values, context) => {
+    if (values.timelineMode !== 'timeline') return;
+    try {
+      buildTimelineOptions(values);
+    } catch (error) {
+      context.addIssue({
+        code: 'custom',
+        path: [
+          error instanceof z.ZodError || error instanceof SyntaxError
+            ? 'timelineAdvanced'
+            : 'rangeEnd',
+        ],
+        message:
+          error instanceof z.ZodError || error instanceof SyntaxError
+            ? '高级时间轴设置无效，请检查 JSON、锚点、预算与尾帧时长'
+            : error instanceof Error
+              ? error.message
+              : '时间轴选项无效',
+      });
+    }
+    try {
+      parseChapters(values.chaptersText ?? '');
+    } catch (error) {
+      context.addIssue({
+        code: 'custom',
+        path: ['chaptersText'],
+        message: error instanceof Error ? error.message : '章节格式无效',
+      });
+    }
+    if (values.transcodePreset !== 'none')
+      context.addIssue({
+        code: 'custom',
+        path: ['transcodePreset'],
+        message: '时间轴下载不支持转码',
+      });
+  });
 
 export type ConfirmFormValues = z.infer<typeof confirmFormSchema>;
 
@@ -81,11 +105,19 @@ export interface IConfirmModalProps {
     filename: string;
     previewSrc: string;
     playlist: Playlist[];
+    renditions?: Rendition[];
   };
   onOpenChange?: (open: boolean) => void;
   canWriteToFile?: boolean;
+  canWriteToDirectory?: boolean;
   onConfirm?: (form: ConfirmFormValues) => Promise<boolean>;
   onStreamPreview?: (form: ConfirmFormValues) => void;
+}
+
+function downloadButtonLabel(busy: boolean, output: 'file' | 'browser', split: boolean) {
+  if (busy) return output === 'file' ? '正在选择保存位置…' : '正在创建下载…';
+  if (output === 'browser') return '下载';
+  return split ? '选择文件夹并下载' : '选择位置并下载';
 }
 
 export const ConfirmModal = ({
@@ -95,6 +127,7 @@ export const ConfirmModal = ({
   onConfirm,
   onStreamPreview,
   canWriteToFile = false,
+  canWriteToDirectory = false,
 }: IConfirmModalProps) => {
   const { filename, previewSrc, playlist } = metadata || {};
   const [isDownloading, setIsDownloading] = useState(false);
@@ -108,12 +141,23 @@ export const ConfirmModal = ({
       transcodePreset: 'none',
       videoBitrate: '',
       audioBitrate: '',
+      timelineMode: 'legacy',
+      rangeStart: '',
+      rangeEnd: '',
+      gapPolicy: 'preserve',
+      changePolicy: 'fail',
+      timelineAdvanced: '',
+      chaptersText: '',
+      subtitle: 'none',
     },
   });
 
   const outputMode = useWatch({ control: form.control, name: 'outputMode' });
-  const transcodePreset = useWatch({ control: form.control, name: 'transcodePreset' });
-  const showBitrateFields = transcodePreset !== 'none';
+  const timelineMode = useWatch({ control: form.control, name: 'timelineMode' });
+  const changePolicy = useWatch({ control: form.control, name: 'changePolicy' });
+  const fileAvailable =
+    canWriteToFile &&
+    (timelineMode !== 'timeline' || changePolicy !== 'split' || canWriteToDirectory);
 
   const handleConfirm = async (values: ConfirmFormValues) => {
     setIsDownloading(true);
@@ -139,212 +183,47 @@ export const ConfirmModal = ({
 
   return (
     <AlertDialog open={open} onOpenChange={(value) => !isDownloading && onOpenChange?.(value)}>
-      <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto gap-5 data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-2xl">
-        <AlertDialogHeader>
+      <AlertDialogContent className="max-h-[min(40rem,calc(100dvh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] px-0 overflow-hidden gap-5 data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-2xl">
+        <AlertDialogHeader className="px-4">
           <AlertDialogTitle>确认下载</AlertDialogTitle>
           <AlertDialogDescription>确认视频信息并选择下载设置</AlertDialogDescription>
         </AlertDialogHeader>
         <Form {...form}>
-          <form
-            id="confirm-modal-form"
-            className="flex flex-col gap-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitDownload();
-            }}
-          >
-            <FieldGroup className="grid items-start gap-4 sm:grid-cols-2">
-              <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
-                {isLoading ? (
-                  <Skeleton className="absolute inset-0 size-full" />
-                ) : (
-                  previewSrc && (
-                    <img
-                      className="absolute inset-0 size-full object-contain"
-                      src={previewSrc}
-                      alt="视频封面"
-                    />
-                  )
-                )}
-              </div>
-              <FieldGroup className="min-w-0">
-                <FormField
-                  name="title"
-                  control={form.control}
-                  render={({ field }) => (
-                    <FormItem className="gap-2">
-                      <FormLabel>文件标题</FormLabel>
-                      <FormControl>
-                        <Input {...field} type="text" placeholder="output" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {playlist && playlist.length > 0 && (
-                  <FormField
-                    name="quality"
-                    control={form.control}
-                    render={({ field }) => (
-                      <FormItem className="gap-2">
-                        <FormLabel>视频质量</FormLabel>
-                        <FormControl>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="选择视频质量" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {playlist.map(({ name, bandwidth }) => (
-                                  <SelectItem key={`${name}-${bandwidth}`} value={name}>
-                                    {name}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </FieldGroup>
-            </FieldGroup>
-            <FormField
-              name="outputMode"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="gap-2">
-                  <FormLabel>保存方式</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      aria-label="保存方式"
-                      value={field.value}
-                      disabled={isDownloading}
-                      className="grid gap-4 sm:grid-cols-2"
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        if (value === 'file') form.setValue('transcodePreset', 'none');
-                      }}
-                    >
-                      <FieldLabel
-                        htmlFor="output-file"
-                        className={cn(
-                          'cursor-pointer transition-colors hover:bg-accent',
-                          !canWriteToFile && 'opacity-60',
-                        )}
-                      >
-                        <Field orientation="horizontal">
-                          <FieldContent>
-                            <FieldTitle>大文件直存</FieldTitle>
-                            <FieldDescription>边下载边写入，节省内存。</FieldDescription>
-                          </FieldContent>
-                          <RadioGroupItem
-                            id="output-file"
-                            value="file"
-                            disabled={!canWriteToFile}
-                            aria-describedby="file-output-note"
-                          />
-                        </Field>
-                      </FieldLabel>
-                      <FieldLabel
-                        className="cursor-pointer transition-colors hover:bg-accent"
-                        htmlFor="output-browser"
-                      >
-                        <Field orientation="horizontal">
-                          <FieldContent>
-                            <FieldTitle>普通下载</FieldTitle>
-                            <FieldDescription>下载后保存，支持转码。</FieldDescription>
-                          </FieldContent>
-                          <RadioGroupItem id="output-browser" value="browser" />
-                        </Field>
-                      </FieldLabel>
-                    </RadioGroup>
-                  </FormControl>
-                  <p id="file-output-note" className="text-xs text-muted-foreground">
-                    {!canWriteToFile
-                      ? '此浏览器暂不支持文件直存，请使用普通下载。'
-                      : outputMode === 'file'
-                        ? '保存为原编码 MP4；如需转码，请选普通下载。'
-                        : '完整视频保留在内存中，大文件建议直存。'}
-                  </p>
-                </FormItem>
-              )}
-            />
-            <FormField
-              name="transcodePreset"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="gap-2">
-                  <FormLabel>转码预设</FormLabel>
-                  <FormControl>
-                    <ToggleGroup
-                      variant="outline"
-                      size="sm"
-                      disabled={outputMode === 'file' || isDownloading}
-                      className="w-full"
-                      value={field.value ? [field.value] : []}
-                      onValueChange={(value) => value[0] && field.onChange(value[0])}
-                    >
-                      <ToggleGroupItem className="flex-1" value="none">
-                        默认
-                      </ToggleGroupItem>
-                      <ToggleGroupItem className="flex-1" value="h264">
-                        H.264
-                      </ToggleGroupItem>
-                      <ToggleGroupItem className="flex-1" value="hevc">
-                        HEVC
-                      </ToggleGroupItem>
-                      <ToggleGroupItem className="flex-1" value="vp9">
-                        VP9
-                      </ToggleGroupItem>
-                    </ToggleGroup>
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            {showBitrateFields ? (
-              <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                <FormField
-                  name="videoBitrate"
-                  control={form.control}
-                  render={({ field }) => (
-                    <FormItem className="gap-2">
-                      <FormLabel>视频码率（可选）</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="text"
-                          placeholder="如 4M"
-                          value={field.value ?? ''}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  name="audioBitrate"
-                  control={form.control}
-                  render={({ field }) => (
-                    <FormItem className="gap-2">
-                      <FormLabel>音频码率（可选）</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="text"
-                          placeholder="如 128k"
-                          value={field.value ?? ''}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </FieldGroup>
-            ) : null}
-          </form>
-          <AlertDialogFooter>
+          <ScrollArea className="min-h-0">
+            <form
+              id="confirm-modal-form"
+              className="flex flex-col gap-5 px-4 py-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitDownload();
+              }}
+            >
+              <MediaSelectionFields
+                form={form}
+                previewSrc={previewSrc}
+                playlist={playlist}
+                isLoading={isLoading}
+              />
+              <TimelineSettings
+                form={form}
+                playlist={playlist}
+                renditions={metadata?.renditions}
+                canWriteToDirectory={canWriteToDirectory}
+              />
+              <SaveModeFields
+                form={form}
+                disabled={isDownloading}
+                fileAvailable={fileAvailable}
+                outputMode={outputMode}
+                timeline={timelineMode === 'timeline'}
+              />
+              <TranscodeFields
+                form={form}
+                disabled={outputMode === 'file' || timelineMode === 'timeline' || isDownloading}
+              />
+            </form>
+          </ScrollArea>
+          <AlertDialogFooter className="mx-0">
             <AlertDialogCancel
               className="cursor-pointer"
               size="sm"
@@ -357,7 +236,7 @@ export const ConfirmModal = ({
               variant="outline"
               size="sm"
               type="button"
-              disabled={isDownloading}
+              disabled={isDownloading || timelineMode === 'timeline'}
               onClick={form.handleSubmit(handleStreamPreview)}
             >
               直接播放
@@ -370,13 +249,11 @@ export const ConfirmModal = ({
               disabled={isDownloading}
             >
               {isDownloading && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
-              {isDownloading
-                ? outputMode === 'file'
-                  ? '正在选择保存位置…'
-                  : '正在创建下载…'
-                : outputMode === 'file'
-                  ? '选择位置并下载'
-                  : '下载'}
+              {downloadButtonLabel(
+                isDownloading,
+                outputMode,
+                timelineMode === 'timeline' && changePolicy === 'split',
+              )}
             </Button>
           </AlertDialogFooter>
         </Form>

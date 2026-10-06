@@ -25,7 +25,8 @@
     "test:keyed": "vitest run keyed.integration.test.ts bounded.unit.test.ts",
     "test:browser:keyed": "node browser/keyed-smoke.ts",
     "test:timeline": "vitest run timeline.integration.test.ts timeline-sidecars.unit.test.ts",
-    "test:browser:timeline": "pnpm run test:timeline && node browser/timeline-smoke.ts"
+    "test:browser:timeline": "pnpm run test:timeline && node browser/timeline-smoke.ts",
+    "test:app-web:timeline": "node browser/app-web-timeline.ts"
   },
   "dependencies": {
     "@hls-downloader/core": "workspace:*",

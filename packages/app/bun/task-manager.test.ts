@@ -377,6 +377,8 @@ describe('Bun API', () => {
     );
     expect(repeated.status).toBe(200);
 
+    fake.downloads[0]!.reject(new DOMException('aborted', 'AbortError'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const replay = await app.handle(
       new Request('http://test/downloads/api-task/events', {
         headers: { 'Last-Event-ID': '2' },
@@ -393,4 +395,176 @@ describe('Bun API', () => {
     expect(body).toContain('"status":"cancelled"');
     expect(body).toMatch(/^id: \d+/);
   });
+});
+
+const timelineReport = {
+  schemaVersion: 1 as const,
+  requested: null,
+  actual: { start: { ticks: '0', timescale: 1 }, end: { ticks: '2', timescale: 1 } },
+  preroll: null,
+  postroll: null,
+  outputs: ['0', '1'].map((index) => ({
+    index,
+    actualRange: { start: { ticks: '0', timescale: 1 }, end: { ticks: '2', timescale: 1 } },
+    reason: 'Initial' as const,
+    tracks: [],
+    bytesWritten: '10',
+    mappings: [],
+  })),
+  gaps: [],
+  dependencies: [],
+  randomAccessPoints: [],
+  indexedResources: '2',
+  resourceReads: '4',
+  sourceBytes: '20',
+  peakPlannedSamples: '10',
+  peakPlannedResources: '2',
+};
+const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
+describe('Bun timeline lifecycle', () => {
+  it('snapshots timeline options, returns ordered file metadata and expires every output', async () => {
+    const fake = fakeDownloader();
+    const job = deferred<Awaited<ReturnType<NonNullable<DownloaderLike['downloadOutputs']>>>>();
+    let options: unknown;
+    fake.downloader.downloadOutputs = (input) => {
+      options = input;
+      return job.promise;
+    };
+    const removed: string[] = [];
+    const manager = new TaskManager(fake.downloader, {
+      createId: () => 'multi',
+      fileExpiryMs: 35,
+      tombstoneMs: 1000,
+      removeFile: async (path) => {
+        removed.push(path);
+      },
+    });
+    managers.push(manager);
+    const timeline = { changePolicy: 'split' as const, limits: { samples: 100 } };
+    manager.create({ url: 'https://test/media.m3u8', filename: 'movie', timeline });
+    timeline.limits.samples = 1;
+    expect(options).toMatchObject({ timeline: { limits: { samples: 100 } }, filename: 'multi' });
+    job.resolve({
+      operationId: 'multi',
+      totalSegments: 2,
+      timelineReport,
+      outputs: [
+        { index: '0', filePath: '/tmp/no-app-output-one.mp4' },
+        { index: '1', filePath: '/tmp/no-app-output-two.mp4' },
+      ],
+    });
+    await settle();
+    expect(manager.get('multi')).toMatchObject({
+      status: 'completed',
+      outputs: [
+        { index: '0', filename: 'movie.001.mp4' },
+        { index: '1', filename: 'movie.002.mp4' },
+      ],
+      timelineReport,
+    });
+    const app = createApp(manager);
+    expect((await app.handle(new Request('http://test/downloads/multi/file'))).status).toBe(409);
+    expect((await app.handle(new Request('http://test/downloads/multi/files/2'))).status).toBe(404);
+    expect((await app.handle(new Request('http://test/downloads/multi/report'))).status).toBe(200);
+    expect(JSON.stringify(manager.get('multi'))).not.toContain('/tmp/');
+    await new Promise((resolve) => setTimeout(resolve, 45));
+    expect(removed).toEqual(['/tmp/no-app-output-one.mp4', '/tmp/no-app-output-two.mp4']);
+    expect((await app.handle(new Request('http://test/downloads/multi/files/0'))).status).toBe(410);
+  });
+  it.each(['failure', 'cancel'] as const)(
+    'retains published outputs after %s, including late cancellation cleanup',
+    async (mode) => {
+      const fake = fakeDownloader();
+      const job = deferred<Awaited<ReturnType<NonNullable<DownloaderLike['downloadOutputs']>>>>();
+      fake.downloader.downloadOutputs = () => job.promise;
+      const removed: string[] = [];
+      const manager = new TaskManager(fake.downloader, {
+        createId: () => mode,
+        fileExpiryMs: 1000,
+        removeFile: async (path) => {
+          removed.push(path);
+        },
+      });
+      managers.push(manager);
+      manager.create({ url: 'https://test/media.m3u8', timeline: { changePolicy: 'split' } });
+      if (mode === 'cancel') manager.cancel(mode);
+      job.reject(
+        Object.assign(new Error('output failed'), {
+          code: mode === 'cancel' ? 'ABORTED' : 'OUTPUT_WRITE_FAILED',
+          completedOutputs: [
+            { ...timelineReport.outputs[0], filePath: '/tmp/no-app-published.mp4' },
+          ],
+        }),
+      );
+      await settle();
+      expect(manager.get(mode)).toMatchObject({
+        status: mode === 'cancel' ? 'cancelled' : 'failed',
+        outputs: [{ index: '0' }],
+      });
+      expect(manager.getFilePath(mode, '0')).toBe('/tmp/no-app-published.mp4');
+      expect(removed).toEqual([]);
+    },
+  );
+  it('rejects split streams and timeline transcode before creating tasks, and validates exact-time JSON', async () => {
+    const fake = fakeDownloader();
+    const manager = new TaskManager(fake.downloader);
+    managers.push(manager);
+    const app = createApp(manager);
+    const post = (body: unknown) =>
+      app.handle(
+        new Request('http://test/download', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
+      );
+    for (const input of [
+      { stream: true, timeline: { changePolicy: 'split' } },
+      { transcode: { preset: 'h264' }, timeline: {} },
+      {
+        timeline: {
+          range: { start: { ticks: 0, timescale: 1 }, end: { ticks: '2', timescale: 1 } },
+        },
+      },
+      { timeline: { limits: { samples: 0 } } },
+    ])
+      expect((await post({ url: 'https://test/media.m3u8', ...input })).status).toBe(422);
+    expect(manager.size).toBe(0);
+    expect(fake.calls).toHaveLength(0);
+    expect((await app.handle(new Request('http://test/downloads/missing/report'))).status).toBe(
+      404,
+    );
+  });
+});
+
+it('keeps cancellation SSE open until late published outputs and cleanup settle', async () => {
+  const fake = fakeDownloader();
+  const job = deferred<Awaited<ReturnType<NonNullable<DownloaderLike['downloadOutputs']>>>>();
+  fake.downloader.downloadOutputs = () => job.promise;
+  const manager = new TaskManager(fake.downloader, {
+    createId: () => 'sse-settling',
+    removeFile: async () => {},
+  });
+  managers.push(manager);
+  manager.create({ url: 'https://test/media.m3u8', timeline: { changePolicy: 'split' } });
+  manager.cancel('sse-settling');
+  expect(manager.get('sse-settling')?.settling).toBe(true);
+  const response = await createApp(manager).handle(
+    new Request('http://test/downloads/sse-settling/events'),
+  );
+  const body = response.text();
+  job.reject(
+    Object.assign(new Error('aborted'), {
+      name: 'AbortError',
+      code: 'ABORTED',
+      completedOutputs: [
+        { ...timelineReport.outputs[0], filePath: '/tmp/no-app-sse-published.mp4' },
+      ],
+    }),
+  );
+  const events = await body;
+  expect(events).toContain('"settling":true');
+  expect(events).toContain('"settling":false');
+  expect(events).toContain('"outputs":[{"index":"0"');
+  expect(manager.get('sse-settling')?.status).toBe('cancelled');
 });

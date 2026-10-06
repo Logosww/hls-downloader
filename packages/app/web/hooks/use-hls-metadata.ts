@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import HlsDownloader from '@hls-downloader/core';
 import { BrowserAdapter } from '@hls-downloader/adapters/browser';
-import type { Playlist } from '@hls-downloader/shared';
+import type { Playlist, Rendition } from '@hls-downloader/shared';
 
 export type HlsMetadata = {
   sourceUrl: string;
   filename: string;
   previewSrc: string;
   playlist: Playlist[];
+  renditions?: Rendition[];
 };
 
 function revokeBlobUrl(url?: string): void {
@@ -55,7 +56,13 @@ export function useHlsMetadata() {
             : [{ name: '默认', bandwidth: 0, uri: url } satisfies Playlist];
         if (playlist.length === 0) return false;
 
-        setMetadata({ sourceUrl: url, filename: '', previewSrc: '', playlist });
+        setMetadata({
+          sourceUrl: url,
+          filename: '',
+          previewSrc: '',
+          playlist,
+          renditions: result.type === 'playlist' ? result.renditions : undefined,
+        });
 
         try {
           const previewSrc = await downloader.getPosterUrl({

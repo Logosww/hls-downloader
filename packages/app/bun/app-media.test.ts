@@ -104,3 +104,44 @@ it('streams selected audio through the real Bun/N-API writable bridge and export
   expect(subtitles.status).toBe(200);
   expect((await subtitles.json()).data.text).toContain('00:00:00.500 --> 00:00:01.000');
 }, 20000);
+
+it('exports subtitles and chapters from the completed timeline report without changing the media result', async () => {
+  const app = createApp(manager);
+  const post = (path: string, body: unknown) =>
+    app.handle(
+      new Request('http://test' + path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    );
+  const created = await post('/download', {
+    url: `http://127.0.0.1:${server.port}/master.m3u8`,
+    headers: { Authorization: 'Bearer fixture' },
+    timeline: {},
+    filename: 'timeline-subtitles',
+  });
+  const id = (await created.json()).data.id;
+  for (let i = 0; i < 1000 && manager.get(id)?.status === 'downloading'; i++) await Bun.sleep(5);
+  expect(manager.get(id)?.status).toBe('completed');
+  const subtitles = await post(`/downloads/${id}/subtitles`, {
+    subtitle: { groupId: 's', name: 'English' },
+  });
+  expect(subtitles.status).toBe(200);
+  expect((await subtitles.json()).data.outputs[0].text).toContain('Hello');
+  const chapters = await post(`/downloads/${id}/chapters`, {
+    chapters: [
+      {
+        title: 'Introduction',
+        range: { start: { ticks: '0', timescale: 1 }, end: { ticks: '1', timescale: 1 } },
+      },
+    ],
+  });
+  expect(chapters.status).toBe(200);
+  expect((await chapters.json()).data[0].text).toContain('Introduction');
+  const invalid = await post(`/downloads/${id}/subtitles`, {
+    subtitle: { groupId: 'missing', name: 'missing' },
+  });
+  expect(invalid.status).toBe(422);
+  expect(manager.get(id)?.status).toBe('completed');
+}, 20000);
