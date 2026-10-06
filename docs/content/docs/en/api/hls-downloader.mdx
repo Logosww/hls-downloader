@@ -479,3 +479,7 @@ Timeline operations reject resume, transcoding and aria2. Writable APIs continue
 `exportChapters({ chapters, timelineReport, track?, filename? })` is a synchronous named export from the root/shared package. Each chapter has `{ range: { start, end }, title, id? }` on the public presentation timeline. It returns one WebVTT chapters sidecar per output. Both operations default to the primary video track, or primary audio for audio-only output; `track: { inputId, trackId }` selects a report mapping explicitly. Intervals are clipped and split at mapped boundaries, rebased to output time, then serialized to millisecond WebVTT timestamps. Neither operation writes sidecar files automatically.
 
 Existing `downloadSubtitles()` is unchanged. Encrypted subtitle resources and subtitle embedding remain unsupported.
+
+## startRecording
+
+`startRecording(options)` synchronously returns a recording handle with `result`, `stop`, `cancel`, VOD `pause`/`resume`, and independent input controls. Output is explicit; existing download methods remain finite-only. See [Adapter recording API](/api/adapters#continuous-recording).

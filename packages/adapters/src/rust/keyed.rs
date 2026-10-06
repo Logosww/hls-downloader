@@ -15,6 +15,8 @@ use std::{
     },
 };
 
+#[path = "continuous.rs"]
+pub mod continuous;
 #[path = "timeline.rs"]
 pub mod timeline;
 

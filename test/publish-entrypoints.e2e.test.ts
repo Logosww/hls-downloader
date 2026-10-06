@@ -62,6 +62,10 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
             exportChapters({timelineReport:r.timelineReport,chapters:[]});
             node.downloadSubtitleOutputs({url:'https://example.test/a.m3u8',subtitle:{groupId:'s',name:'en'},timelineReport:r.timelineReport});
           });
+          const recording = node.startRecording({url:'https://example.test/live.m3u8',output:{type:'file',path:'capture.mp4'}});
+          recording.result.then(r => { const path: string = r.filePath; const count: string = r.report.bytesWritten; });
+          recording.restartInput('primary',{generation:'9007199254740993'});
+          const recordingError: 'RECORDING_FAILED' = HlsDownloaderErrorCode.RECORDING_FAILED;
           node.downloadToWritables({url:'https://example.test/a.m3u8'}, async output => new WritableStream<Uint8Array>());
           // @ts-expect-error split is only accepted by multiple-output entrypoints
           node.download({url:'https://example.test/a.m3u8',timeline:{changePolicy:'split'}});
@@ -128,6 +132,12 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
           for (const [name, adapter] of [['browser', BrowserAdapter], ['node', NodeAdapter]]) {
             const d = new HlsDownloader({adapter});
             assert.equal(d.capabilities.aes128, true);
+            assert.equal(d.capabilities.liveRecording, true);
+            const recordingChunks = []; let recordingClosed = false;
+            const recording = d.startRecording({url:process.argv[2]+'/master.m3u8',output:{type:'writable',writable:new WritableStream({write(b){recordingChunks.push(b);},close(){recordingClosed=true;}})}});
+            const recorded = await recording.result;
+            assert.equal(recorded.report.endReason,'Eof'); assert.equal(recordingClosed,true);
+            writeFileSync(name+'-recording.mp4',Buffer.concat(recordingChunks));
             assert.equal(d.capabilities.decryption.resume, false);
             const text = await (await fetch(process.argv[2] + '/video/media.m3u8')).text();
             const metadata = await d.parseMediaPlaylist(text, process.argv[2] + '/video/media.m3u8');
@@ -218,7 +228,7 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
             .map((l) => l.split(',').at(-1)?.trim());
         const clear = hashes(resolve(root, 'test/fixtures/media/ts/media.m3u8'));
         for (const name of ['browser', 'node'])
-          for (const mode of ['download', 'stream', 'writable']) {
+          for (const mode of ['download', 'stream', 'writable', 'recording']) {
             const file = join(dir, name + '-' + mode + '.mp4');
             expect(hashes(file)).toEqual(clear);
             const probe = JSON.parse(
@@ -246,6 +256,7 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
       expect(entry.HlsDownloader).toBeTypeOf('function');
       expect(entry.HlsDownloaderEvent.READY_FOR_DOWNLOAD).toBe('ready-for-download');
       expect(entry.HlsDownloaderErrorCode.ABORTED).toBe('ABORTED');
+      expect(entry.HlsDownloader.prototype.startRecording).toBeTypeOf('function');
       expect(entry.HlsDownloader.prototype.downloadToWritable).toBeTypeOf('function');
       expect(entry.HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED).toBe('OUTPUT_WRITE_FAILED');
       expect(entry.HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT).toBe('UNSUPPORTED_OUTPUT');

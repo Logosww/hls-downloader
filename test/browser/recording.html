@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Recording runtime contract</title>
+  </head>
+  <body>
+    <script type="module">
+      import { HlsDownloader } from '/packages/core/src/index.ts';
+      import { BrowserAdapter } from '/packages/adapters/src/browser/index.ts';
+      function canonical(bytes) {
+        const b = bytes.slice();
+        const view = new DataView(b.buffer);
+        const visit = (start, end) => {
+          for (let i = start; i + 8 <= end;) {
+            const size = view.getUint32(i),
+              kind = String.fromCharCode(...b.slice(i + 4, i + 8));
+            if (size < 8 || i + size > end) throw Error('MP4 bounds');
+            if (['moov', 'trak', 'mdia'].includes(kind)) visit(i + 8, i + size);
+            if (['mvhd', 'tkhd', 'mdhd'].includes(kind))
+              b.fill(0, i + 12, i + (b[i + 8] === 1 ? 28 : 20));
+            i += size;
+          }
+        };
+        visit(0, b.length);
+        return b;
+      }
+      const key = (hex) => Uint8Array.from(hex.match(/../g).map((n) => parseInt(n, 16)));
+      window.runRecording = async () => {
+        const cases = await (await fetch('/recording-cases.json')).json(),
+          results = [];
+        for (const [index, c] of cases.entries()) {
+          const chunks = [];
+          let closed = false;
+          let recording;
+          recording = new HlsDownloader({ adapter: BrowserAdapter }).startRecording({
+            url: location.origin + '/cases/' + index + '/master.m3u8',
+            decryption: {
+              encryptedRanges: 'complete-resources',
+              keyResolver: async (r) => ({
+                key: key(
+                  r.resourceKind === 'media' && r.originalSequence === '9007199254740994'
+                    ? '603deb1015ca71be2b73aef0857d7781'
+                    : '2b7e151628aed2a6abf7158809cf4f3c',
+                ),
+              }),
+            },
+            output: {
+              type: 'writable',
+              writable: new WritableStream({
+                async write(bytes) {
+                  await new Promise((r) => setTimeout(r, 1));
+                  chunks.push(bytes);
+                },
+                close() {
+                  closed = true;
+                },
+              }),
+            },
+            onEvent(e) {
+              if (e.type === 'progress') recording.stop();
+            },
+          });
+          const {
+            report: { peaks, ...report },
+          } = await recording.result;
+          if (!closed || recording.state !== 'completed') throw Error('early completion');
+          if (BigInt(peaks.queuedDescriptors) > 128n) throw Error('queue budget');
+          const bytes = canonical(new Uint8Array(await new Blob(chunks).arrayBuffer()));
+          const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
+            .map((n) => n.toString(16).padStart(2, '0'))
+            .join('');
+          results.push({ name: c.name, report, hash });
+        }
+        for (const name of [
+          'sample-fmp4_avc_cenc',
+          'sample-fmp4_hevc_cbcs',
+          'sample-ts_avc_sample',
+        ]) {
+          const index = cases.findIndex((c) => c.name === name);
+          let entered,
+            late,
+            writes = 0;
+          const ready = new Promise((r) => (entered = r));
+          const recording = new HlsDownloader({ adapter: BrowserAdapter }).startRecording({
+            url: location.origin + '/cases/' + index + '/master.m3u8',
+            decryption: {
+              keyResolver() {
+                entered();
+                return new Promise((_, reject) => (late = reject));
+              },
+            },
+            output: {
+              type: 'writable',
+              writable: new WritableStream({
+                write() {
+                  writes++;
+                },
+              }),
+            },
+          });
+          const pending = recording.result.catch((e) => e);
+          await ready;
+          recording.cancel();
+          if ((await pending).code !== 'ABORTED') throw Error('cancel code');
+          late(Error('late resolver'));
+          await new Promise((r) => setTimeout(r, 10));
+          if (writes) throw Error('late media');
+        }
+        let failed;
+        failed = new HlsDownloader({ adapter: BrowserAdapter }).startRecording({
+          url: location.origin + '/cases/0/master.m3u8',
+          output: {
+            type: 'writable',
+            writable: new WritableStream({
+              close() {
+                throw Error('close');
+              },
+            }),
+          },
+          onEvent(e) {
+            if (e.type === 'progress') failed.stop();
+          },
+        });
+        if (
+          (await failed.result.catch((e) => e)).code !== 'OUTPUT_WRITE_FAILED' ||
+          failed.state !== 'failed'
+        )
+          throw Error('close contract');
+        for (const action of ['resume', 'stop', 'cancel']) {
+          const session = new HlsDownloader({ adapter: BrowserAdapter }).startRecording({
+            url: location.origin + '/finite/master.m3u8',
+            output: { type: 'writable', writable: new WritableStream() },
+          });
+          const result = session.result.catch((e) => e);
+          await session.pause();
+          await new Promise((r) => setTimeout(r, 25));
+          if (session.state !== 'paused') throw Error('pause acknowledgement');
+          await session[action]();
+          const value = await result;
+          if (action === 'cancel' ? value.code !== 'ABORTED' : !value.report)
+            throw Error('paused control');
+        }
+        return results;
+      };
+    </script>
+  </body>
+</html>

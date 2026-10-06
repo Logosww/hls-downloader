@@ -29,7 +29,7 @@ HLS Downloader 使用适配器模式来支持不同运行环境。请根据你�
 | 有限 sample 解密 profile | 是 | 是 |
 | 显式时间轴 / 拆分输出 | 是 | 是 |
 | 持久输出       | 否              | 是              |
-| Live recording | 否              | 否              |
+| Live recording | 是              | 是              |
 
 ## BrowserAdapter（浏览器）
 
@@ -140,3 +140,7 @@ const result = await downloader.download({
 <Callout type="warn">
   不要将 Node 适配器（原生 `.node` 模块）打包进浏览器代码。浏览器打包时请只导入 browser 子路径。
 </Callout>
+
+## 持续录制
+
+使用 `startRecording()` 录制 Live/EVENT 或创建可暂停的 VOD 会话，显式选择 writable、限额 Browser Blob 或 Node 文件输出。见[录制接口和示例](/api/adapters#持续录制)。

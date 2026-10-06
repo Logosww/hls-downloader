@@ -4,6 +4,8 @@ import { getInternalAdapter } from '@hls-downloader/shared';
 
 const evidence = {
   BrowserAdapter: {
+    liveRecording:
+      'recording.integration: open encrypted inputs, controls, backpressure and native/Chrome parity',
     aes128: 'keyed.integration: independent decode, offset timelines, all output modes',
     writableOutput: 'writable-output.integration: real WASM, backpressure and ffprobe',
     alternateAudio: 'renditions.integration: both containers and all three outputs',
@@ -21,6 +23,7 @@ describe('capability evidence', () => {
     const capabilities = getInternalAdapter(BrowserAdapter).capabilities;
     const mapped = evidence.BrowserAdapter;
     for (const key of [
+      'liveRecording',
       'aes128',
       'download',
       'stream',
@@ -54,6 +57,13 @@ describe('capability evidence', () => {
       split: true,
       resume: false,
     });
-    expect(capabilities.liveRecording).toBe(false);
+    expect(capabilities.liveRecording).toBe(true);
+    expect(capabilities.recording).toMatchObject({
+      pause: 'vod',
+      resume: false,
+      startPosition: 'window-start',
+      outputs: ['writable', 'writables', 'blob'],
+    });
+    expect(Object.isFrozen(capabilities.recording)).toBe(true);
   });
 });

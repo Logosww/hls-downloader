@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **BrowserAdapter / NodeAdapter**: Add `startRecording()` for Live/EVENT and pausable VOD, with stop/drain, cancellation, one external audio track and supported AES/sample decryption. Support backpressured writable output, bounded Browser Blob output, and non-overwriting Node files, including explicit split output factories. Recording reports retain bounded history; persistent recording recovery is not supported.
+
 - **BrowserAdapter / NodeAdapter**: Add opt-in `timeline` ranges, epoch mapping and gap policies, with actual decodable ranges and timeline reports. Add `downloadOutputs()` and backpressured `downloadToWritables()` for explicit configuration/gap splitting; failures retain completed files or closed writable outputs.
 - Support finite TS SAMPLE-AES (AVC/AAC-LC) and fMP4 cbcs/cenc (AVC/HEVC/AAC-LC), including external audio and timeline outputs. Key resolvers now receive sample methods and optional KIDs; decryption capabilities describe supported combinations.
 - Add `downloadSubtitleOutputs()` and `exportChapters()` for WebVTT sidecars aligned to completed timeline reports, including split outputs. Add typed range, timeline, resource-change and bridge-version errors.

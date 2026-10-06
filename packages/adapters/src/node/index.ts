@@ -1,3 +1,9 @@
+import {
+  runRecording,
+  recordingCapabilities,
+  checkRecording,
+  type RecordingBridgeFactory,
+} from '../recording';
 import { exportTimelineSubtitles } from '../timeline-subtitles';
 import { timelineProfile, validateTimeline } from '../timeline';
 import { executeKeyed } from '../keyed';
@@ -45,6 +51,9 @@ import {
   preparedNative,
   keyedNative,
   timelineNative,
+  continuousCreate,
+  continuousCommand,
+  continuousRun,
   parseMediaPlaylistNative,
   parseHlsNative,
   downloadAndMerge,
@@ -75,7 +84,9 @@ type DownloadResult = {
 export type HlsDownloaderNodeAdapter = HlsDownloaderAdapterInternal<
   AdditionalOptions,
   DownloadResult,
-  DownloadOnlyOptions
+  DownloadOnlyOptions,
+  {},
+  Exclude<import('@hls-downloader/shared').HlsRecordingOutput, { type: 'blob' }>
 >;
 
 type NodeGlobalOptions = {
@@ -957,7 +968,8 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
     aes128: true,
     decryption: decryptionProfile,
     timeline: timelineProfile,
-    liveRecording: false,
+    liveRecording: true,
+    recording: recordingCapabilities(false),
     persistentOutput: true,
     writableOutput: true,
     alternateAudio: true,
@@ -968,6 +980,15 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   segmentRetryAttempts: 10,
   init,
   parseHls,
+  async runRecording(options, host) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
+    return runRecording(
+      this,
+      { ...options, ...mergeFetchOptions(globalOptions, options) },
+      host,
+      nodeRecordingBridge,
+    );
+  },
   async parseMediaPlaylist(text: string, url: string) {
     return parseMediaMetadata(parseMediaPlaylistNative(text, url));
   },
@@ -1078,4 +1099,49 @@ const nodeTimelineEngine: KeyedEngine = async (
     active = false;
     cleanup();
   }
+};
+
+const nodeRecordingBridge: RecordingBridgeFactory = async (
+  request,
+  read,
+  write,
+  resolve,
+  abort,
+  control,
+) => {
+  if ([continuousCreate, continuousCommand, continuousRun].some((fn) => typeof fn !== 'function'))
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
+      'Incompatible recording bridge',
+    );
+  const { id } = checkRecording(
+    continuousCreate(
+      request,
+      async (err: Error | null, value: string) => {
+        if (err) throw err;
+        return Buffer.from(await read(value));
+      },
+      async (err: Error | null, value: [Buffer, string]) => {
+        if (err) throw err;
+        await write(new Uint8Array(value[0]), value[1]);
+      },
+      async (err: Error | null, value: string) => {
+        if (err) throw err;
+        const reply = await resolve(value);
+        return { ...reply, key: Buffer.from(reply.key) };
+      },
+      (err: Error | null, value: string) => {
+        if (!err) abort(value);
+      },
+      async (err: Error | null, value: string) => {
+        if (err) throw err;
+        return control(value);
+      },
+    ),
+  );
+  return {
+    command: (value) => continuousCommand(id, value),
+    run: () => continuousRun(id),
+    dispose() {},
+  };
 };

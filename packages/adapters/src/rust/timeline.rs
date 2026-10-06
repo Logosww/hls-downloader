@@ -109,7 +109,7 @@ pub fn sample_code(e: &SampleError) -> &'static str {
         _ => "MEDIA_INVALID",
     }
 }
-fn resource_code(e: &ResourceError) -> &'static str {
+pub fn resource_code(e: &ResourceError) -> &'static str {
     if let Some(k) = e.key_error() {
         return key_code(k);
     }

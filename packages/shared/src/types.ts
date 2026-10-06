@@ -127,6 +127,7 @@ export type AdapterCapabilities = Readonly<{
     resume: false;
   }>;
   timeline?: Readonly<{ finite: true; ranges: true; epochs: true; split: true; resume: false }>;
+  recording?: import('./recording').HlsRecordingCapabilities;
   liveRecording: boolean;
   persistentOutput: boolean;
   /** Supports backpressured fMP4 output to a caller-provided writable stream. */
@@ -256,7 +257,13 @@ export interface HlsDownloaderAdapterInternal<
   DownloadResult = unknown,
   DownloadOnlyOptions extends Record<string, any> = {},
   RequestOptions extends Record<string, any> = {},
+  RecordingOutput extends import('./recording').HlsRecordingOutput =
+    import('./recording').HlsRecordingOutput,
 > extends HlsDownloaderAdapter {
+  runRecording?(
+    options: import('./recording').HlsRecordingOptions<RecordingOutput> & RequestOptions,
+    host: import('./recording').HlsRecordingHost,
+  ): Promise<{ report: import('./recording').HlsRecordingReport }>;
   parseMediaPlaylist?(text: string, url: string): Promise<HlsMediaPlaylist>;
   readonly capabilities: AdapterCapabilities;
   chunkDownloadConcurrency: number;

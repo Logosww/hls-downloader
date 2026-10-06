@@ -197,6 +197,60 @@ function debugString(val) {
     // TODO we could test for more things here, like `Set`s and `Map`s.
     return className;
 }
+
+export function start() {
+    wasm.start();
+}
+
+/**
+ * @param {any} resources
+ * @returns {Promise<any>}
+ */
+export function transmux_preloaded_to_mp4_report(resources) {
+    const ret = wasm.transmux_preloaded_to_mp4_report(resources);
+    return ret;
+}
+
+/**
+ * @param {any} resources
+ * @param {Function} on_chunk
+ * @returns {Promise<any>}
+ */
+export function transmux_preloaded_to_fmp4_stream(resources, on_chunk) {
+    const ret = wasm.transmux_preloaded_to_fmp4_stream(resources, on_chunk);
+    return ret;
+}
+
+/**
+ * @param {string} playlist_url
+ * @param {string} playlist
+ * @param {Function} read
+ * @param {Function} write
+ * @returns {Promise<any>}
+ */
+export function transmux_demand_to_fmp4(playlist_url, playlist, read, write) {
+    const ptr0 = passStringToWasm0(playlist_url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(playlist, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.transmux_demand_to_fmp4(ptr0, len0, ptr1, len1, read, write);
+    return ret;
+}
+
+/**
+ * @param {string} request
+ * @param {Function} read
+ * @param {Function} write
+ * @param {Function} progress
+ * @returns {Promise<any>}
+ */
+export function prepared_browser(request, read, write, progress) {
+    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.prepared_browser(ptr0, len0, read, write, progress);
+    return ret;
+}
+
 /**
  * @param {string} text
  * @param {string} url
@@ -253,65 +307,72 @@ export function timeline_browser(request, read, write, resolve, abort, control, 
     return ret;
 }
 
-export function start() {
-    wasm.start();
+function takeFromExternrefTable0(idx) {
+    const value = wasm.__wbindgen_export_2.get(idx);
+    wasm.__externref_table_dealloc(idx);
+    return value;
 }
-
-/**
- * @param {any} resources
- * @returns {Promise<any>}
- */
-export function transmux_preloaded_to_mp4_report(resources) {
-    const ret = wasm.transmux_preloaded_to_mp4_report(resources);
-    return ret;
-}
-
-/**
- * @param {any} resources
- * @param {Function} on_chunk
- * @returns {Promise<any>}
- */
-export function transmux_preloaded_to_fmp4_stream(resources, on_chunk) {
-    const ret = wasm.transmux_preloaded_to_fmp4_stream(resources, on_chunk);
-    return ret;
-}
-
-/**
- * @param {string} playlist_url
- * @param {string} playlist
- * @param {Function} read
- * @param {Function} write
- * @returns {Promise<any>}
- */
-export function transmux_demand_to_fmp4(playlist_url, playlist, read, write) {
-    const ptr0 = passStringToWasm0(playlist_url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(playlist, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.transmux_demand_to_fmp4(ptr0, len0, ptr1, len1, read, write);
-    return ret;
-}
-
-/**
- * @param {string} request
- * @param {Function} read
- * @param {Function} write
- * @param {Function} progress
- * @returns {Promise<any>}
- */
-export function prepared_browser(request, read, write, progress) {
-    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.prepared_browser(ptr0, len0, read, write, progress);
-    return ret;
-}
-
 function __wbg_adapter_28(arg0, arg1, arg2) {
-    wasm.closure235_externref_shim(arg0, arg1, arg2);
+    wasm.closure288_externref_shim(arg0, arg1, arg2);
 }
 
-function __wbg_adapter_63(arg0, arg1, arg2, arg3) {
-    wasm.closure286_externref_shim(arg0, arg1, arg2, arg3);
+function __wbg_adapter_66(arg0, arg1, arg2, arg3) {
+    wasm.closure339_externref_shim(arg0, arg1, arg2, arg3);
+}
+
+const BrowserRecordingFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_browserrecording_free(ptr >>> 0, 1));
+
+export class BrowserRecording {
+
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        BrowserRecordingFinalization.unregister(this);
+        return ptr;
+    }
+
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_browserrecording_free(ptr, 0);
+    }
+    /**
+     * @returns {Promise<string>}
+     */
+    run() {
+        const ret = wasm.browserrecording_run(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} command
+     * @returns {Promise<string>}
+     */
+    command(command) {
+        const ptr0 = passStringToWasm0(command, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.browserrecording_command(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} request
+     * @param {Function} read
+     * @param {Function} write
+     * @param {Function} resolve
+     * @param {Function} abort
+     * @param {Function} control
+     */
+    constructor(request, read, write, resolve, abort, control) {
+        const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.browserrecording_new(ptr0, len0, read, write, resolve, abort, control);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        BrowserRecordingFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
 }
 
 async function __wbg_load(module, imports) {
@@ -426,7 +487,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_63(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_66(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -527,8 +588,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper879 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 236, __wbg_adapter_28);
+    imports.wbg.__wbindgen_closure_wrapper1160 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 289, __wbg_adapter_28);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {

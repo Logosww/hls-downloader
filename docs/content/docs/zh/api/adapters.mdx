@@ -179,7 +179,7 @@ resolver 请求包含 `operationId`、`inputId`、`resourceKind`、`uri`、`meth
 
 默认 `limits`：`manifestBytes = 4 MiB`、`resourceBytes = 16 MiB`、`waitingBytes = 32 MiB`、`resources = 2`、`keyRequests = 2`、`cachedKeys = 8`、`keyWaiters = 2`。`waitingBytes` 至少等于 `resourceBytes`。普通下载选择清单时也受 manifest 上限约束；大型有限清单可提高 `manifestBytes`。显式配置 `decryption` 时，明文输入也会进入结构化有限输入路径；`resources` 控制该路径的并发，原有明文路径继续使用 `downloadConcurrency`。
 
-`capabilities.aes128` 表示上述有限能力，`capabilities.decryption` 描述 method、container、codec、外置音频及不支持加密恢复的边界。Live/EVENT、GCM、加密 resume、转码、aria2 和加密 WebVTT 暂不支持。discontinuity 需显式配置 `timeline`；有限 sample 解密见下文。清单已知的不支持组合在 key/media 工作前拒绝；容器和编码验证需要读取媒体。
+`capabilities.aes128` 表示上述有限能力，`capabilities.decryption` 描述 method、container、codec、外置音频及不支持加密恢复的边界。GCM、加密 resume、转码、aria2 和加密 WebVTT 暂不支持；支持的 Live/EVENT 输入使用 `startRecording()`。discontinuity 需显式配置 `timeline`；有限 sample 解密见下文。清单已知的不支持组合在 key/media 工作前拒绝；容器和编码验证需要读取媒体。
 
 错误区分 `KEY_UNAVAILABLE`、`KEY_RESOLUTION_FAILED`、`KEY_INVALID`、`KEY_EXPIRED`、`ENCRYPTION_INVALID`、`DECRYPT_FAILED`、`MEDIA_INVALID` 和 `RESOURCE_LIMIT_EXCEEDED`。CBC 不提供认证，不保证所有错误 key 都可检测。公共错误和事件不包含 resolver 消息、key bytes 或 key version。
 
@@ -197,4 +197,45 @@ resolver 请求包含 `operationId`、`inputId`、`resourceKind`、`uri`、`meth
 
 `HlsKeyRequest.method` 包含上述三种方法；可选 `kid` 为 32 位小写十六进制字符串。resolver 仍返回 16 字节二进制 key，沿用 TTL、unavailable 与取消语义。支持 identity HTTP 或调用方提供的原始密钥，不实现 license/CDM 交换。`decryption.limits.samples` 默认每资源 65,536 个 sample；容器解析器另有 65,536 项上限。其他资源/key 默认预算不变。CBC/CTR 不保证检测每个错误密钥。
 
-TS HEVC SAMPLE-AES、TS SAMPLE-AES-CTR、Packed AAC、任意密文切片、GCM、live、恢复、转码、aria2 和加密字幕仍不支持。cenc/cbcs 容器元数据限制遵循 [hls-transmux 0.8.0](https://github.com/Logosww/hls-transmux/blob/8d6c54f/docs/sample-encryption.md)。
+TS HEVC SAMPLE-AES、TS SAMPLE-AES-CTR、Packed AAC、任意密文切片、GCM、恢复、转码、aria2 和加密字幕仍不支持。cenc/cbcs 容器元数据限制遵循 [hls-transmux 0.8.0](https://github.com/Logosww/hls-transmux/blob/8d6c54f/docs/sample-encryption.md)。
+
+## 持续录制
+
+`startRecording()` 同步返回控制句柄，支持 Live/EVENT 持续录制及可暂停的有限 VOD 会话。现有 `download*()` 保持有限下载语义。录制从首次可用清单窗口开头开始，清晰度和可选的一条替换音轨在会话内保持固定。
+
+```ts
+const recording = downloader.startRecording({
+  url: 'https://example.com/live.m3u8',
+  output: { type: 'writable', writable: destination },
+  onEvent(event) {
+    if (event.type === 'progress') console.log(event.input.committed);
+  },
+});
+// 在应用的“停止录制”操作中调用：
+recording.stop();
+const { report } = await recording.result;
+```
+
+句柄包含 `operationId`、只读 `state`、`result`、`stop()`、`cancel()`、`pause()`、`resume()`、`endInput('primary' | 'audio')` 和 `restartInput(inputId, { generation, url? })`。初始化错误通过 `result` 拒绝。停止会关闭接收并排空已接收媒体；取消返回 `ABORTED`。`pause()` 等待处理边界确认，仅支持有限、非 EVENT 的 VOD。Live/EVENT 暂停返回 `RECORDING_FAILED` / `PauseUnsupported`，录制本身继续。恢复暂停仍属于同次操作，不提供录制持久化 checkpoint。
+
+每个输入独立接收 ENDLIST 或 `endInput()`；全部输入结束、显式停止或达到 `durationLimit` 后收尾。显式重启只适用于活动会话，generation 必须是严格递增的十进制字符串；旧代际排空后才接收新源。重启不改变选轨，也不复活失败会话。新时间线需媒体时钟、PDT 或启动时配置的代际锚点证明，无法对齐时报错。
+
+| 输出 | 运行时 | 结果与格式 |
+| --- | --- | --- |
+| `{ type: 'writable', writable }` | 两端 | 带背压的 fMP4，由 SDK 关闭目标 |
+| `{ type: 'writables', acquire }` | 两端 | 异步 `(output) => WritableStream` 工厂，支持拆分 |
+| `{ type: 'blob', maxBytes, format? }` | Browser | `result.blob`，必须指定正整数容量 |
+| `{ type: 'file', path, format? }` | Node | `result.filePath`，不覆盖已有文件 |
+| `{ type: 'files', acquire, format? }` | Node | 异步 `(output) => path` 工厂，支持拆分 |
+
+Blob/文件的 `format` 为 `'mp4'`（默认）或 `'fmp4'`，writable 始终输出 fMP4。工厂收到输出序号和轨道信息。单目标和 Blob 不支持拆分。writable 成功关闭后才发布输出完成事件和公共完成状态；关闭失败返回 `OUTPUT_WRITE_FAILED`。Node 使用同目录临时文件及硬链接发布，要求文件系统支持硬链接；失败清理未完成文件，保留此前完成的文件或已关闭 writable。
+
+录制复用 `headers`、`signal`、`maxRetry`、`variant`、`audio` 和 `decryption`，Browser 还支持 `browserRequest`。支持明文 TS/fMP4、完整资源 AES-128、TS AVC/AAC-LC SAMPLE-AES，以及 fMP4 AVC/HEVC/AAC-LC cenc/cbcs，沿用现有 sample 保护限制。`capabilities.recording` 描述输出和生命周期能力。全局转码不会应用，显式传入转码、aria2 或 resume 会被拒绝。
+
+`durationLimit: { ticks, timescale }` 按媒体展示时间计量，会排空已接收工作，因此可能超时长。`timeline.range` 选择可解码范围，报告给出实际范围。`timeline.gapPolicy` 默认为 `'preserve'`，可设 `'collapse'`；`timeline.changePolicy` 默认为 `'fail'`，可设 `'split'`。`missingSegments` 默认为 `'fail'`；`'skip'` / `'split'` 仅处理声明的 GAP，不隐藏网络、密钥或解封装失败。`timeline.tailDuration` 显式提供缺失的尾帧时长依据。`timeline.anchors` 包含 `inputId`、十进制字符串 `generation` / `epoch`，以及精确的 `source` / `presentation` 时间。
+
+`limits` 默认值：`queuedDescriptors: 128`、`queuedMetadataBytes: 4194304`、`historyEntries: 128`、`samples: 65536`、`sampleBytes: 67108864`、`probeSegments: 2`、`maxSkew: { ticks: '30', timescale: 1 }`、`inputTimeoutMs: 30000`。现有 `decryption.limits` 独立限制清单、资源和密钥工作。单个原子窗口超限返回 `RESOURCE_LIMIT_EXCEEDED`，需显式增加对应预算。每输入串行刷新并等待接收背压；清单变化后等待一个 target duration，未变化等待半个。HTTP 重试耗尽则失败；不会静默跳过或重启序号回退、资源改写、缺片及 KEY/MAP 连续性丢失。
+
+事件包括 `state`、`progress`、`mapping`、`gap` 和 `output`。宽整数保留十进制字符串，输入总量为 `null`。`report` 包含累计计数、请求/实际范围、有界近期映射及输出、峰值和 `historyTruncated`。需要完整输出列表时，由调用方保存有界或持久事件日志。错误提供 `reason`、近期 `completedRecordingOutputs` 和 `recordingHistoryTruncated`；它们是诊断信息，不是恢复 checkpoint。事件处理器是同步观察者，其返回的 Promise 不被等待。
+
+持续处理管线和 SDK 历史有界；Blob 字节、classic MP4 索引与副本、调用方快照和事件日志属于额外内存成本，`maxBytes` 不是进程内存上限。不支持 LL-HLS partial segments、自动切换清晰度、多音轨、字幕 mux、Packed AAC、GCM、转码、aria2 或持续录制持久恢复。

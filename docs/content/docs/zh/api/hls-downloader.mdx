@@ -439,3 +439,7 @@ const result = await downloader.downloadToWritables(
 `exportChapters({ chapters, timelineReport, track?, filename? })` 是根包/shared 的同步命名导出。章节为公共时间轴上的 `{ range: { start, end }, title, id? }`，按每个输出返回 WebVTT chapters。两种操作默认跟随主视频轨，纯音频输出跟随主音频轨；`track: { inputId, trackId }` 可显式选择报告映射。区间在映射边界裁切/拆分并转换为输出时间，最后序列化为毫秒 WebVTT 时间戳；不会自动写入 sidecar 文件。
 
 既有 `downloadSubtitles()` 不变。暂不支持字幕资源解密及字幕内嵌。
+
+## startRecording
+
+`startRecording(options)` 同步返回录制句柄，包含 `result`、`stop`、`cancel`、VOD `pause`/`resume` 和独立输入控制。必须显式选择输出；现有下载入口仍限于有限输入。见[Adapter 录制 API](/api/adapters#持续录制)。

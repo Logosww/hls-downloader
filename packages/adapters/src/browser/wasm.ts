@@ -24,12 +24,17 @@ export type HlsWasmReport = {
 };
 
 let initPromise: Promise<void> | undefined;
+let recordingAvailable = false;
 
 export async function ensureWasm(): Promise<void> {
   initPromise ??= (async () => {
     const wasmUrl = new URL('./hls_transmux_browser_wasm_bg.wasm', import.meta.url);
     try {
       const module = await init(wasmUrl);
+      recordingAvailable =
+        typeof module.browserrecording_new === 'function' &&
+        typeof module.browserrecording_run === 'function' &&
+        typeof module.browserrecording_command === 'function';
       if (typeof module.timeline_browser !== 'function')
         throw new HlsDownloaderError(
           HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
@@ -45,6 +50,15 @@ export async function ensureWasm(): Promise<void> {
     }
   })();
   await initPromise;
+}
+
+export async function ensureRecordingWasm(): Promise<void> {
+  await ensureWasm();
+  if (!recordingAvailable)
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
+      'Incompatible WASM recording bridge',
+    );
 }
 
 export async function transmuxPreloadedToMp4(
@@ -78,5 +92,6 @@ export {
   prepared_browser,
   keyed_browser,
   timeline_browser,
+  BrowserRecording,
   parse_media_playlist_browser,
 } from './generated/hls_transmux_browser_wasm.js';

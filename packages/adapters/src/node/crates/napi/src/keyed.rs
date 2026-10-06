@@ -234,3 +234,64 @@ pub async fn timeline_native(
     .await
     .map_err(|_| napi::Error::from_reason("timeline worker failed"))?
 }
+
+fn recordings() -> &'static dashmap::DashMap<String, Arc<wire::continuous::Bridge>> {
+    static RECORDINGS: std::sync::OnceLock<
+        dashmap::DashMap<String, Arc<wire::continuous::Bridge>>,
+    > = std::sync::OnceLock::new();
+    RECORDINGS.get_or_init(dashmap::DashMap::new)
+}
+#[napi]
+pub fn continuous_create(
+    request: String,
+    read: ThreadsafeFunction<String, Promise<Buffer>>,
+    write: ThreadsafeFunction<(Buffer, String), Promise<()>>,
+    resolve: ThreadsafeFunction<String, Promise<KeyReply>>,
+    abort: ThreadsafeFunction<String>,
+    control: ThreadsafeFunction<String, Promise<String>>,
+) -> String {
+    let host = Arc::new(Host {
+        read: Arc::new(read),
+        resolve: Arc::new(resolve),
+        abort,
+        start: Instant::now(),
+    });
+    let output = Arc::new(TimelineOutputHost {
+        control: Arc::new(control),
+        write: Arc::new(write),
+    });
+    match wire::continuous::Bridge::new(&request, host, output) {
+        Ok(bridge) => {
+            let id = uuid::Uuid::new_v4().to_string();
+            recordings().insert(id.clone(), Arc::new(bridge));
+            serde_json::json!({"id":id}).to_string()
+        }
+        Err(e) => e.to_string(),
+    }
+}
+#[napi]
+pub async fn continuous_command(id: String, command: String) -> String {
+    let bridge = recordings().get(&id).map(|b| b.clone());
+    match bridge {
+        Some(b) => b.command(&command).await.to_string(),
+        None => wire::error("RECORDING_FAILED", "Closed").to_string(),
+    }
+}
+#[napi]
+pub async fn continuous_run(id: String) -> napi::Result<String> {
+    let bridge = recordings()
+        .get(&id)
+        .map(|b| b.clone())
+        .ok_or_else(|| napi::Error::from_reason("recording closed"))?;
+    let result = tokio::task::spawn_blocking(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map(|rt| rt.block_on(bridge.run()).to_string())
+            .map_err(|_| napi::Error::from_reason("recording executor failed"))
+    })
+    .await
+    .map_err(|_| napi::Error::from_reason("recording worker failed"));
+    recordings().remove(&id);
+    result?
+}

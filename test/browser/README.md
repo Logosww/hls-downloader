@@ -127,3 +127,9 @@ stage, late results, and optional poster failure. Cancelled operations return `n
 actual parse failures return `false`, while valid metadata returns `true` even when
 poster extraction fails. The page ignores cancelled results rather than opening a
 confirmation or displaying a parsing error. The test runs in CI after the library build.
+
+## Continuous recording
+
+Run `pnpm test:browser:recording` from the repository root. If Playwright's bundled Chromium is unavailable, set `HLS_TEST_CHROMIUM_PATH` to an existing Chrome executable. The Node suite first writes `test-results/recording-native.json`; Chrome compares the 13 open-input profiles, verifies key-wait cancellation/late completion and sink-close errors, and exercises VOD pause with delayed resume, stop and cancellation.
+
+`pnpm test:recording` also checks polling overlap, empty windows, source rewrites, explicit generation restart, GAP/configuration splits, capacity errors, Node publication and Blob conversion. The 8/64/256 repeated-input checks compare core queue/sample peaks and bounded mapping/output history, excluding caller-owned snapshots and collected bytes. These accelerated checks are not multi-hour RSS measurements.

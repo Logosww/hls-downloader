@@ -29,7 +29,7 @@ Read the same matrix from `downloader.capabilities` at runtime.
 | Finite sample profiles | yes | yes |
 | Opt-in timeline / split outputs | yes | yes |
 | Persistent output  | no              | yes             |
-| Live recording     | no              | no              |
+| Live recording     | yes              | yes              |
 
 ## BrowserAdapter (Browser)
 
@@ -141,3 +141,7 @@ const result = await downloader.download({
   Do not bundle the Node adapter (native `.node` addon) into browser code. For browser bundles, only
   import the browser subpath.
 </Callout>
+
+## Continuous recording
+
+Use `startRecording()` for Live/EVENT or pausable VOD. Select a writable, bounded Browser Blob, or Node file output explicitly. See [recording contracts and examples](/api/adapters#continuous-recording).

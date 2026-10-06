@@ -179,7 +179,7 @@ The resolver receives `operationId`, `inputId`, `resourceKind`, `uri`, `method`,
 
 Default `limits`: `manifestBytes = 4 MiB`, `resourceBytes = 16 MiB`, `waitingBytes = 32 MiB`, `resources = 2`, `keyRequests = 2`, `cachedKeys = 8`, `keyWaiters = 2`. `waitingBytes` must be at least `resourceBytes`. The manifest limit also applies when selecting playlists for ordinary downloads; increase `manifestBytes` for large finite playlists. Configuring `decryption` explicitly selects the typed finite-input path even for clear input. `resources` controls keyed concurrency; legacy `downloadConcurrency` continues to apply to the existing clear path.
 
-`capabilities.aes128` indicates this finite profile; `capabilities.decryption` describes methods, containers, codecs, external audio and the absence of encrypted recovery. Live/EVENT, GCM, encrypted resume, transcoding, aria2 and encrypted WebVTT remain unsupported. Discontinuities require explicit `timeline`; finite sample encryption is described below. Unsupported playlist combinations are rejected before key/media work; container and codec validation requires reading media.
+`capabilities.aes128` indicates this finite profile; `capabilities.decryption` describes methods, containers, codecs, external audio and the absence of encrypted recovery. GCM, encrypted resume, transcoding, aria2 and encrypted WebVTT remain unsupported. Use `startRecording()` for supported Live/EVENT inputs. Discontinuities require explicit `timeline`; finite sample encryption is described below. Unsupported playlist combinations are rejected before key/media work; container and codec validation requires reading media.
 
 Errors distinguish `KEY_UNAVAILABLE`, `KEY_RESOLUTION_FAILED`, `KEY_INVALID`, `KEY_EXPIRED`, `ENCRYPTION_INVALID`, `DECRYPT_FAILED`, `MEDIA_INVALID` and `RESOURCE_LIMIT_EXCEEDED`. CBC decryption is not authenticated encryption. A wrong key is not guaranteed to be detectable. Resolver messages, key bytes and key versions are excluded from public errors/events.
 
@@ -197,4 +197,45 @@ These profiles are selected automatically, including without `timeline`. They su
 
 `HlsKeyRequest.method` includes all three methods; optional `kid` is 32 lowercase hexadecimal characters. A resolver returns the same 16-byte binary key response and retains the existing TTL, unavailable and cancellation semantics. Only configured identity HTTP or caller-provided raw keys are supported; no license/CDM exchange is implemented. `decryption.limits.samples` defaults to 65,536 per resource; the container parser also imposes a 65,536-entry ceiling. Other resource/key defaults remain unchanged. CBC/CTR cannot authenticate every incorrect key.
 
-TS HEVC SAMPLE-AES, TS SAMPLE-AES-CTR, Packed AAC, arbitrary ciphertext slices, GCM, live, recovery, transcoding, aria2 and encrypted subtitles remain unsupported. The supported cenc/cbcs container metadata profile follows [hls-transmux 0.8.0](https://github.com/Logosww/hls-transmux/blob/8d6c54f/docs/sample-encryption.md).
+TS HEVC SAMPLE-AES, TS SAMPLE-AES-CTR, Packed AAC, arbitrary ciphertext slices, GCM, recovery, transcoding, aria2 and encrypted subtitles remain unsupported. The supported cenc/cbcs container metadata profile follows [hls-transmux 0.8.0](https://github.com/Logosww/hls-transmux/blob/8d6c54f/docs/sample-encryption.md).
+
+## Continuous recording
+
+`startRecording()` returns a control handle immediately. Use it for Live/EVENT recording or a pausable finite VOD operation; existing `download*()` methods remain finite-only. Recording starts at the beginning of the first available playlist window. Variant and optional replacement audio selection are fixed for the operation.
+
+```ts
+const recording = downloader.startRecording({
+  url: 'https://example.com/live.m3u8',
+  output: { type: 'writable', writable: destination },
+  onEvent(event) {
+    if (event.type === 'progress') console.log(event.input.committed);
+  },
+});
+// Called by your application's Stop button:
+recording.stop();
+const { report } = await recording.result;
+```
+
+The handle has `operationId`, read-only `state`, `result`, `stop()`, `cancel()`, `pause()`, `resume()`, `endInput('primary' | 'audio')`, and `restartInput(inputId, { generation, url? })`. Initialization errors reject `result`. Stop closes admission and drains accepted media; cancel rejects with `ABORTED`. `pause()` acknowledges a processing boundary and is supported only for finite non-EVENT VOD. Live/EVENT pause rejects with `RECORDING_FAILED` / `PauseUnsupported` without failing the recording. Resume stays within the same operation; no durable recording checkpoint is provided.
+
+Each input ends independently on ENDLIST or `endInput()`. A recording completes after all inputs end, an explicit stop, or `durationLimit`. Restart requires a strictly increasing decimal-string generation and an active session. It seals and drains the old generation before admitting the new source. It does not change rendition selection or automatically repair failed recordings. Clock/PDT evidence or generation-scoped anchors must establish the timeline; ambiguous alignment fails.
+
+| Output | Runtime | Result and format |
+| --- | --- | --- |
+| `{ type: 'writable', writable }` | Both | Backpressured fMP4; SDK closes the destination |
+| `{ type: 'writables', acquire }` | Both | Async `(output) => WritableStream`; supports splitting |
+| `{ type: 'blob', maxBytes, format? }` | Browser | `result.blob`; explicit positive capacity required |
+| `{ type: 'file', path, format? }` | Node | `result.filePath`; existing destinations are never replaced |
+| `{ type: 'files', acquire, format? }` | Node | Async `(output) => path`; supports splitting |
+
+`format` is `'mp4'` (default) or `'fmp4'` for Blob/files. Writable output is always fMP4. `acquire` receives an output index and track information. Single destinations and Blob output reject splitting. Public completion and output events follow successful writable close; close rejection is `OUTPUT_WRITE_FAILED`. Native files use same-directory temporary storage and hard-link publication, requiring filesystem hard-link support. Failures remove unfinished native outputs and preserve previously completed files or closed writable outputs.
+
+Recording accepts `headers`, `signal`, `maxRetry`, `variant`, `audio`, and `decryption`; Browser also accepts `browserRequest`. It supports clear TS/fMP4, complete-resource AES-128, TS AVC/AAC-LC SAMPLE-AES, and fMP4 AVC/HEVC/AAC-LC cenc/cbcs, with the existing sample-protection restrictions. `capabilities.recording` describes output and lifecycle support. Global transcoding is not applied; explicit transcoding, aria2 and resume options are rejected.
+
+`durationLimit: { ticks, timescale }` uses media presentation time and drains accepted work, so it may overshoot. `timeline.range` selects a decodable range; reports give the actual range. `timeline.gapPolicy` defaults to `'preserve'` and supports `'collapse'`; `timeline.changePolicy` defaults to `'fail'` and supports `'split'`. `missingSegments` defaults to `'fail'`; `'skip'` and `'split'` handle declared GAP slots only, never network/key/demux failures. `timeline.tailDuration` explicitly supplies missing tail-duration evidence. `timeline.anchors` entries contain `inputId`, decimal-string `generation` and `epoch`, and exact `source` / `presentation` times.
+
+`limits` defaults: `queuedDescriptors: 128`, `queuedMetadataBytes: 4194304`, `historyEntries: 128`, `samples: 65536`, `sampleBytes: 67108864`, `probeSegments: 2`, `maxSkew: { ticks: '30', timescale: 1 }`, and `inputTimeoutMs: 30000`. Existing `decryption.limits` separately bound manifests, resources and key work. Oversized atomic windows fail with `RESOURCE_LIMIT_EXCEEDED`; increase the relevant limits explicitly. Refresh requests are sequential per input and respect admission backpressure; changed playlists wait one target duration and unchanged playlists half a target duration. Exhausted HTTP retries fail the operation. Sequence rollback, rewrites, missing slots and lost KEY/MAP continuity are not silently skipped or restarted.
+
+Events include `state`, `progress`, `mapping`, `gap`, and `output`. Reports and events use decimal strings for wide integers, and input totals are `null`. `report` contains cumulative counters, requested/actual ranges, bounded recent mappings/outputs, peaks and `historyTruncated`. Keep your own bounded or persistent event log if every output is needed. Errors expose `reason`, recent `completedRecordingOutputs`, and `recordingHistoryTruncated`; these are diagnostics, not recovery checkpoints. Event handlers are synchronous observers; returned promises are not awaited.
+
+The streaming engine and SDK history are bounded. Blob bytes, classic MP4 indexes/copies, caller-held snapshots and event logs are separate costs; `maxBytes` is not a process-memory limit. No LL-HLS partial segments, adaptive rendition switching, multiple audio tracks, subtitle mux, Packed AAC, GCM, transcoding, aria2 or persistent continuous recovery are supported.

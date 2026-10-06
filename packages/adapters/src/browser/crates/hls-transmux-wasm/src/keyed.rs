@@ -203,3 +203,56 @@ pub async fn timeline_browser(
     let result = tokio::select! {biased; _=wasm_bindgen_futures::JsFuture::from(cancel)=>wire::error("ABORTED","cancelled"),r=wire::timeline::run(&r,host,output,None)=>r};
     Ok(JsValue::from_str(&result.to_string()))
 }
+
+#[wasm_bindgen]
+pub struct BrowserRecording {
+    bridge: std::rc::Rc<wire::continuous::Bridge>,
+    _callbacks: Vec<CallbackRegistration>,
+}
+#[wasm_bindgen]
+impl BrowserRecording {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        request: String,
+        read: Function,
+        write: Function,
+        resolve: Function,
+        abort: Function,
+        control: Function,
+    ) -> std::result::Result<BrowserRecording, JsValue> {
+        let read = CallbackRegistration::new(read);
+        let write = CallbackRegistration::new(write);
+        let resolve = CallbackRegistration::new(resolve);
+        let abort = CallbackRegistration::new(abort);
+        let control = CallbackRegistration::new(control);
+        let host = Arc::new(Host {
+            read: read.0,
+            resolve: resolve.0,
+            abort: abort.0,
+            start: monotonic_ms(),
+        });
+        let output = Arc::new(TimelineOutputHost {
+            control: control.0,
+            write: write.0,
+        });
+        let bridge = wire::continuous::Bridge::new(&request, host, output)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        Ok(Self {
+            bridge: std::rc::Rc::new(bridge),
+            _callbacks: vec![read, write, resolve, abort, control],
+        })
+    }
+    pub async fn command(&self, command: String) -> String {
+        self.bridge.command(&command).await.to_string()
+    }
+    pub async fn run(&self) -> String {
+        // Tokio's watch-based pause loop needs a cooperative task budget on WASM too.
+        let local = tokio::task::LocalSet::new();
+        let bridge = self.bridge.clone();
+        let task = local.spawn_local(async move { bridge.run().await.to_string() });
+        local
+            .run_until(task)
+            .await
+            .unwrap_or_else(|_| wire::error("RECORDING_FAILED", "executor").to_string())
+    }
+}

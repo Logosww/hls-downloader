@@ -1,3 +1,5 @@
+import { createRecording, awaitRecordingInit } from './recording';
+import type { HlsRecordingOptions, HlsRecordingSession } from '@hls-downloader/shared';
 import { createOutputManager } from './outputs';
 import type {
   HlsDownloaderOutputsOptions,
@@ -41,13 +43,15 @@ type HlsDownloaderConfigFactory<T> =
     infer AdditionalOptions,
     infer DownloadResult,
     infer DownloadOnlyOptions,
-    infer RequestOptions
+    infer RequestOptions,
+    infer RecordingOutput
   >
     ? {
         additionalOptions: AdditionalOptions;
         downloadResult: DownloadResult;
         downloadOnlyOptions: DownloadOnlyOptions;
         requestOptions: RequestOptions;
+        recordingOutput: RecordingOutput;
       }
     : never;
 
@@ -424,6 +428,33 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     }
   }
 
+  startRecording<O extends HlsDownloaderConfigFactory<T>['recordingOutput']>(
+    options: HlsRecordingOptions<O> & HlsDownloaderConfigFactory<T>['requestOptions'],
+  ): HlsRecordingSession<O> {
+    const globals = this.#globalOptions?.download;
+    const snapshot = this.#snapshotRequestOptions({
+      ...globals,
+      ...options,
+      output: { ...options.output },
+      limits: options.limits && structuredClone(options.limits),
+      durationLimit: options.durationLimit && { ...options.durationLimit },
+    });
+    return createRecording(snapshot, async (request, host) => {
+      if (
+        !this.#adapter.runRecording ||
+        !this.capabilities.recording?.outputs.includes(request.output.type)
+      )
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+          'Recording output unavailable',
+        );
+      await awaitRecordingInit(this.init(), request.signal!);
+      return this.#adapter.runRecording(
+        injectContext(request, this.#createOperationContext(request.operationId!)),
+        host,
+      );
+    });
+  }
   async downloadOutputs(
     options: HlsDownloaderOutputsOptions &
       Partial<HlsDownloaderConfigFactory<T>['additionalOptions']> &

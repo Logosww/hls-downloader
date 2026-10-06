@@ -12,6 +12,8 @@ description: '本项目的所有重要变更。'
 
 ### 新增
 
+- **BrowserAdapter / NodeAdapter**：新增 `startRecording()`，支持 Live/EVENT 和可暂停 VOD、停止排空、取消、一条外置音轨及已支持的 AES/sample 解密。支持带背压 writable、限额 Browser Blob 和不覆盖的 Node 文件，可通过显式输出工厂拆分。录制报告保留有界历史，不支持录制持久恢复。
+
 - **BrowserAdapter / NodeAdapter**：新增显式 `timeline` 范围、epoch 映射及缺口策略，返回实际可解码范围和时间轴报告。新增 `downloadOutputs()` 与有背压的 `downloadToWritables()`，支持显式配置/缺口拆分；失败时保留已完成文件或已关闭的 writable 输出。
 - 支持有限 TS SAMPLE-AES（AVC/AAC-LC）和 fMP4 cbcs/cenc（AVC/HEVC/AAC-LC），可组合外置音轨和时间轴输出。key resolver 新增 sample method 与可选 KID，解密能力明确列出支持组合。
 - 新增 `downloadSubtitleOutputs()` 和 `exportChapters()`，按已完成时间轴报告生成 WebVTT 字幕及章节 sidecar，支持拆分输出；新增范围、时间轴、资源变化及桥接版本错误。

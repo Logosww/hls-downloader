@@ -138,7 +138,12 @@ describe('NodeAdapter protocol contract', () => {
       split: true,
       resume: false,
     });
-    expect(capabilities.liveRecording).toBe(false);
+    expect(capabilities.liveRecording).toBe(true);
+    expect(capabilities.recording).toMatchObject({
+      pause: 'vod',
+      outputs: ['writable', 'writables', 'file', 'files'],
+      resume: false,
+    });
   });
 
   it('downloads a deterministic H.264/AAC fixture and produces valid MP4', async () => {

@@ -1,5 +1,6 @@
 import type { HlsCompletedOutput } from './timeline';
 export const HlsDownloaderErrorCode = {
+  RECORDING_FAILED: 'RECORDING_FAILED',
   RANGE_INVALID: 'RANGE_INVALID',
   TIMELINE_FAILED: 'TIMELINE_FAILED',
   RESOURCE_CHANGED: 'RESOURCE_CHANGED',
@@ -46,6 +47,8 @@ export type HlsDownloaderErrorDetails = {
   trackId?: number;
   sampleIndex?: string;
   scheme?: string;
+  completedRecordingOutputs?: import('./recording').HlsRecordingOutputReport[];
+  recordingHistoryTruncated?: boolean;
   completedOutputs?: HlsCompletedOutput[];
   resourceKind?: 'media' | 'map';
   attempt?: number;
@@ -82,6 +85,8 @@ export class HlsDownloaderError extends Error {
   readonly trackId?: number;
   readonly sampleIndex?: string;
   readonly scheme?: string;
+  readonly completedRecordingOutputs?: import('./recording').HlsRecordingOutputReport[];
+  readonly recordingHistoryTruncated?: boolean;
   readonly completedOutputs?: HlsCompletedOutput[];
   readonly resourceKind?: 'media' | 'map';
   readonly attempt?: number;
@@ -109,6 +114,8 @@ export class HlsDownloaderError extends Error {
     this.trackId = details.trackId ?? undefined;
     this.sampleIndex = details.sampleIndex ?? undefined;
     this.scheme = details.scheme ?? undefined;
+    this.completedRecordingOutputs = details.completedRecordingOutputs;
+    this.recordingHistoryTruncated = details.recordingHistoryTruncated;
     this.completedOutputs = details.completedOutputs ?? undefined;
 
     this.attempt = details.attempt;

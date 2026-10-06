@@ -1,3 +1,9 @@
+import {
+  runRecording,
+  recordingCapabilities,
+  checkRecording,
+  type RecordingBridgeFactory,
+} from '../recording';
 import { exportTimelineSubtitles } from '../timeline-subtitles';
 import { timelineProfile, validateTimeline } from '../timeline';
 import { executeKeyed } from '../keyed';
@@ -12,6 +18,7 @@ import { resolveMedia } from '../renditions';
 import { withOperation, exportSubtitles, type Engine } from '../prepared';
 import {
   timeline_browser,
+  BrowserRecording,
   prepared_browser,
   keyed_browser,
   parse_media_playlist_browser,
@@ -48,6 +55,7 @@ import type {
 import { assertActive, cancellable } from './request';
 import {
   ensureWasm,
+  ensureRecordingWasm,
   transmuxDemandToFmp4,
   transmuxPreloadedToMp4,
   type HlsWasmResources,
@@ -74,7 +82,11 @@ export type HlsDownloaderBrowserAdapter = HlsDownloaderAdapterInternal<
   BrowserAdditionalOptions,
   DownloadResult,
   {},
-  HlsDownloaderBrowserOperationOptions
+  HlsDownloaderBrowserOperationOptions,
+  Extract<
+    import('@hls-downloader/shared').HlsRecordingOutput,
+    { type: 'blob' | 'writable' | 'writables' }
+  >
 >;
 
 export type {
@@ -894,7 +906,8 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
     aes128: true,
     decryption: decryptionProfile,
     timeline: timelineProfile,
-    liveRecording: false,
+    liveRecording: true,
+    recording: recordingCapabilities(true),
     persistentOutput: false,
     writableOutput: true,
     resumableDownload: false,
@@ -905,6 +918,15 @@ const browserAdapter: HlsDownloaderBrowserAdapter = createAdapter({
   segmentRetryAttempts: 10,
   init,
   parseHls,
+  async runRecording(options, host) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
+    return runRecording(
+      this,
+      { ...options, ...mergeFetchOptions(globalOptions, options) },
+      host,
+      browserRecordingBridge,
+    );
+  },
   async parseMediaPlaylist(text: string, url: string) {
     await ensureWasm();
     return parseMediaMetadata(parse_media_playlist_browser(text, url));
@@ -986,4 +1008,32 @@ const browserTimelineEngine: KeyedEngine = async (
   } finally {
     if (listener) signal.removeEventListener('abort', listener);
   }
+};
+
+const browserRecordingBridge: RecordingBridgeFactory = async (
+  request,
+  read,
+  write,
+  resolve,
+  abort,
+  control,
+) => {
+  await ensureRecordingWasm();
+  if (typeof BrowserRecording !== 'function')
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
+      'Incompatible recording bridge',
+    );
+  let bridge: BrowserRecording;
+  try {
+    bridge = new BrowserRecording(request, read, write, resolve, abort, control);
+  } catch (e) {
+    if (typeof e === 'string') checkRecording(e);
+    throw e;
+  }
+  return {
+    command: (value) => bridge.command(value),
+    run: () => bridge.run(),
+    dispose: () => bridge.free(),
+  };
 };
