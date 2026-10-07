@@ -1,4 +1,3 @@
-import type { HlsOutputFactory } from '@hls-downloader/shared';
 import { outputFilename } from './timeline-options';
 
 /** Reserve new entries separately so abort never removes an existing user's file. */
@@ -17,7 +16,7 @@ export function createTimelineFileOutput(options: {
     if (name && !completed.has(index)) await directory?.removeEntry(name).catch(() => {});
     created.delete(index);
   };
-  const factory: HlsOutputFactory = async (output) => {
+  const factory = async (output: { index: string }) => {
     try {
       signal.throwIfAborted();
       let target = options.fileHandle;

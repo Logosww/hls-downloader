@@ -239,3 +239,7 @@ Blob/文件的 `format` 为 `'mp4'`（默认）或 `'fmp4'`，writable 始终输
 事件包括 `state`、`progress`、`mapping`、`gap` 和 `output`。宽整数保留十进制字符串，输入总量为 `null`。`report` 包含累计计数、请求/实际范围、有界近期映射及输出、峰值和 `historyTruncated`。需要完整输出列表时，由调用方保存有界或持久事件日志。错误提供 `reason`、近期 `completedRecordingOutputs` 和 `recordingHistoryTruncated`；它们是诊断信息，不是恢复 checkpoint。事件处理器是同步观察者，其返回的 Promise 不被等待。
 
 持续处理管线和 SDK 历史有界；Blob 字节、classic MP4 索引与副本、调用方快照和事件日志属于额外内存成本，`maxBytes` 不是进程内存上限。不支持 LL-HLS partial segments、自动切换清晰度、多音轨、字幕 mux、Packed AAC、GCM、转码、aria2 或持续录制持久恢复。
+
+## 多轨能力
+
+`capabilities.multiTrack` 只描述新增入口：最多 32 个媒体输入（1 主路＋31 条所选外部音频）、32 条 wvtt 字幕，支持 VOD/Live/EVENT、范围、分割输出和 VOD 暂停。其 `decryption.profiles` 增加 Packed AAC-LC 的 clear/资源 AES-128/AAC SAMPLE-AES 支持，不支持 Packed AAC SAMPLE-AES-CTR；TS/fMP4 延续已公开加密矩阵。Blob 显式限制内存，Native 经典 MP4 索引随 sample 数增长。不支持转码、aria2、持久恢复、LL-HLS 和加密字幕。既有 `capabilities.decryption` 和单输入入口不会因此获得 Packed AAC 支持。详见[多轨 API](/api/hls-downloader#固定多轨下载与录制)。

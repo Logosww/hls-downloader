@@ -64,7 +64,17 @@ export function MediaSelectionFields({
                 <FormItem className="gap-2">
                   <FormLabel>视频质量</FormLabel>
                   <FormControl>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        form.setValue('audioTracks', []);
+                        form.setValue('embeddedSubtitles', []);
+                        form.setValue('defaultAudio', 'auto');
+                        form.setValue('defaultSubtitle', 'none');
+                        form.setValue('subtitleBindings', {});
+                      }}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="选择视频质量" />
                       </SelectTrigger>

@@ -66,6 +66,14 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
           recording.result.then(r => { const path: string = r.filePath; const count: string = r.report.bytesWritten; });
           recording.restartInput('primary',{generation:'9007199254740993'});
           const recordingError: 'RECORDING_FAILED' = HlsDownloaderErrorCode.RECORDING_FAILED;
+          const multi = node.downloadMultiTrack({url:'https://example.test/master.m3u8',embeddedAudio:'keep',output:{type:'file',path:'multi.mp4'}});
+          multi.then(r => { const report: import('@logosw/hls-downloader/shared').HlsMultiTrackReport = r.report; const path: string = r.filePath; });
+          const multiSession = node.startMultiTrackRecording({url:'https://example.test/master.m3u8',embeddedAudio:'exclude',audioTracks:[{id:'en',selector:{language:'en'}}],output:{type:'writable',writable:new WritableStream<Uint8Array>()}});
+          multiSession.restartInput('en',{generation:'9007199254740993'});
+          const multiError: 'MULTITRACK_FAILED' = HlsDownloaderErrorCode.MULTITRACK_FAILED;
+          // @ts-expect-error embedded audio policy is required
+          node.downloadMultiTrack({url:'https://example.test/media.m3u8',output:{type:'file',path:'multi.mp4'}});
+
           node.downloadToWritables({url:'https://example.test/a.m3u8'}, async output => new WritableStream<Uint8Array>());
           // @ts-expect-error split is only accepted by multiple-output entrypoints
           node.download({url:'https://example.test/a.m3u8',timeline:{changePolicy:'split'}});
@@ -133,6 +141,10 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
             const d = new HlsDownloader({adapter});
             assert.equal(d.capabilities.aes128, true);
             assert.equal(d.capabilities.liveRecording, true);
+            const multiChunks=[]; let multiClosed=false;
+            const multi = await d.downloadMultiTrack({url:process.argv[2]+'/master.m3u8',embeddedAudio:'keep',output:{type:'writable',writable:new WritableStream({write(b){multiChunks.push(b);},close(){multiClosed=true;}})}});
+            assert.equal(multiClosed,true); assert.ok(multi.report.tracks.length>0); assert.ok(d.capabilities.multiTrack);
+            writeFileSync(name+'-multitrack.mp4',Buffer.concat(multiChunks));
             const recordingChunks = []; let recordingClosed = false;
             const recording = d.startRecording({url:process.argv[2]+'/master.m3u8',output:{type:'writable',writable:new WritableStream({write(b){recordingChunks.push(b);},close(){recordingClosed=true;}})}});
             const recorded = await recording.result;

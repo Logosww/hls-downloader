@@ -1,3 +1,4 @@
+import { MultiTrackSummary } from './multitrack-summary';
 import { formatMediaTime } from '@/lib/timeline-options';
 import { Fragment } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -44,9 +45,11 @@ const DownloadProgress = ({
   onCancel,
 }: Pick<IDownloadListItemProps, 'item' | 'onCancel'>) => (
   <div className="w-full sm:w-44 shrink-0 flex items-center gap-2">
-    <Progress className="min-w-0 flex-1" value={item.percentage} />
+    <Progress className="min-w-0 flex-1" value={item.multiTrack ? null : item.percentage} />
     <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-      {Math.floor(item.percentage)}%
+      {item.multiTrack
+        ? `${(Number(item.multiTrackBytes ?? '0') / 1048576).toFixed(1)} MiB`
+        : `${Math.floor(item.percentage)}%`}
     </span>
     <Button
       size="icon-sm"
@@ -92,6 +95,50 @@ const DownloadActions = ({
   );
 };
 
+const DownloadOutputRow = ({
+  item,
+  output,
+  onSave,
+}: {
+  item: DownloadTask;
+  output: NonNullable<DownloadTask['outputs']>[number];
+  onSave?: IDownloadListItemProps['onSave'];
+}) => {
+  const descriptor = item.timelineReport?.outputs.find((value) => value.index === output.index);
+  return (
+    <div key={output.index} className="flex items-center justify-between gap-2 text-sm">
+      <div className="min-w-0">
+        <div className="truncate">{output.title}</div>
+        {descriptor && (
+          <p className="text-xs text-muted-foreground">
+            {formatMediaTime(descriptor.actualRange.start)} –{' '}
+            {formatMediaTime(descriptor.actualRange.end)} ·{' '}
+            {descriptor.reason === 'ConfigurationChanged'
+              ? '配置变化'
+              : descriptor.reason === 'Gap'
+                ? '缺口拆分'
+                : '首个输出'}
+          </p>
+        )}
+      </div>
+      <Button
+        size="sm"
+        disabled={output.saved || !output.blobURL}
+        onClick={() => onSave?.(item.id, output.index)}
+      >
+        {output.saved ? '已保存' : '保存文件'}
+      </Button>
+    </div>
+  );
+};
+
+function taskStatusText(item: DownloadTask): string {
+  if (item.timeline && item.status === 'downloading' && item.percentage <= 1)
+    return '扫描并验证时间轴';
+  if (item.outputMode === 'file' && item.status === 'downloading') return '下载并写入中';
+  return statusLabels[item.status];
+}
+
 const DownloadListItem = ({
   item,
   onSave,
@@ -117,12 +164,9 @@ const DownloadListItem = ({
           <div className="min-w-0">
             <div className="truncate text-sm">{item.title}</div>
             <div className="text-xs text-muted-foreground" role="status">
+              {item.multiTrack ? '多轨下载 · ' : ''}
               {item.outputMode === 'file' ? '大文件直存 · ' : '普通下载 · '}
-              {item.timeline && item.status === 'downloading' && item.percentage <= 1
-                ? '扫描并验证时间轴'
-                : item.outputMode === 'file' && item.status === 'downloading'
-                  ? '下载并写入中'
-                  : statusLabels[item.status]}
+              {taskStatusText(item)}
             </div>
             {item.error ? (
               <p className="text-xs text-destructive" role="alert">
@@ -137,6 +181,12 @@ const DownloadListItem = ({
           <DownloadActions item={item} onSave={onSave} onRemove={onRemove} />
         )}
       </div>
+      {item.multiTrackReport && (
+        <MultiTrackSummary
+          report={item.multiTrackReport}
+          onSave={() => onSaveArtifact?.(item.id)}
+        />
+      )}
       {item.timelineReport && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>
@@ -154,36 +204,9 @@ const DownloadListItem = ({
           </Button>
         </div>
       )}
-      {item.outputs?.map((output) => {
-        const descriptor = item.timelineReport?.outputs.find(
-          (value) => value.index === output.index,
-        );
-        return (
-          <div key={output.index} className="flex items-center justify-between gap-2 text-sm">
-            <div className="min-w-0">
-              <div className="truncate">{output.title}</div>
-              {descriptor && (
-                <p className="text-xs text-muted-foreground">
-                  {formatMediaTime(descriptor.actualRange.start)} –{' '}
-                  {formatMediaTime(descriptor.actualRange.end)} ·{' '}
-                  {descriptor.reason === 'ConfigurationChanged'
-                    ? '配置变化'
-                    : descriptor.reason === 'Gap'
-                      ? '缺口拆分'
-                      : '首个输出'}
-                </p>
-              )}
-            </div>
-            <Button
-              size="sm"
-              disabled={output.saved || !output.blobURL}
-              onClick={() => onSave?.(item.id, output.index)}
-            >
-              {output.saved ? '已保存' : '保存文件'}
-            </Button>
-          </div>
-        );
-      })}
+      {item.outputs?.map((output) => (
+        <DownloadOutputRow key={output.index} item={item} output={output} onSave={onSave} />
+      ))}
       {item.sidecars?.map((sidecar) => (
         <div key={sidecar.filename} className="flex items-center justify-between gap-2 text-sm">
           <span className="truncate">{sidecar.filename}</span>

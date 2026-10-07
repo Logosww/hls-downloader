@@ -1,5 +1,6 @@
 import type { HlsCompletedOutput } from './timeline';
 export const HlsDownloaderErrorCode = {
+  MULTITRACK_FAILED: 'MULTITRACK_FAILED',
   RECORDING_FAILED: 'RECORDING_FAILED',
   RANGE_INVALID: 'RANGE_INVALID',
   TIMELINE_FAILED: 'TIMELINE_FAILED',
@@ -47,6 +48,8 @@ export type HlsDownloaderErrorDetails = {
   trackId?: number;
   sampleIndex?: string;
   scheme?: string;
+  completedMultiTrackOutputs?: import('./recording').HlsRecordingOutputReport[];
+  multiTrackHistoryTruncated?: boolean;
   completedRecordingOutputs?: import('./recording').HlsRecordingOutputReport[];
   recordingHistoryTruncated?: boolean;
   completedOutputs?: HlsCompletedOutput[];
@@ -85,6 +88,8 @@ export class HlsDownloaderError extends Error {
   readonly trackId?: number;
   readonly sampleIndex?: string;
   readonly scheme?: string;
+  readonly completedMultiTrackOutputs?: import('./recording').HlsRecordingOutputReport[];
+  readonly multiTrackHistoryTruncated?: boolean;
   readonly completedRecordingOutputs?: import('./recording').HlsRecordingOutputReport[];
   readonly recordingHistoryTruncated?: boolean;
   readonly completedOutputs?: HlsCompletedOutput[];
@@ -114,6 +119,8 @@ export class HlsDownloaderError extends Error {
     this.trackId = details.trackId ?? undefined;
     this.sampleIndex = details.sampleIndex ?? undefined;
     this.scheme = details.scheme ?? undefined;
+    this.completedMultiTrackOutputs = details.completedMultiTrackOutputs;
+    this.multiTrackHistoryTruncated = details.multiTrackHistoryTruncated;
     this.completedRecordingOutputs = details.completedRecordingOutputs;
     this.recordingHistoryTruncated = details.recordingHistoryTruncated;
     this.completedOutputs = details.completedOutputs ?? undefined;

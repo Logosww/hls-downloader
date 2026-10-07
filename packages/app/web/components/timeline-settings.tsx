@@ -32,6 +32,7 @@ export function TimelineSettings({
   renditions?: Rendition[];
   canWriteToDirectory: boolean;
 }) {
+  const multi = useWatch({ control: form.control, name: 'trackMode' }) === 'multi';
   const timelineMode = useWatch({ control: form.control, name: 'timelineMode' });
   const quality = useWatch({ control: form.control, name: 'quality' });
   const subtitlesGroup = playlist?.find((item) => item.name === quality)?.subtitlesGroup;
@@ -68,7 +69,10 @@ export function TimelineSettings({
       {timelineMode === 'timeline' && (
         <FieldGroup>
           <FieldDescription>
-            先扫描并验证时间轴，再开始输出。范围按可解码边界扩展；不逐帧裁切。当前直接播放与转码仅适用于完整下载。留空起止时间可规划整个资源。
+            {multi
+              ? '按多轨媒体时间轴处理范围、缺口和配置变化；不逐帧裁切。'
+              : '先扫描并验证时间轴，再开始输出。范围按可解码边界扩展；不逐帧裁切。当前直接播放与转码仅适用于完整下载。'}{' '}
+            留空起止时间表示整个资源。
           </FieldDescription>
           <FieldGroup className="grid gap-4 sm:grid-cols-2">
             {(
@@ -149,65 +153,71 @@ export function TimelineSettings({
               />
             ))}
           </FieldGroup>
-          <FormField
-            name="subtitle"
-            control={form.control}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>WebVTT 字幕</FormLabel>
-                <FormControl>
-                  <Select
-                    value={
-                      subtitles.some(
-                        (item) => JSON.stringify([item.groupId, item.name]) === field.value,
-                      )
-                        ? field.value
-                        : 'none'
-                    }
-                    onValueChange={field.onChange}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {subtitles.find(
-                          (item) => JSON.stringify([item.groupId, item.name]) === field.value,
-                        )?.name ?? '不导出字幕'}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="none">不导出字幕</SelectItem>
-                        {subtitles.map((item) => (
-                          <SelectItem
-                            key={JSON.stringify([item.groupId, item.name])}
-                            value={JSON.stringify([item.groupId, item.name])}
-                          >
-                            {item.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FieldDescription>
-                  跟随已完成媒体报告，按输出拆分。同步证据不足时单独显示导出失败。
-                </FieldDescription>
-              </FormItem>
-            )}
-          />
-          <FormField
-            name="chaptersText"
-            control={form.control}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>章节（可选）</FormLabel>
-                <FormControl>
-                  <Textarea {...field} placeholder="0 --> 30 | 开场&#10;30 --> 60 | 正文" />
-                </FormControl>
-                <FieldDescription>每行填写公共时间轴秒数：开始 --&gt; 结束 | 标题</FieldDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {!multi && (
+            <>
+              <FormField
+                name="subtitle"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>WebVTT 字幕</FormLabel>
+                    <FormControl>
+                      <Select
+                        value={
+                          subtitles.some(
+                            (item) => JSON.stringify([item.groupId, item.name]) === field.value,
+                          )
+                            ? field.value
+                            : 'none'
+                        }
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue>
+                            {subtitles.find(
+                              (item) => JSON.stringify([item.groupId, item.name]) === field.value,
+                            )?.name ?? '不导出字幕'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="none">不导出字幕</SelectItem>
+                            {subtitles.map((item) => (
+                              <SelectItem
+                                key={JSON.stringify([item.groupId, item.name])}
+                                value={JSON.stringify([item.groupId, item.name])}
+                              >
+                                {item.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FieldDescription>
+                      跟随已完成媒体报告，按输出拆分。同步证据不足时单独显示导出失败。
+                    </FieldDescription>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                name="chaptersText"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>章节（可选）</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="0 --> 30 | 开场&#10;30 --> 60 | 正文" />
+                    </FormControl>
+                    <FieldDescription>
+                      每行填写公共时间轴秒数：开始 --&gt; 结束 | 标题
+                    </FieldDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          )}
           <Accordion>
             <AccordionItem value="timeline-advanced">
               <AccordionTrigger>高级时间轴设置</AccordionTrigger>
@@ -225,8 +235,10 @@ export function TimelineSettings({
                         />
                       </FormControl>
                       <FieldDescription>
-                        可填写 epochAnchors、limits、tailDuration；时间使用 ticks 字符串与
-                        timescale。预算限制规划量，并非内存上限。
+                        {multi
+                          ? '可填写 anchors（inputId、generation、epoch、source、presentation）、limits、tailDuration；input ID 见默认轨及字幕绑定。'
+                          : '可填写 epochAnchors、limits、tailDuration；预算限制规划量，并非内存上限。'}{' '}
+                        时间使用 ticks 字符串与 timescale。
                       </FieldDescription>
                       <FormMessage />
                     </FormItem>

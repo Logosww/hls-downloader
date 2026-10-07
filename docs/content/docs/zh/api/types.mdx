@@ -247,3 +247,7 @@ master 结果增加可选 `renditions`，variant 增加 `audioGroup`、`subtitle
 根包及 shared 导出 `HlsMediaTime`、`HlsPresentationRange`、`HlsTimelineOptions`、`HlsMultiTimelineOptions`、`HlsTimelineReport`、`HlsTimelineMapping`、`HlsTimelineOutputDescriptor`、`HlsOutputFactory`、`HlsCompletedOutput`、`HlsSidecar` 和 `HlsChapterOptions`。`HlsDownloaderOutputsOptions` 不接受转码/恢复，仅多输出选项的 timeline 接受 `changePolicy`。sample key request 包含可选 `kid` 及扩展的 method 联合类型。
 
 `HlsDownloaderErrorCode` 新增 `RANGE_INVALID`、`TIMELINE_FAILED`、`RESOURCE_CHANGED` 和 `BRIDGE_VERSION_MISMATCH`。安全错误上下文可包含 `trackId`、十进制字符串 `sampleIndex`、`scheme` 和 `completedOutputs`，不公开原始 key 或 provider 消息。
+
+## 多轨类型
+
+`HlsMultiTrackOptions<O>` 必须指定 `embeddedAudio` 和录制风格的显式 `output`。`HlsAudioTrackSelection`、`HlsSubtitleTrackSelection`、`HlsTrackMetadata`、`HlsMultiTrackPlaybackTarget` 描述选轨和播放检查。`HlsMultiTrackSession<O>` 控制方法接受任意所选媒体 ID，`HlsMultiTrackResult<O>` 根据 adapter/output 推导 Blob 或文件路径。`HlsMultiTrackReport`、`HlsMultiTrackInfo`、`HlsSubtitleCueReport`、`HlsMultiTrackEvent` 提供独立多轨元数据和字幕回执，不改变旧轨道枚举。自定义 adapter 的 `HlsMultiTrackCapabilities` 可选。`MULTITRACK_FAILED` 表示多轨会话/控制失败，既有资源、字幕、加密、取消、输出错误分类含义不变。

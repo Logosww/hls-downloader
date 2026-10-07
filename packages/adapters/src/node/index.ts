@@ -1,3 +1,4 @@
+import { runMultiTrack, multiTrackCapabilities } from '../multitrack';
 import {
   runRecording,
   recordingCapabilities,
@@ -970,6 +971,7 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
     timeline: timelineProfile,
     liveRecording: true,
     recording: recordingCapabilities(false),
+    multiTrack: multiTrackCapabilities(false),
     persistentOutput: true,
     writableOutput: true,
     alternateAudio: true,
@@ -980,6 +982,16 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   segmentRetryAttempts: 10,
   init,
   parseHls,
+  async runMultiTrack(options, host, finite) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
+    return runMultiTrack(
+      this,
+      { ...options, ...mergeFetchOptions(globalOptions, options) },
+      host,
+      nodeRecordingBridge,
+      finite,
+    );
+  },
   async runRecording(options, host) {
     const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
     return runRecording(

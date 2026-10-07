@@ -9,3 +9,5 @@ The SDK long-GOP fixture was generated with FFmpeg/libx264:
 ```
 ffmpeg -f lavfi -i testsrc2=size=160x90:rate=30 -t 8 -an -c:v libx264 -pix_fmt yuv420p -g 120 -keyint_min 120 -sc_threshold 0 -bf 3 -f hls -hls_time 1 -hls_flags split_by_time -hls_list_size 0 -hls_segment_filename seg%d.ts input.m3u8
 ```
+
+The canonical MP4 hashes in `expected.json` were refreshed from the hls-transmux 0.10.0 SDK acceptance record (commit `f0960b3`). Its classic muxer uses the exact common movie timescale and corresponding edit-list durations. All 16 legacy timeline reports are byte-for-byte equivalent as JSON, including media counts, ranges, mappings and output sizes; Native/WASM output comparisons and independent FFmpeg decoding remain required by the SDK tests.

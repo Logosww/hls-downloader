@@ -503,3 +503,9 @@ Opt-in `timeline` adds finite ranges, epochs, gap policies and requested/actual 
 `startRecording({ url, output })` 同步返回控制句柄：支持 Live/EVENT、VOD 暂停、停止排空和取消。Browser 可选择 writable 或必须指定 `maxBytes` 的 Blob；Node 可选择 writable 或不覆盖已有目标的文件。现有 `download*()` 保持有限下载语义。详见 [中文 API](docs/content/docs/zh/api/adapters.mdx)。
 
 `startRecording({ url, output })` returns a control handle for Live/EVENT, pausable VOD, stop/drain and cancellation. Browser supports writable or explicitly bounded Blob output; Node supports writable or non-overwriting files. Existing `download*()` methods remain finite-only. See the recording section in the [Adapter API](docs/content/docs/en/api/adapters.mdx).
+
+### 多轨输出 / Multi-track output
+
+新增 `downloadMultiTrack()` 和 `startMultiTrackRecording()`，通过显式 `embeddedAudio`、`audioTracks`、`subtitleTracks` 同时保留多音轨及内嵌 wvtt 字幕。Browser/Node 均支持 TS、fMP4 和新入口专用的 Packed AAC，支持矩阵与播放限制见[多轨 API](docs/content/docs/zh/api/hls-downloader.mdx#固定多轨下载与录制)。Web 示例应用提供多轨有限下载的显式音轨、字幕选择与有界输出。
+
+Use `downloadMultiTrack()` for finite ENDLIST inputs and `startMultiTrackRecording()` for VOD/Live/EVENT. Explicit track selection supports multiple audio tracks, embedded wvtt subtitles and Packed AAC through these new entries. Outputs use the recording-style Blob/file/writable configuration. Container output does not imply direct browser playback; see the [multi-track API](docs/content/docs/en/api/hls-downloader.mdx#fixed-multi-track-downloads-and-recording). The Web example exposes explicit audio/subtitle selection and bounded outputs for finite multi-track downloads.

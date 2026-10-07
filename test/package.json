@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "pnpm run test:unit && pnpm run test:e2e",
-    "test:unit": "vitest run parse-hls.unit.test.ts retry.unit.test.ts web-download-manager.unit.test.ts capabilities.unit.test.ts renditions.unit.test.ts timeline-sidecars.unit.test.ts",
-    "test:integration": "vitest run hls-http.integration.test.ts writable-output.integration.test.ts browser-request.integration.test.ts timeline.integration.test.ts recording.integration.test.ts",
+    "test:unit": "vitest run parse-hls.unit.test.ts retry.unit.test.ts web-download-manager.unit.test.ts capabilities.unit.test.ts renditions.unit.test.ts timeline-sidecars.unit.test.ts multitrack.unit.test.ts app-web-multitrack.unit.test.ts",
+    "test:integration": "vitest run hls-http.integration.test.ts writable-output.integration.test.ts browser-request.integration.test.ts timeline.integration.test.ts recording.integration.test.ts multitrack.integration.test.ts",
     "test:native:unit": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --lib hls",
     "test:e2e": "vitest run library-api.e2e.test.ts",
     "test:e2e:publish": "pnpm run test:publish",
@@ -28,7 +28,10 @@
     "test:browser:timeline": "pnpm run test:timeline && node browser/timeline-smoke.ts",
     "test:app-web:timeline": "node browser/app-web-timeline.ts",
     "test:recording": "vitest run recording.integration.test.ts",
-    "test:browser:recording": "pnpm run test:recording && node browser/recording-smoke.ts"
+    "test:browser:recording": "pnpm run test:recording && node browser/recording-smoke.ts",
+    "test:multitrack": "vitest run multitrack.unit.test.ts multitrack.integration.test.ts",
+    "test:browser:multitrack": "pnpm run test:multitrack && node browser/multitrack-smoke.ts",
+    "test:app-web:multitrack": "vitest run app-web-multitrack.unit.test.ts web-download-manager.unit.test.ts && node browser/app-web-multitrack.ts"
   },
   "dependencies": {
     "@hls-downloader/core": "workspace:*",

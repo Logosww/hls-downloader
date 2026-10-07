@@ -659,9 +659,9 @@ dependencies = [
 
 [[package]]
 name = "hls-transmux"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9589d42e2cf4783d29d117a1ac6613c8a46ca571cdb43d24b1185c81e31a8cba"
+checksum = "e4d47db40d3306bba8e61cdbd7483fc15b9bfe92237dc4f45b3814ac2b08289e"
 dependencies = [
  "aes",
  "cbc",

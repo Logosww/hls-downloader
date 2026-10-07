@@ -8,6 +8,8 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { MultiTrackFields } from './multitrack-fields';
+import { multiTrackAdvancedSchema } from '@/lib/multitrack-options';
 import { MediaSelectionFields } from './media-selection-fields';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
@@ -28,6 +30,14 @@ import type { Playlist, Rendition } from '@hls-downloader/shared';
 
 export const confirmFormSchema = z
   .object({
+    trackMode: z.enum(['single', 'multi']).optional(),
+    embeddedAudio: z.enum(['keep', 'exclude']).optional(),
+    audioTracks: z.array(z.string()).max(31).optional(),
+    embeddedSubtitles: z.array(z.string()).max(32).optional(),
+    defaultAudio: z.string().optional(),
+    defaultSubtitle: z.string().optional(),
+    subtitleBindings: z.record(z.string(), z.string()).optional(),
+    memoryLimitMiB: z.string().optional(),
     quality: z.string(),
     title: z.string(),
     outputMode: z.enum(['browser', 'file']),
@@ -44,9 +54,37 @@ export const confirmFormSchema = z
     subtitle: z.string().optional(),
   })
   .superRefine((values, context) => {
+    if (values.trackMode === 'multi') {
+      if (values.transcodePreset !== 'none')
+        context.addIssue({
+          code: 'custom',
+          path: ['transcodePreset'],
+          message: '多轨下载不支持转码',
+        });
+      const memory = Number(values.memoryLimitMiB ?? '512');
+      if (!Number.isInteger(memory) || memory < 1 || memory > 4096)
+        context.addIssue({
+          code: 'custom',
+          path: ['memoryLimitMiB'],
+          message: '内存上限须为 1–4096 MiB',
+        });
+      try {
+        if (values.timelineAdvanced?.trim())
+          multiTrackAdvancedSchema.parse(JSON.parse(values.timelineAdvanced));
+      } catch {
+        context.addIssue({
+          code: 'custom',
+          path: ['timelineAdvanced'],
+          message: '多轨高级设置无效，请检查 anchors、limits 与 tailDuration',
+        });
+      }
+    }
     if (values.timelineMode !== 'timeline') return;
     try {
-      buildTimelineOptions(values);
+      buildTimelineOptions({
+        ...values,
+        timelineAdvanced: values.trackMode === 'multi' ? '' : values.timelineAdvanced,
+      });
     } catch (error) {
       context.addIssue({
         code: 'custom',
@@ -64,7 +102,7 @@ export const confirmFormSchema = z
       });
     }
     try {
-      parseChapters(values.chaptersText ?? '');
+      if (values.trackMode !== 'multi') parseChapters(values.chaptersText ?? '');
     } catch (error) {
       context.addIssue({
         code: 'custom',
@@ -131,7 +169,7 @@ export const ConfirmModal = ({
 }: IConfirmModalProps) => {
   const { filename, previewSrc, playlist } = metadata || {};
   const [isDownloading, setIsDownloading] = useState(false);
-  const isLoading = Boolean(open && !previewSrc);
+  const isLoading = Boolean(open && !metadata);
   const form = useForm<ConfirmFormValues>({
     resolver: zodResolver(confirmFormSchema),
     values: {
@@ -149,15 +187,24 @@ export const ConfirmModal = ({
       timelineAdvanced: '',
       chaptersText: '',
       subtitle: 'none',
+      trackMode: 'single',
+      embeddedAudio: 'keep',
+      audioTracks: [],
+      embeddedSubtitles: [],
+      defaultAudio: 'auto',
+      defaultSubtitle: 'none',
+      subtitleBindings: {},
+      memoryLimitMiB: '512',
     },
   });
 
+  const trackMode = useWatch({ control: form.control, name: 'trackMode' });
   const outputMode = useWatch({ control: form.control, name: 'outputMode' });
   const timelineMode = useWatch({ control: form.control, name: 'timelineMode' });
   const changePolicy = useWatch({ control: form.control, name: 'changePolicy' });
+  const advancedMode = timelineMode === 'timeline' || trackMode === 'multi';
   const fileAvailable =
-    canWriteToFile &&
-    (timelineMode !== 'timeline' || changePolicy !== 'split' || canWriteToDirectory);
+    canWriteToFile && (!advancedMode || changePolicy !== 'split' || canWriteToDirectory);
 
   const handleConfirm = async (values: ConfirmFormValues) => {
     setIsDownloading(true);
@@ -204,6 +251,7 @@ export const ConfirmModal = ({
                 playlist={playlist}
                 isLoading={isLoading}
               />
+              <MultiTrackFields form={form} playlist={playlist} renditions={metadata?.renditions} />
               <TimelineSettings
                 form={form}
                 playlist={playlist}
@@ -215,11 +263,11 @@ export const ConfirmModal = ({
                 disabled={isDownloading}
                 fileAvailable={fileAvailable}
                 outputMode={outputMode}
-                timeline={timelineMode === 'timeline'}
+                timeline={advancedMode}
               />
               <TranscodeFields
                 form={form}
-                disabled={outputMode === 'file' || timelineMode === 'timeline' || isDownloading}
+                disabled={outputMode === 'file' || advancedMode || isDownloading}
               />
             </form>
           </ScrollArea>
@@ -236,7 +284,7 @@ export const ConfirmModal = ({
               variant="outline"
               size="sm"
               type="button"
-              disabled={isDownloading || timelineMode === 'timeline'}
+              disabled={isDownloading || advancedMode}
               onClick={form.handleSubmit(handleStreamPreview)}
             >
               直接播放
@@ -252,7 +300,7 @@ export const ConfirmModal = ({
               {downloadButtonLabel(
                 isDownloading,
                 outputMode,
-                timelineMode === 'timeline' && changePolicy === 'split',
+                advancedMode && changePolicy === 'split',
               )}
             </Button>
           </AlertDialogFooter>

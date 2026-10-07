@@ -443,3 +443,39 @@ const result = await downloader.downloadToWritables(
 ## startRecording
 
 `startRecording(options)` 同步返回录制句柄，包含 `result`、`stop`、`cancel`、VOD `pause`/`resume` 和独立输入控制。必须显式选择输出；现有下载入口仍限于有限输入。见[Adapter 录制 API](/api/adapters#持续录制)。
+
+## 固定多轨下载与录制
+
+`downloadMultiTrack(options)` 接受所选播放列表均已 ENDLIST 的有限输入。`startMultiTrackRecording(options)` 返回 VOD、Live、EVENT 会话，提供 `result`、`stop()`、`cancel()`、仅 VOD 可用的 `pause()` / `resume()`，以及 `endInput(id)`、`restartInput(id, { generation, url? })`。一次任务的选轨固定。现有 `download()`、`startRecording()` 及单个 `audio` 替换音轨选项保持原语义。
+
+```ts
+const result = await downloader.downloadMultiTrack({
+  url: 'https://example.com/master.m3u8',
+  embeddedAudio: 'exclude',
+  audioTracks: [
+    { id: 'english', selector: { language: 'en' } },
+    { id: 'japanese', selector: { groupId: 'audio', name: 'Japanese' } },
+  ],
+  subtitleTracks: [
+    { id: 'captions', selector: { groupId: 'subs', name: 'English' } },
+  ],
+  output: { type: 'writable', writable },
+});
+console.log(result.report.tracks, result.report.subtitleReports);
+```
+
+必须显式指定 `embeddedAudio`：`keep` 保留主路音频，`exclude` 排除主路音频。`audioTracks`、`subtitleTracks` 默认空数组，不自动选入其他 rendition。每项 `id` 唯一，允许 1–128 个 ASCII 字母、数字、`_`、`.`、`:`、`-`，`primary` 为保留值。音轨使用原有的语言精确匹配（忽略大小写）或 group/name 匹配，同语言候选沿用 default/autoselect 优先规则；字幕使用 group/name。只能选择当前 variant 关联 group 的轨道；直接媒体 URL 可用作主输入，但不能指定 rendition selector。无 URI 的主路音频由 `embeddedAudio` 控制；重复资源拒绝执行。
+
+可选 `metadata: { language, name, default }` 覆盖 rendition 元数据，`primaryAudio` 描述保留的主路音频。音频和字幕各最多一个默认轨；没有显式或继承的默认音轨时，上游选择第一条音轨。字幕 `timelineInputId` 默认 `primary`，必须指向所选媒体输入。分割输出保留轨道身份，restart 只改变媒体输入 generation，不改变选轨；绑定字幕已经结束时拒绝 restart。
+
+输出沿用录制所有权：Browser 支持 `{ type: 'blob', maxBytes, format?: 'mp4' | 'fmp4' }`、`writable`、`writables`；Node 支持 `file`、`files`、`writable`、`writables`。Blob/文件默认经典 MP4，writable 始终输出 fMP4。Blob 必须指定正数内存上限，文件不会覆盖已有目标。分割策略必须使用 `files` / `writables` factory。完成状态晚于 writable close；stop 排空已接收媒体及字幕尾部，cancel 中止待处理工作。有限下载要求全部媒体和字幕播放列表都有 ENDLIST，包括已经结束的 EVENT 快照。
+
+新入口沿用录制的 `timeline`、`missingSegments`、`durationLimit`、`limits`；锚点可使用任意所选媒体 ID。字幕使用 `X-TIMESTAMP-MAP`（缺省采用 WebVTT 零映射）、对应 discontinuity epoch 和精确媒体源时钟；不以分片序号或 EXTINF 猜测同步。33 位回绕无法明确解析时需提供显式 source anchor；绑定缺失或时钟不明确时报 `SUBTITLE_INVALID`。
+
+SDK 在对应媒体快照之前有界读取并接收字幕快照。初始可见 cue 集须能放入本次 sample/byte 预算；超限立即失败，不等待尚未启动的消费者。后续容量等待允许媒体继续前进，所有字幕轨额外只保留一批待接收数据。初始所选 manifest 还共享 `limits.queuedMetadataBytes`，默认 4 MiB。慢 writable 阻止新轮询，已开始工作仍受预算限制；报告历史有界，并提供明确截断标记。
+
+内嵌字幕支持 UTF-8 纯文本、identifier 和 `align`、`position`、`line`、`size`、`vertical`。STYLE、REGION、markup、重复或非法 settings、加密字幕均拒绝。自动行位置应省略 `line`；显式 `line:auto`、`position:80%,auto` 不受支持。重叠和空区间以 wvtt 表示；完全迟到 cue 报告为拒绝，部分迟到 cue 裁剪。已接收字幕尾部独立于媒体 EOF 排空，并受请求范围约束。现有 WebVTT sidecar 导出保持独立格式支持。
+
+`report` 在媒体统计之外增加 `configurationId`、`tracks`、`subtitleReports`、`trackHistoryTruncated`、`subtitleHistoryTruncated`。轨道记录包含稳定输出/input ID、输出索引、种类、编码、元数据、timescale、时长及 sample 数；字幕记录含实际输出区间及 `Written`、`Clipped`、`RejectedLate`。`subtitles` 事件提供接收数量，事件携带 `operationId`。宽整数继续使用十进制字符串。错误提供 `completedMultiTrackOutputs`、`multiTrackHistoryTruncated`；报告不能用于持久恢复。
+
+`playbackTarget` 默认 `container`。指定 `direct-browser`、`avfoundation`、`vlc`、`iina`、`ffmpeg` 时执行上游播放能力检查，不支持的组合报 `UNSUPPORTED_OUTPUT` 并附明确 `reason`。容器正确不代表播放器能选择或渲染所有轨道：浏览器 Blob/MSE 直接播放拒绝；VLC 完整字幕 settings、IINA/FFmpeg wvtt、IINA/FFmpeg 经典 MP4 edit-list 播放存在限制；原生播放器目标存在 decode gap 时拒绝。本轮不提供播放器、字幕提取服务或自动回退。

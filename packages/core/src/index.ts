@@ -1,3 +1,9 @@
+import type {
+  HlsMultiTrackOptions,
+  HlsMultiTrackResult,
+  HlsMultiTrackSession,
+  HlsMultiTrackHost,
+} from '@hls-downloader/shared';
 import { createRecording, awaitRecordingInit } from './recording';
 import type { HlsRecordingOptions, HlsRecordingSession } from '@hls-downloader/shared';
 import { createOutputManager } from './outputs';
@@ -426,6 +432,79 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       options.signal?.removeEventListener('abort', onAbort);
       writer?.releaseLock();
     }
+  }
+
+  downloadMultiTrack<O extends HlsDownloaderConfigFactory<T>['recordingOutput']>(
+    options: HlsMultiTrackOptions<O> & HlsDownloaderConfigFactory<T>['requestOptions'],
+  ): Promise<HlsMultiTrackResult<O>> {
+    return this.#startMultiTrack(options, true).result;
+  }
+
+  startMultiTrackRecording<O extends HlsDownloaderConfigFactory<T>['recordingOutput']>(
+    options: HlsMultiTrackOptions<O> & HlsDownloaderConfigFactory<T>['requestOptions'],
+  ): HlsMultiTrackSession<O> {
+    return this.#startMultiTrack(options, false);
+  }
+
+  #startMultiTrack<O extends HlsDownloaderConfigFactory<T>['recordingOutput']>(
+    options: HlsMultiTrackOptions<O> & HlsDownloaderConfigFactory<T>['requestOptions'],
+    finite: boolean,
+  ): HlsMultiTrackSession<O> {
+    const snapshot = this.#snapshotRequestOptions({
+      ...this.#globalOptions?.download,
+      ...options,
+      output: { ...options.output },
+      primaryAudio: options.primaryAudio && { ...options.primaryAudio },
+      audioTracks: options.audioTracks && structuredClone(options.audioTracks),
+      subtitleTracks: options.subtitleTracks && structuredClone(options.subtitleTracks),
+      limits: options.limits && structuredClone(options.limits),
+      durationLimit: options.durationLimit && { ...options.durationLimit },
+    });
+    // The lifecycle owns only output/state fields. The driver owns the distinct
+    // multi-track options, report and arbitrary input IDs; no legacy engine runs.
+    const session = createRecording(
+      snapshot as unknown as HlsRecordingOptions<O>,
+      async (request, host) => {
+        if (
+          !this.#adapter.runMultiTrack ||
+          !this.capabilities.multiTrack?.outputs.includes(request.output.type)
+        )
+          throw new HlsDownloaderError(
+            HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+            'Multi-track output unavailable',
+          );
+        await awaitRecordingInit(this.init(), request.signal!);
+        return this.#adapter.runMultiTrack(
+          injectContext(
+            request as unknown as HlsMultiTrackOptions,
+            this.#createOperationContext(request.operationId!),
+          ),
+          host as HlsMultiTrackHost,
+          finite,
+        );
+      },
+    );
+    const result = session.result.catch((error: unknown) => {
+      const e = normalizeHlsError(error, HlsDownloaderErrorCode.MULTITRACK_FAILED);
+      throw new HlsDownloaderError(
+        e.code === HlsDownloaderErrorCode.RECORDING_FAILED
+          ? HlsDownloaderErrorCode.MULTITRACK_FAILED
+          : e.code,
+        e.message,
+        {
+          ...e,
+          completedMultiTrackOutputs: e.completedRecordingOutputs,
+          multiTrackHistoryTruncated: e.recordingHistoryTruncated,
+        },
+      );
+    });
+    return {
+      ...session,
+      get state() {
+        return session.state;
+      },
+      result,
+    } as unknown as HlsMultiTrackSession<O>;
   }
 
   startRecording<O extends HlsDownloaderConfigFactory<T>['recordingOutput']>(

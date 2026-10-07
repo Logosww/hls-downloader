@@ -109,6 +109,8 @@ description: '本项目的所有重要变更。'
 
 ### Added
 
+- **BrowserAdapter / NodeAdapter**：新增 `downloadMultiTrack()`、`startMultiTrackRecording()`，支持显式保留多音轨、内嵌纯文本 WebVTT 字幕及 Packed AAC-LC（clear、AES-128、SAMPLE-AES）。提供独立多轨报告和可选播放器兼容性检查；支持有限下载、持续录制和分割输出，既有单音轨接口保持兼容。
+
 - **Universal**: 新增 `HlsDownloader.clearCache()` 用于失效 `parseHls` 缓存。
 - **Universal**: 新增 `VariantSelectOptions` 与 `VariantSelector` 类型；`selectBestVariant` 改为可替换策略，支持通过 `download({ variant })` / `downloadToStream({ variant })` 按次调用指定偏好。
 - `Playlist` 新增 `resolution`、`codecs`、`frameRate`、`isAudioOnly` 字段。

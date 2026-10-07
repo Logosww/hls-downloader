@@ -127,6 +127,7 @@ export type AdapterCapabilities = Readonly<{
     resume: false;
   }>;
   timeline?: Readonly<{ finite: true; ranges: true; epochs: true; split: true; resume: false }>;
+  multiTrack?: import('./multitrack').HlsMultiTrackCapabilities;
   recording?: import('./recording').HlsRecordingCapabilities;
   liveRecording: boolean;
   persistentOutput: boolean;
@@ -260,6 +261,11 @@ export interface HlsDownloaderAdapterInternal<
   RecordingOutput extends import('./recording').HlsRecordingOutput =
     import('./recording').HlsRecordingOutput,
 > extends HlsDownloaderAdapter {
+  runMultiTrack?(
+    options: import('./multitrack').HlsMultiTrackOptions<RecordingOutput> & RequestOptions,
+    host: import('./multitrack').HlsMultiTrackHost,
+    finite: boolean,
+  ): Promise<{ report: import('./multitrack').HlsMultiTrackReport }>;
   runRecording?(
     options: import('./recording').HlsRecordingOptions<RecordingOutput> & RequestOptions,
     host: import('./recording').HlsRecordingHost,

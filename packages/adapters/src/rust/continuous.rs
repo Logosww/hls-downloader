@@ -1,4 +1,5 @@
 //! Continuous bridge: bounded ordered events and independently callable controls.
+use super::multitrack::{Selection, Session};
 use super::timeline::{OutputFuture, OutputHost};
 use super::*;
 use std::{
@@ -45,6 +46,7 @@ pub struct Request {
     #[serde(flatten)]
     keyed: super::Request,
     recording: Options,
+    multitrack: Option<Selection>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -74,6 +76,10 @@ pub fn failure(e: ContinuousError) -> Value {
             }
             ContinuousErrorKind::InputRewrite => "RESOURCE_CHANGED",
             ContinuousErrorKind::Media => "MEDIA_INVALID",
+            ContinuousErrorKind::InvalidSubtitle | ContinuousErrorKind::MissingSubtitleMapping => {
+                "SUBTITLE_INVALID"
+            }
+            ContinuousErrorKind::UnsupportedSubtitleProfile => "UNSUPPORTED_RENDITION",
             _ => "RECORDING_FAILED",
         }
     };
@@ -114,6 +120,7 @@ fn event(e: ContinuousEvent) -> Value {
 struct Events {
     queue: VecDeque<Value>,
     overflow: bool,
+    playback_error: Option<Value>,
 }
 #[derive(Clone)]
 struct Outputs {
@@ -129,7 +136,7 @@ impl Outputs {
         loop {
             let next = {
                 let mut e = self.events.lock().unwrap();
-                if e.overflow {
+                if e.overflow || e.playback_error.is_some() {
                     return Err(std::io::Error::other("recording event budget exceeded"));
                 }
                 e.queue.pop_front()
@@ -233,7 +240,8 @@ impl ContinuousWait for Waiter {
 }
 pub struct Bridge {
     pub handle: ContinuousHandle,
-    session: Mutex<Option<ContinuousSession>>,
+    session: Mutex<Option<Session>>,
+    multi: Option<MultiTrackHandle>,
     output: Outputs,
     kind: String,
     format: OutputFormat,
@@ -248,7 +256,7 @@ impl Bridge {
         output: Arc<dyn OutputHost>,
     ) -> std::result::Result<Self, Value> {
         let r: Request = serde_json::from_str(text).map_err(|_| invalid())?;
-        if r.bridge_version != 1 {
+        if r.bridge_version != if r.multitrack.is_some() { 2 } else { 1 } {
             return Err(error("BRIDGE_VERSION_MISMATCH", "wireVersion"));
         }
         let k = &r.keyed;
@@ -259,6 +267,7 @@ impl Bridge {
             events: Arc::new(Mutex::new(Events {
                 queue: VecDeque::new(),
                 overflow: false,
+                playback_error: None,
             })),
             limit: b
                 .history_entries
@@ -269,6 +278,11 @@ impl Bridge {
             drain_lock: Arc::new(tokio::sync::Mutex::new(())),
         };
         let event_output = outputs.clone();
+        let playback = r.multitrack.clone();
+        let playback_kind = o.output_type.clone();
+        let playback_format = o.format.clone();
+        let playback_capacity = o.max_bytes;
+        let playback_preserves_gaps = o.timeline.gap_policy.as_deref() != Some("collapse");
         let mut options = ContinuousOptions::default()
             .with_mode(if o.vod {
                 ContinuousMode::Vod
@@ -324,6 +338,24 @@ impl Bridge {
                 },
             )
             .with_on_event(Arc::new(move |e| {
+                if let Some(error) = playback
+                    .as_ref()
+                    .filter(|_| {
+                        playback_preserves_gaps && matches!(&e, ContinuousEvent::Gap { .. })
+                    })
+                    .and_then(|selection| {
+                        selection
+                            .check_playback(
+                                &playback_kind,
+                                &playback_format,
+                                playback_capacity,
+                                true,
+                            )
+                            .err()
+                    })
+                {
+                    event_output.events.lock().unwrap().playback_error = Some(error);
+                }
                 let value = event(e);
                 if value.is_null() {
                     return;
@@ -372,8 +404,10 @@ impl Bridge {
             source.clone(),
         ));
         if k.audio.is_some() {
-            inputs =
-                inputs.with_audio(ContinuousInput::new(InputId::new("audio").unwrap(), source));
+            inputs = inputs.with_audio(ContinuousInput::new(
+                InputId::new("audio").unwrap(),
+                source.clone(),
+            ));
         }
         let keys = KeySession::new(
             k.operation_id.clone(),
@@ -394,15 +428,21 @@ impl Bridge {
                 ),
         )
         .map_err(|_| error("KEY_INVALID", "options"))?;
-        let session = ContinuousSession::new(inputs, keys, options).map_err(failure)?;
+        let session = if let Some(selection) = &r.multitrack {
+            selection.check_playback(&o.output_type, &o.format, o.max_bytes, false)?;
+            Session::Multi(selection.create(source.clone(), keys, options)?)
+        } else {
+            Session::Legacy(ContinuousSession::new(inputs, keys, options).map_err(failure)?)
+        };
         let format = match o.format.as_str() {
             "mp4" => OutputFormat::Mp4,
             "fmp4" => OutputFormat::FragmentedMp4,
             _ => return Err(invalid()),
         };
-        let handle = session.handle();
+        let (handle, multi) = session.handles();
         Ok(Self {
             handle,
+            multi,
             session: Mutex::new(Some(session)),
             output: outputs,
             kind: o.output_type.clone(),
@@ -422,7 +462,11 @@ impl Bridge {
         if matches!(action.as_deref(), Some("resume" | "stop" | "cancel")) {
             self.hold.store(false, Ordering::SeqCst);
         }
-        let result = command(&self.handle, text).await;
+        let result = if let Some(multi) = &self.multi {
+            super::multitrack::command(multi, text).await
+        } else {
+            command(&self.handle, text).await
+        };
         if result.get("error").is_some() && action.as_deref() == Some("pause") {
             self.hold.store(false, Ordering::SeqCst);
         }
@@ -492,6 +536,9 @@ impl Bridge {
                 _=pump=>{self.handle.cancel();Err(error("OUTPUT_WRITE_FAILED","event"))}
             }
         };
+        if let Some(error) = self.output.events.lock().unwrap().playback_error.clone() {
+            return error;
+        }
         if self.output.events.lock().unwrap().overflow {
             return error("RESOURCE_LIMIT_EXCEEDED", "EventQueueLimit");
         }

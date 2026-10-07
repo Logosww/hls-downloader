@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-hls-transmux = { version = "0.9.0", default-features = false, features = ["serde"] }
+hls-transmux = { version = "0.10.0", default-features = false, features = ["serde"] }
 wasm-bindgen = "=0.2.100"
 wasm-bindgen-futures = "=0.4.50"
 js-sys = "=0.3.77"

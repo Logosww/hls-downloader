@@ -16,6 +16,7 @@ import ConfirmModal, {
   buildBrowserTranscodeOptions,
   type ConfirmFormValues,
 } from '@/components/confirm-modal';
+import { buildMultiTrackConfig } from '@/lib/multitrack-options';
 import { buildTimelineOptions, parseChapters } from '@/lib/timeline-options';
 import DownloadList from '@/components/download-list';
 import { HeadersModal } from '@/components/headers-modal';
@@ -90,6 +91,17 @@ export default function HomePage() {
   const onConfirmDownload = async (values: ConfirmFormValues) => {
     const selection = getSelection(values);
     if (!selection) return false;
+    let multiTrack;
+    try {
+      multiTrack = buildMultiTrackConfig(
+        values,
+        metadata?.playlist.find((item) => item.name === values.quality),
+        metadata?.renditions,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '多轨设置无效');
+      return false;
+    }
     const transcode = buildBrowserTranscodeOptions(values);
     const extension = transcode?.preset === 'vp9' ? 'webm' : 'mp4';
     const task = {
@@ -99,9 +111,12 @@ export default function HomePage() {
       previewSrc: metadata?.previewSrc ?? '',
       headers: requestHeaders,
       transcode,
-      timeline: buildTimelineOptions(values),
+      multiTrack,
+      timeline: multiTrack ? undefined : buildTimelineOptions(values),
       chapters:
-        values.timelineMode === 'timeline' ? parseChapters(values.chaptersText ?? '') : undefined,
+        !multiTrack && values.timelineMode === 'timeline'
+          ? parseChapters(values.chaptersText ?? '')
+          : undefined,
       subtitle: (() => {
         const selected = metadata?.playlist.find((item) => item.name === values.quality);
         const rendition = metadata?.renditions?.find(
@@ -110,7 +125,7 @@ export default function HomePage() {
             item.groupId === selected?.subtitlesGroup &&
             JSON.stringify([item.groupId, item.name]) === values.subtitle,
         );
-        return values.timelineMode === 'timeline' && rendition
+        return !multiTrack && values.timelineMode === 'timeline' && rendition
           ? { groupId: rendition.groupId, name: rendition.name }
           : undefined;
       })(),

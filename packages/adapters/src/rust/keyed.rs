@@ -15,6 +15,8 @@ use std::{
     },
 };
 
+#[path = "multitrack.rs"]
+pub mod multitrack;
 #[path = "continuous.rs"]
 pub mod continuous;
 #[path = "timeline.rs"]

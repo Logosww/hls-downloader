@@ -1,0 +1,40 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Multi-track WASM contract</title></head><body><script type="module">
+import { HlsDownloader } from '../../packages/core/src/index.ts';
+import { BrowserAdapter } from '../../packages/adapters/src/browser/index.ts';
+import { canonicalMp4 } from '../fixtures/mp4.ts';
+window.runMultiTrack = async () => {
+  const selection = {
+    audioTracks: [{ id: 'english', selector: { groupId: 'a', name: 'English' } }, { id: 'japanese', selector: { language: 'ja' } }],
+    subtitleTracks: [{ id: 'captions-en', selector: { groupId: 's', name: 'English' } }, { id: 'captions-ja', selector: { groupId: 's', name: 'Japanese' } }],
+  };
+  const results = [];
+  for (const embeddedAudio of ['keep', 'exclude']) {
+    const chunks = [];
+    let closed = false;
+    const result = await new HlsDownloader({ adapter: BrowserAdapter }).downloadMultiTrack({
+      url: location.origin + '/master.m3u8', ...selection, embeddedAudio,
+      output: { type: 'writable', writable: new WritableStream({ write(b) { chunks.push(b); }, close() { closed = true; } }) },
+    });
+    if (!closed) throw Error('Completion before close');
+    const bytes = new Uint8Array(chunks.reduce((n, b) => n + b.length, 0));
+    let at = 0; for (const b of chunks) { bytes.set(b, at); at += b.length; }
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', canonicalMp4(bytes))), b => b.toString(16).padStart(2, '0')).join('');
+    const { peaks, configurationId, ...report } = result.report;
+    results.push({ name: embeddedAudio, hash, report });
+  }
+  for (const kind of ['clear', 'aes128', 'sample_aes', 'aes128_rotation', 'sample_aes_rotation']) {
+    const result = await new HlsDownloader({ adapter: BrowserAdapter }).downloadMultiTrack({
+      url: location.origin + '/packed/' + kind + '/input.m3u8', embeddedAudio: 'keep',
+      decryption: { keyResolver: async r => ({ key: Uint8Array.from((r.uri.includes('rotated') ? '603deb1015ca71be2b73aef0857d7781' : '2b7e151628aed2a6abf7158809cf4f3c').match(/../g), s => parseInt(s, 16)) }) },
+      output: { type: 'blob', maxBytes: 4 * 1024 * 1024 },
+    });
+    if (result.report.tracks[0]?.sampleCount !== '53' || result.report.tracks[0]?.timescale !== 44100) throw Error('Packed AAC clock/count');
+  }
+  const session = new HlsDownloader({ adapter: BrowserAdapter }).startMultiTrackRecording({
+    url: location.origin + '/master.m3u8', ...selection, embeddedAudio: 'exclude',
+    output: { type: 'writable', writable: new WritableStream({ write() { session.cancel(); return new Promise(() => {}); } }) },
+  });
+  try { await session.result; throw Error('Cancellation resolved'); } catch (e) { if (e.code !== 'ABORTED') throw e; }
+  return results;
+};
+</script></body></html>

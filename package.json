@@ -94,7 +94,11 @@
     "test:app-web:timeline": "pnpm --filter @hls-downloader/test run test:app-web:timeline",
     "test:recording": "pnpm --filter @hls-downloader/test run test:recording",
     "test:browser:recording": "pnpm --filter @hls-downloader/test run test:browser:recording",
-    "test:types:recording": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/recording-api.typecheck.ts"
+    "test:types:recording": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/recording-api.typecheck.ts",
+    "test:multitrack": "pnpm --filter @hls-downloader/test run test:multitrack",
+    "test:browser:multitrack": "pnpm --filter @hls-downloader/test run test:browser:multitrack",
+    "test:types:multitrack": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/multitrack-api.typecheck.ts",
+    "test:app-web:multitrack": "pnpm --filter @hls-downloader/test run test:app-web:multitrack"
   },
   "dependencies": {
     "@hls-downloader/adapters": "workspace:*",

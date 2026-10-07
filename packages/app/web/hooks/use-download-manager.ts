@@ -11,6 +11,7 @@ import type {
   HlsChapter,
   HlsSidecar,
   HlsCompletedOutput,
+  HlsMultiTrackReport,
 } from '@hls-downloader/shared';
 import { HlsDownloaderErrorCode, exportChapters } from '@hls-downloader/shared';
 import { toast } from 'sonner';
@@ -24,6 +25,8 @@ import {
 } from '../lib/file-output';
 
 import { createTimelineFileOutput } from '../lib/timeline-output';
+import type { WebMultiTrackConfig } from '../lib/multitrack-options';
+import { createMultiTrackMemoryOutput } from '../lib/multitrack-output';
 import { outputFilename } from '../lib/timeline-options';
 
 export type TaskOutput = { index: string; title: string; blobURL?: string; saved: boolean };
@@ -54,6 +57,9 @@ export type DownloadTask = {
   headers?: Record<string, string>;
   variant?: VariantSelectOptions;
   transcode?: HlsDownloaderBrowserTranscodeOptions;
+  multiTrack?: WebMultiTrackConfig;
+  multiTrackReport?: HlsMultiTrackReport;
+  multiTrackBytes?: string;
   timeline?: HlsMultiTimelineOptions;
   timelineReport?: HlsTimelineReport;
   outputs?: TaskOutput[];
@@ -73,7 +79,7 @@ type Action =
       id: string;
       patch: Pick<
         Partial<DownloadTask>,
-        'outputs' | 'sidecars' | 'sidecarError' | 'timelineReport'
+        'outputs' | 'sidecars' | 'sidecarError' | 'timelineReport' | 'multiTrackReport'
       >;
     };
 
@@ -209,9 +215,80 @@ export function useDownloadManager(maxConcurrent = 3) {
             .filter(([id]) => id !== task.id)
             .map(([, handle]) => handle),
       });
+      const memoryOutput = task.multiTrack
+        ? createMultiTrackMemoryOutput(task.filename, task.multiTrack.maxBytes)
+        : undefined;
       void (async () => {
         let report: HlsTimelineReport | undefined;
-        if (task.timeline) {
+        if (task.multiTrack) {
+          const { maxBytes, ...config } = task.multiTrack;
+          const split = config.timeline?.changePolicy === 'split';
+          const result = await downloader.downloadMultiTrack({
+            ...options,
+            ...config,
+            output:
+              task.outputMode === 'file'
+                ? { type: 'writables', acquire: fileOutput.factory }
+                : split
+                  ? { type: 'writables', acquire: memoryOutput!.acquire }
+                  : { type: 'blob', maxBytes },
+            onEvent(event) {
+              if (
+                !mounted.current ||
+                controller.signal.aborted ||
+                !controllers.current.has(task.id)
+              )
+                return;
+              if (event.type === 'progress')
+                dispatch({
+                  type: 'update',
+                  id: task.id,
+                  patch: { multiTrackBytes: event.bytesWritten },
+                });
+              if (event.type === 'state' && ['running', 'finalizing'].includes(event.state))
+                dispatch({
+                  type: 'update',
+                  id: task.id,
+                  patch: { status: event.state === 'finalizing' ? 'saving' : 'downloading' },
+                });
+            },
+          });
+          if ('blob' in result && result.blob instanceof Blob)
+            memoryOutput!.outputs.push({
+              index: '0',
+              title: task.title,
+              blobURL: URL.createObjectURL(result.blob),
+              saved: false,
+            });
+          fileOutput.complete(result.report.outputs);
+          if (
+            !mounted.current ||
+            controller.signal.aborted ||
+            !tasksRef.current.some((item) => item.id === task.id)
+          ) {
+            memoryOutput!.revoke();
+            return;
+          }
+          const directory = directories.current.get(task.id),
+            handle = fileHandles.current.get(task.id);
+          dispatch({
+            type: 'update',
+            id: task.id,
+            patch: {
+              status: task.outputMode === 'file' ? 'saved' : 'completed',
+              percentage: 100,
+              multiTrackReport: result.report,
+              outputs:
+                task.outputMode === 'file'
+                  ? result.report.outputs.map(({ index }) => ({
+                      index,
+                      title: directory ? outputFilename(task.filename, index) : handle!.name,
+                      saved: true,
+                    }))
+                  : [...memoryOutput!.outputs],
+            },
+          });
+        } else if (task.timeline) {
           if (task.outputMode === 'file') {
             const handle = fileHandles.current.get(task.id);
             const directory = directories.current.get(task.id);
@@ -332,6 +409,36 @@ export function useDownloadManager(maxConcurrent = 3) {
         }
       })()
         .catch((error: unknown) => {
+          if (task.multiTrack) {
+            const completed =
+              error &&
+              typeof error === 'object' &&
+              'completedMultiTrackOutputs' in error &&
+              Array.isArray(error.completedMultiTrackOutputs)
+                ? (error.completedMultiTrackOutputs as { index: string }[])
+                : [];
+            fileOutput.complete(completed);
+            const directory = directories.current.get(task.id),
+              handle = fileHandles.current.get(task.id);
+            if (mounted.current && tasksRef.current.some((item) => item.id === task.id))
+              dispatch({
+                type: 'artifacts',
+                id: task.id,
+                patch: {
+                  outputs:
+                    task.outputMode === 'file'
+                      ? completed.map(({ index }) => ({
+                          index,
+                          title: directory
+                            ? outputFilename(task.filename, index)
+                            : (handle?.name ?? task.title),
+                          saved: true,
+                        }))
+                      : [...memoryOutput!.outputs],
+                },
+              });
+            else memoryOutput!.revoke();
+          }
           if (
             task.outputMode === 'file' &&
             error &&
@@ -367,22 +474,34 @@ export function useDownloadManager(maxConcurrent = 3) {
             error.code === HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED;
           const code =
             error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+          const reason =
+            error && typeof error === 'object' && 'reason' in error ? error.reason : undefined;
           const timelineMessage =
-            code === 'RANGE_INVALID'
-              ? '范围无效或超出媒体时间轴'
-              : code === 'RESOURCE_LIMIT_EXCEEDED'
-                ? '时间轴规划超出预算，请缩小范围或调整高级设置'
-                : code === 'RESOURCE_CHANGED'
-                  ? '媒体资源已变化，请重新创建任务'
-                  : code === 'TIMELINE_FAILED'
-                    ? '时间轴无法映射或单文件无法表达变化，请检查锚点、缺口或拆分设置'
-                    : code === 'UNSUPPORTED_ENCRYPTION'
-                      ? '此加密容器与编码组合暂不支持'
-                      : code === 'KEY_UNAVAILABLE' ||
-                          code === 'KEY_INVALID' ||
-                          code === 'KEY_RESOLUTION_FAILED'
-                        ? '无法获取有效密钥，请检查资源与请求头'
-                        : undefined;
+            task.multiTrack && reason === 'UnsupportedSubtitleProfile'
+              ? '内嵌字幕仅支持纯文本及有限 cue 设置，不支持样式、区域或 markup'
+              : task.multiTrack && code === 'UNSUPPORTED_RENDITION'
+                ? '多轨下载要求所有所选播放列表均已结束，且选轨属于当前视频质量'
+                : task.multiTrack && code === 'SUBTITLE_INVALID'
+                  ? '内嵌字幕格式或时钟映射无效，请检查字幕绑定及时间锚点'
+                  : task.multiTrack && code === 'MULTITRACK_FAILED'
+                    ? '多轨处理失败，请检查媒体时钟、编码与配置变化策略'
+                    : task.multiTrack && code === 'RESOURCE_LIMIT_EXCEEDED'
+                      ? '多轨任务超出内存或处理预算；可提高上限、缩小范围或使用文件直存'
+                      : code === 'RANGE_INVALID'
+                        ? '范围无效或超出媒体时间轴'
+                        : code === 'RESOURCE_LIMIT_EXCEEDED'
+                          ? '时间轴规划超出预算，请缩小范围或调整高级设置'
+                          : code === 'RESOURCE_CHANGED'
+                            ? '媒体资源已变化，请重新创建任务'
+                            : code === 'TIMELINE_FAILED'
+                              ? '时间轴无法映射或单文件无法表达变化，请检查锚点、缺口或拆分设置'
+                              : code === 'UNSUPPORTED_ENCRYPTION'
+                                ? '此加密容器与编码组合暂不支持'
+                                : code === 'KEY_UNAVAILABLE' ||
+                                    code === 'KEY_INVALID' ||
+                                    code === 'KEY_RESOLUTION_FAILED'
+                                  ? '无法获取有效密钥，请检查资源与请求头'
+                                  : undefined;
           const message =
             timelineMessage ??
             (task.outputMode === 'file'
@@ -442,7 +561,7 @@ export function useDownloadManager(maxConcurrent = 3) {
     async (
       task: Omit<DownloadTask, 'id' | 'percentage' | 'status' | 'blobURL' | 'outputMode'>,
     ): Promise<boolean> => {
-      const split = task.timeline?.changePolicy === 'split';
+      const split = (task.multiTrack?.timeline ?? task.timeline)?.changePolicy === 'split';
       const picker = split ? getDirectoryPicker() : getSaveFilePicker();
       if (!picker || !downloader.capabilities.writableOutput || task.transcode) {
         toast.error('当前设置不支持大文件直存，请选择普通下载');
@@ -558,8 +677,8 @@ export function useDownloadManager(maxConcurrent = 3) {
     const sidecar = task.sidecars?.find((item) => item.filename === filename);
     const text =
       sidecar?.text ??
-      (filename === undefined && task.timelineReport
-        ? JSON.stringify(task.timelineReport, null, 2)
+      (filename === undefined && (task.multiTrackReport || task.timelineReport)
+        ? JSON.stringify(task.multiTrackReport ?? task.timelineReport, null, 2)
         : undefined);
     if (text === undefined) return;
     const url = URL.createObjectURL(
@@ -567,7 +686,8 @@ export function useDownloadManager(maxConcurrent = 3) {
     );
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = sidecar?.filename ?? `${task.filename}.timeline.json`;
+    anchor.download =
+      sidecar?.filename ?? `${task.filename}.${task.multiTrack ? 'multitrack' : 'timeline'}.json`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();

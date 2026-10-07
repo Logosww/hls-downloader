@@ -483,3 +483,39 @@ Existing `downloadSubtitles()` is unchanged. Encrypted subtitle resources and su
 ## startRecording
 
 `startRecording(options)` synchronously returns a recording handle with `result`, `stop`, `cancel`, VOD `pause`/`resume`, and independent input controls. Output is explicit; existing download methods remain finite-only. See [Adapter recording API](/api/adapters#continuous-recording).
+
+## Fixed multi-track downloads and recording
+
+`downloadMultiTrack(options)` accepts selected finite ENDLIST playlists. `startMultiTrackRecording(options)` returns a session for VOD, Live and EVENT; use its `result`, `stop()`, `cancel()`, `pause()` / `resume()` (VOD only), `endInput(id)` and `restartInput(id, { generation, url? })`. Both use a fixed selection for the operation. Existing `download()`, `startRecording()` and their single `audio` replacement option retain their semantics.
+
+```ts
+const result = await downloader.downloadMultiTrack({
+  url: 'https://example.com/master.m3u8',
+  embeddedAudio: 'exclude',
+  audioTracks: [
+    { id: 'english', selector: { language: 'en' } },
+    { id: 'japanese', selector: { groupId: 'audio', name: 'Japanese' } },
+  ],
+  subtitleTracks: [
+    { id: 'captions', selector: { groupId: 'subs', name: 'English' } },
+  ],
+  output: { type: 'writable', writable },
+});
+console.log(result.report.tracks, result.report.subtitleReports);
+```
+
+`embeddedAudio` is required: `keep` retains main audio and `exclude` removes it. `audioTracks` and `subtitleTracks` default to empty; no extra renditions are automatically selected. Each track needs a unique `id` (1–128 ASCII letters, digits, `_`, `.`, `:`, or `-`); `primary` is reserved. Audio selectors use the existing exact, case-insensitive language match or group/name match, including default/autoselect tie-breaking. Subtitle selectors use group/name. Selections must belong to the chosen variant's group; direct media URLs support the primary input without rendition selectors. URI-less main audio uses `embeddedAudio`, not an external selector. Duplicate resources are rejected.
+
+Optional `metadata: { language, name, default }` overrides rendition metadata; `primaryAudio` supplies retained main-audio metadata. At most one selected audio and one subtitle may be default. Without an explicit/inherited audio default, the first audio is selected by the engine. Subtitle `timelineInputId` defaults to `primary` and must name a selected media input. Track IDs and selection remain fixed across output splits; restart changes a media input's generation, not its identity. Restarting a binding whose subtitles have ended is rejected.
+
+Outputs follow recording ownership: Browser supports `{ type: 'blob', maxBytes, format?: 'mp4' | 'fmp4' }`, `writable`, and `writables`; Node supports `file`, `files`, `writable`, and `writables`. Blob/file defaults to classic MP4; writable always emits fMP4. Blob requires a positive memory cap. File publication does not overwrite an existing destination. `files` / `writables` factories are required for split policies. Completion waits for the caller's writable to close. Stop drains admitted media and caption tails; cancel aborts pending work. Finite downloads require ENDLIST on every selected media and subtitle playlist, including finished EVENT snapshots.
+
+Recording `timeline`, `missingSegments`, `durationLimit` and `limits` apply to the new entries; anchors accept arbitrary selected media IDs. Subtitle clocks come from `X-TIMESTAMP-MAP` (or the WebVTT default zero mapping), matching discontinuity epochs and exact media source clocks. Sequence numbers and EXTINF are not synchronization clocks. Supply explicit source anchors where a 33-bit wrap cannot be resolved; missing or ambiguous bindings fail with `SUBTITLE_INVALID`.
+
+The SDK reads and admits bounded subtitle snapshots before the corresponding media snapshot. The initial visible cue set must fit the operation's sample/byte budgets; an oversized initial admission fails rather than waiting for a consumer that has not started. Later admission can wait for capacity while media proceeds. Only one additional pending subtitle batch is retained across tracks. Selected initial manifests also share `limits.queuedMetadataBytes` (4 MiB by default). A slow writable stops new polling; in-flight work remains bounded. Reports retain bounded history with explicit truncation flags.
+
+The embedded profile is UTF-8 plain text, identifiers and `align`, `position`, `line`, `size`, `vertical` settings. STYLE, REGION, markup, duplicate/invalid settings and encrypted subtitles are rejected. Omit `line` for automatic placement; explicit `line:auto` and `position:80%,auto` are unsupported. Overlap and empty intervals are represented as wvtt. Fully late cues are reported as rejected; partially late cues are clipped. Accepted tails drain independently of media EOF and are bounded by any requested range. Existing WebVTT sidecar exports retain their separate profile.
+
+`report` adds `configurationId`, `tracks`, `subtitleReports`, `trackHistoryTruncated` and `subtitleHistoryTruncated` to media accounting. Tracks include stable output/input IDs, output index, kind, codec, metadata, timescale, duration and sample count. Subtitle reports identify actual output intervals and `Written`, `Clipped` or `RejectedLate` disposition. The `subtitles` event gives admission counts; events include `operationId`. Wide protocol integers remain decimal strings. Failures expose `completedMultiTrackOutputs` and `multiTrackHistoryTruncated`; reports are not recovery checkpoints.
+
+`playbackTarget` defaults to `container`. Optional `direct-browser`, `avfoundation`, `vlc`, `iina`, or `ffmpeg` applies upstream playback checks and returns `UNSUPPORTED_OUTPUT` with a concrete `reason` when unsupported. Container correctness does not guarantee selectable/rendered tracks in a player. Direct browser Blob/MSE is rejected; VLC's full subtitle-settings profile, IINA/FFmpeg wvtt and IINA/FFmpeg classic edit-list playback have restrictions. Native player declarations with decode gaps are rejected. No player integration, subtitle extraction service or automatic fallback is included.
