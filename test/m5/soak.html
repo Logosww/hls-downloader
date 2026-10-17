@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8" /><title>M5 real-time recording soak</title>
+<script type="module">
+  import { HlsDownloader } from '../../packages/core/src/index.ts';
+  import { BrowserAdapter } from '../../packages/adapters/src/browser/index.ts';
+  import { ensureWasm } from '../../packages/adapters/src/browser/wasm.ts';
+  import init from '../../packages/adapters/src/browser/generated/hls_transmux_browser_wasm.js';
+  import { beginSoak } from './soak-client.ts';
+  await ensureWasm();
+  const { memory } = await init();
+  let operation;
+  window.soak = {
+    start(config) {
+      operation = beginSoak(new HlsDownloader({ adapter: BrowserAdapter }), config);
+    },
+    snapshot() {
+      return { ...operation.snapshot(), wasmBytes: memory.buffer.byteLength };
+    },
+    result() {
+      return operation.result;
+    },
+    cancel() {
+      operation?.cancel();
+    },
+  };
+</script>

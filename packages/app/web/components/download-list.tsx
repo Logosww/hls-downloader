@@ -104,7 +104,7 @@ const DownloadOutputRow = ({
   output: NonNullable<DownloadTask['outputs']>[number];
   onSave?: IDownloadListItemProps['onSave'];
 }) => {
-  const descriptor = item.timelineReport?.outputs.find((value) => value.index === output.index);
+  const descriptor = item.timelineMap?.outputs.find((value) => value.index === output.index);
   return (
     <div key={output.index} className="flex items-center justify-between gap-2 text-sm">
       <div className="min-w-0">
@@ -187,23 +187,23 @@ const DownloadListItem = ({
           onSave={() => onSaveArtifact?.(item.id)}
         />
       )}
-      {item.timelineReport && (
+      {item.timelineMap?.outputs.length ? (
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>
-            实际范围：{formatMediaTime(item.timelineReport.actual.start)} –{' '}
-            {formatMediaTime(item.timelineReport.actual.end)}
+            实际范围：{formatMediaTime(item.timelineMap.outputs[0]!.actualRange.start)} –{' '}
+            {formatMediaTime(item.timelineMap.outputs.at(-1)!.actualRange.end)}
           </span>
-          {item.timelineReport.requested && (
+          {item.timeline?.range && (
             <span>
-              请求范围：{formatMediaTime(item.timelineReport.requested.start)} –{' '}
-              {formatMediaTime(item.timelineReport.requested.end)}
+              请求范围：{formatMediaTime(item.timeline?.range.start)} –{' '}
+              {formatMediaTime(item.timeline?.range.end)}
             </span>
           )}
           <Button variant="outline" size="sm" onClick={() => onSaveArtifact?.(item.id)}>
             保存时间轴报告
           </Button>
         </div>
-      )}
+      ) : null}
       {item.outputs?.map((output) => (
         <DownloadOutputRow key={output.index} item={item} output={output} onSave={onSave} />
       ))}

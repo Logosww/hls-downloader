@@ -9,7 +9,7 @@ HLS Downloader 使用适配器模式来支持不同运行环境。请根据你�
 - **Node.js** — `NodeAdapter`（Rust N-API 原生实现）
 
 <Callout type="warn" title="默认 Transmux">
-**普通 `download()` 会保留源编码并 transmux 为 MP4。** BrowserAdapter 使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly，NodeAdapter 使用其原生实现。
+**普通 `download()` 会保留源编码并 transmux 为 MP4。** BrowserAdapter 使用 [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly，NodeAdapter 使用其原生实现。
 
 浏览器转码使用 Mediabunny 与 WebCodecs；Node 转码才会按需加载原生 FFmpeg。
 
@@ -19,17 +19,17 @@ HLS Downloader 使用适配器模式来支持不同运行环境。请根据你�
 
 可通过 `downloader.capabilities` 在运行时读取同一矩阵。
 
-| 能力           | Browser         | Node            |
-| -------------- | --------------- | --------------- |
-| 下载 / stream  | 是 / 是         | 是 / 是         |
-| 可配置重试     | 是              | 是              |
-| 转码预设       | h264、hevc、vp9 | h264、hevc、vp9 |
-| Byte range     | 是              | 是              |
-| AES-128（有限 VOD） | 是 | 是 |
-| 有限 sample 解密 profile | 是 | 是 |
-| 显式时间轴 / 拆分输出 | 是 | 是 |
-| 持久输出       | 否              | 是              |
-| Live recording | 是              | 是              |
+| 能力                     | Browser         | Node            |
+| ------------------------ | --------------- | --------------- |
+| 下载 / stream            | 是 / 是         | 是 / 是         |
+| 可配置重试               | 是              | 是              |
+| 转码预设                 | h264、hevc、vp9 | h264、hevc、vp9 |
+| Byte range               | 是              | 是              |
+| AES-128（有限 VOD）      | 是              | 是              |
+| 有限 sample 解密 profile | 是              | 是              |
+| 显式时间轴 / 拆分输出    | 是              | 是              |
+| 持久输出                 | 否              | 是              |
+| Live recording           | 是              | 是              |
 
 ## BrowserAdapter（浏览器）
 
@@ -39,7 +39,7 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
 ```
 
-浏览器适配器的普通下载使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly。`download()` 返回经典 fast-start MP4；`downloadToStream()` 输出 fragmented MP4 分块。带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。SDK 不提供该 MSE 映射。
+浏览器适配器的普通下载使用 [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly。`download()` 返回经典 fast-start MP4；`downloadToStream()` 输出 fragmented MP4 分块。带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。本库不提供该 MSE 映射。
 
 传入 `transcode` 时，Mediabunny 使用 WebCodecs 转码 — BrowserAdapter 不再附带或加载 `ffmpeg.wasm`。支持 `h264`、`hevc`、`vp9` 预设及可选的 `videoBitrate`、`audioBitrate`。编码支持情况取决于当前浏览器的 `VideoEncoder.isConfigSupported()` 与 `AudioEncoder.isConfigSupported()`。
 
@@ -51,7 +51,7 @@ WASM 模块仅在开始 transmux 时按需加载。发布二进制在 HTTP 压�
 
 | 路径               | 新引擎               | 对照基线                | 中位墙钟时间        | 加速比     |
 | ------------------ | -------------------- | ----------------------- | ------------------- | ---------- |
-| Transmux           | `hls-transmux` WASM  | Mediabunny remux        | ~1.9 ms vs ~9.5 ms  | ≈ **5.0×** |
+| Transmux           | `hls-engine` WASM    | Mediabunny remux        | ~1.9 ms vs ~9.5 ms  | ≈ **5.0×** |
 | Transcode（H.264） | Mediabunny WebCodecs | `ffmpeg.wasm`（多线程） | ~531 ms vs ~1164 ms | ≈ **2.2×** |
 
 ### 示例

@@ -203,55 +203,6 @@ export function start() {
 }
 
 /**
- * @param {any} resources
- * @returns {Promise<any>}
- */
-export function transmux_preloaded_to_mp4_report(resources) {
-    const ret = wasm.transmux_preloaded_to_mp4_report(resources);
-    return ret;
-}
-
-/**
- * @param {any} resources
- * @param {Function} on_chunk
- * @returns {Promise<any>}
- */
-export function transmux_preloaded_to_fmp4_stream(resources, on_chunk) {
-    const ret = wasm.transmux_preloaded_to_fmp4_stream(resources, on_chunk);
-    return ret;
-}
-
-/**
- * @param {string} playlist_url
- * @param {string} playlist
- * @param {Function} read
- * @param {Function} write
- * @returns {Promise<any>}
- */
-export function transmux_demand_to_fmp4(playlist_url, playlist, read, write) {
-    const ptr0 = passStringToWasm0(playlist_url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(playlist, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.transmux_demand_to_fmp4(ptr0, len0, ptr1, len1, read, write);
-    return ret;
-}
-
-/**
- * @param {string} request
- * @param {Function} read
- * @param {Function} write
- * @param {Function} progress
- * @returns {Promise<any>}
- */
-export function prepared_browser(request, read, write, progress) {
-    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.prepared_browser(ptr0, len0, read, write, progress);
-    return ret;
-}
-
-/**
  * @param {string} text
  * @param {string} url
  * @returns {string}
@@ -275,36 +226,21 @@ export function parse_media_playlist_browser(text, url) {
 
 /**
  * @param {string} request
- * @param {Function} read
- * @param {Function} write
- * @param {Function} resolve
- * @param {Function} abort
- * @param {Function} progress
- * @param {Promise<any>} cancel
- * @returns {Promise<any>}
+ * @returns {string}
  */
-export function keyed_browser(request, read, write, resolve, abort, progress, cancel) {
-    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.keyed_browser(ptr0, len0, read, write, resolve, abort, progress, cancel);
-    return ret;
-}
-
-/**
- * @param {string} request
- * @param {Function} read
- * @param {Function} write
- * @param {Function} resolve
- * @param {Function} abort
- * @param {Function} control
- * @param {Promise<any>} cancel
- * @returns {Promise<any>}
- */
-export function timeline_browser(request, read, write, resolve, abort, control, cancel) {
-    const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.timeline_browser(ptr0, len0, read, write, resolve, abort, control, cancel);
-    return ret;
+export function query_capability_browser(request) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(request, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.query_capability_browser(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
 }
 
 function takeFromExternrefTable0(idx) {
@@ -312,12 +248,12 @@ function takeFromExternrefTable0(idx) {
     wasm.__externref_table_dealloc(idx);
     return value;
 }
-function __wbg_adapter_28(arg0, arg1, arg2) {
-    wasm.closure300_externref_shim(arg0, arg1, arg2);
+function __wbg_adapter_24(arg0, arg1, arg2) {
+    wasm.closure203_externref_shim(arg0, arg1, arg2);
 }
 
-function __wbg_adapter_66(arg0, arg1, arg2, arg3) {
-    wasm.closure351_externref_shim(arg0, arg1, arg2, arg3);
+function __wbg_adapter_51(arg0, arg1, arg2, arg3) {
+    wasm.closure335_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 const BrowserRecordingFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -436,28 +372,10 @@ function __wbg_get_imports() {
             wasm.__wbindgen_free(deferred0_0, deferred0_1, 1);
         }
     };
-    imports.wbg.__wbg_from_2a5d3e218e67aa85 = function(arg0) {
-        const ret = Array.from(arg0);
-        return ret;
-    };
     imports.wbg.__wbg_get_67b2ba62fc30de12 = function() { return handleError(function (arg0, arg1) {
         const ret = Reflect.get(arg0, arg1);
         return ret;
     }, arguments) };
-    imports.wbg.__wbg_get_b9b93047fe3cf45b = function(arg0, arg1) {
-        const ret = arg0[arg1 >>> 0];
-        return ret;
-    };
-    imports.wbg.__wbg_instanceof_Object_7f2dcef8f78644a4 = function(arg0) {
-        let result;
-        try {
-            result = arg0 instanceof Object;
-        } catch (_) {
-            result = false;
-        }
-        const ret = result;
-        return ret;
-    };
     imports.wbg.__wbg_instanceof_Uint8Array_17156bcf118086a9 = function(arg0) {
         let result;
         try {
@@ -468,15 +386,7 @@ function __wbg_get_imports() {
         const ret = result;
         return ret;
     };
-    imports.wbg.__wbg_keys_5c77a08ddc2fb8a6 = function(arg0) {
-        const ret = Object.keys(arg0);
-        return ret;
-    };
     imports.wbg.__wbg_length_a446193dc22c12f8 = function(arg0) {
-        const ret = arg0.length;
-        return ret;
-    };
-    imports.wbg.__wbg_length_e2d2a49132c1b256 = function(arg0) {
         const ret = arg0.length;
         return ret;
     };
@@ -487,7 +397,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_66(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_51(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -497,10 +407,6 @@ function __wbg_get_imports() {
         } finally {
             state0.a = state0.b = 0;
         }
-    };
-    imports.wbg.__wbg_new_405e22f390576ce2 = function() {
-        const ret = new Object();
-        return ret;
     };
     imports.wbg.__wbg_new_78feb108b6472713 = function() {
         const ret = new Array();
@@ -544,10 +450,6 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_set_65595bdd868b3009 = function(arg0, arg1, arg2) {
         arg0.set(arg1, arg2 >>> 0);
     };
-    imports.wbg.__wbg_set_bb8cecf6a62b9f46 = function() { return handleError(function (arg0, arg1, arg2) {
-        const ret = Reflect.set(arg0, arg1, arg2);
-        return ret;
-    }, arguments) };
     imports.wbg.__wbg_stack_0ed75d68575b0f3c = function(arg0, arg1) {
         const ret = arg1.stack;
         const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -588,8 +490,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1245 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 301, __wbg_adapter_28);
+    imports.wbg.__wbindgen_closure_wrapper916 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 204, __wbg_adapter_24);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
@@ -619,16 +521,6 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbindgen_memory = function() {
         const ret = wasm.memory;
-        return ret;
-    };
-    imports.wbg.__wbindgen_number_get = function(arg0, arg1) {
-        const obj = arg1;
-        const ret = typeof(obj) === 'number' ? obj : undefined;
-        getDataViewMemory0().setFloat64(arg0 + 8 * 1, isLikeNone(ret) ? 0 : ret, true);
-        getDataViewMemory0().setInt32(arg0 + 4 * 0, !isLikeNone(ret), true);
-    };
-    imports.wbg.__wbindgen_number_new = function(arg0) {
-        const ret = arg0;
         return ret;
     };
     imports.wbg.__wbindgen_string_get = function(arg0, arg1) {

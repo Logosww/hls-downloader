@@ -1,0 +1,1171 @@
+{
+  "engine": "1.0.2",
+  "fixtureCreatedAt": "2026-10-10T08:32:44.095Z",
+  "scope": "M4 local macOS arm64 player acceptance; not M5 or a release qualification",
+  "fixtures": [
+    {
+      "name": "avc-mp4",
+      "sha256": "a9d8a802e50d6e723fdf49d86e16c5e09011183a15e8bb7d854898166b91965e",
+      "decoded": true,
+      "audioHz": [
+        880,
+        1760
+      ]
+    },
+    {
+      "name": "wvtt-plain-mp4",
+      "sha256": "b1b7cc96710b06cc0050662cecafb4670862c05e1e0beab7da76dc9ef134683e",
+      "decoded": true,
+      "audioHz": [
+        880,
+        1760
+      ]
+    },
+    {
+      "name": "wvtt-settings-mp4",
+      "sha256": "de8d4fd3e407fb222c5b76683c854316e3f02ff848d66528db6be58fcd705e1f",
+      "decoded": true,
+      "audioHz": [
+        880,
+        1760
+      ]
+    },
+    {
+      "name": "negative-cts-mp4",
+      "sha256": "00be7ff9e9fc4aa58b0bcb43a27e24724e6d1a0266c195b3885894f895d36f26",
+      "decoded": true
+    },
+    {
+      "name": "sample-fmp4_hevc_cbcs-mp4",
+      "sha256": "c97d852b2c00404419bdfd16d512923ed46970013a165fe7af0d85fcc931879b",
+      "decoded": true
+    },
+    {
+      "name": "avc-fmp4",
+      "sha256": "d218c7ca44217210619c9283290c0bd7cc70a3b3844488c01b5921e6f7266edc",
+      "decoded": true,
+      "audioHz": [
+        880,
+        1760
+      ]
+    },
+    {
+      "name": "wvtt-plain-fmp4",
+      "sha256": "9f96b5ff230703c1b440a3ba4f5715748b3c92ffd8cf29288b1a474f1d690c77",
+      "decoded": true,
+      "audioHz": [
+        880,
+        1760
+      ]
+    },
+    {
+      "name": "wvtt-settings-fmp4",
+      "sha256": "30cf596325784a2a53017fdb8bc53b6d524e6b61ef7883e30a3f7f8736acc809",
+      "decoded": true,
+      "audioHz": [
+        880,
+        1760
+      ]
+    },
+    {
+      "name": "negative-cts-fmp4",
+      "sha256": "516b1df44e2481d431f43a5ced085f7068ed44d182089c9e2f160cc43eb13017",
+      "decoded": true
+    },
+    {
+      "name": "sample-fmp4_hevc_cbcs-fmp4",
+      "sha256": "bada6cfacf5e1d0f661fb01062e831c91d9b53a37a9eddf260911b8e99ac9b5f",
+      "decoded": true
+    }
+  ],
+  "players": {
+    "chrome": {
+      "runtime": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "at": "2026-10-10T08:42:45.567Z",
+      "fileResults": [
+        {
+          "name": "avc-mp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 2.021333,
+          "ended": true,
+          "frames": 20
+        },
+        {
+          "name": "wvtt-plain-mp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 2.021333,
+          "ended": true,
+          "frames": 20
+        },
+        {
+          "name": "wvtt-settings-mp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 2.021333,
+          "ended": true,
+          "frames": 20
+        },
+        {
+          "name": "negative-cts-mp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 2.033333,
+          "ended": true,
+          "frames": 60
+        },
+        {
+          "name": "sample-fmp4_hevc_cbcs-mp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 6,
+          "ended": true,
+          "frames": 180
+        },
+        {
+          "name": "avc-fmp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 2.021333,
+          "ended": true,
+          "frames": 20
+        },
+        {
+          "name": "wvtt-plain-fmp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 2.021333,
+          "ended": true,
+          "frames": 20
+        },
+        {
+          "name": "wvtt-settings-fmp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 2.021333,
+          "ended": true,
+          "frames": 20
+        },
+        {
+          "name": "negative-cts-fmp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 4.010667,
+          "ended": true,
+          "frames": 60
+        },
+        {
+          "name": "sample-fmp4_hevc_cbcs-fmp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 6,
+          "ended": true,
+          "frames": 180
+        }
+      ],
+      "mse": [
+        {
+          "name": "wvtt-plain-fmp4",
+          "transport": "mse",
+          "error": "Error: SourceBuffer error"
+        },
+        {
+          "name": "wvtt-settings-fmp4",
+          "transport": "mse",
+          "error": "Error: SourceBuffer error"
+        }
+      ],
+      "shaka": {
+        "version": "v5.2.13-debug",
+        "mixedMdatError": 3000,
+        "externalVttActive": [
+          "Hello sidecar"
+        ],
+        "externalVttEnded": true
+      }
+    },
+    "safari": {
+      "runtime": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0.1 Safari/605.1.15",
+      "at": "2026-10-10T08:40:30.643Z",
+      "fileResults": [
+        {
+          "name": "avc-mp4",
+          "transport": "file",
+          "audio": [
+            {
+              "id": "3",
+              "label": "",
+              "language": "en",
+              "enabled": true,
+              "selected": true
+            },
+            {
+              "id": "4",
+              "label": "",
+              "language": "ja",
+              "enabled": false,
+              "selected": true
+            }
+          ],
+          "text": [],
+          "duration": 2.0212890625,
+          "ended": true,
+          "frames": 2
+        },
+        {
+          "name": "wvtt-plain-mp4",
+          "transport": "file",
+          "audio": [
+            {
+              "id": "3",
+              "label": "",
+              "language": "en",
+              "enabled": true,
+              "selected": true
+            },
+            {
+              "id": "4",
+              "label": "",
+              "language": "ja",
+              "enabled": false,
+              "selected": true
+            }
+          ],
+          "text": [
+            {
+              "label": "",
+              "language": "en",
+              "cues": [
+                {
+                  "text": "Hello player",
+                  "start": 0.1,
+                  "end": 1.021288888888889,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                },
+                {
+                  "text": "Hello player",
+                  "start": 1.021288888888889,
+                  "end": 1.6,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                }
+              ],
+              "active": [
+                "Hello player"
+              ]
+            },
+            {
+              "label": "",
+              "language": "ja",
+              "cues": [
+                {
+                  "text": "Hello player",
+                  "start": 0.65,
+                  "end": 1.571288888888889,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                },
+                {
+                  "text": "Hello player",
+                  "start": 1.021288888888889,
+                  "end": 1.6,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                }
+              ],
+              "active": [
+                "Hello player"
+              ]
+            }
+          ],
+          "duration": 2.0212890625,
+          "ended": true,
+          "frames": 39
+        },
+        {
+          "name": "wvtt-settings-mp4",
+          "transport": "file",
+          "audio": [
+            {
+              "id": "3",
+              "label": "",
+              "language": "en",
+              "enabled": true,
+              "selected": true
+            },
+            {
+              "id": "4",
+              "label": "",
+              "language": "ja",
+              "enabled": false,
+              "selected": true
+            }
+          ],
+          "text": [
+            {
+              "label": "",
+              "language": "en",
+              "cues": [
+                {
+                  "text": "Hello",
+                  "start": 0.1,
+                  "end": 0.5,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                },
+                {
+                  "text": "Hello",
+                  "start": 0.5,
+                  "end": 1,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                },
+                {
+                  "text": "Second",
+                  "start": 0.5,
+                  "end": 1,
+                  "vertical": "rl",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                },
+                {
+                  "text": "Hello",
+                  "start": 1,
+                  "end": 1.6,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                }
+              ],
+              "active": [
+                "Hello",
+                "Second"
+              ]
+            },
+            {
+              "label": "",
+              "language": "ja",
+              "cues": [
+                {
+                  "text": "こんにちは",
+                  "start": 0.851585459,
+                  "end": 1.6,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                },
+                {
+                  "text": "Second",
+                  "start": 0.851585459,
+                  "end": 1.351585459,
+                  "vertical": "rl",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                }
+              ],
+              "active": []
+            }
+          ],
+          "duration": 2.0212890625,
+          "ended": true,
+          "frames": 48
+        },
+        {
+          "name": "negative-cts-mp4",
+          "transport": "file",
+          "audio": [
+            {
+              "id": "2",
+              "label": "",
+              "language": "",
+              "enabled": true,
+              "selected": true
+            }
+          ],
+          "text": [],
+          "duration": 3.966666666666667,
+          "ended": true,
+          "frames": 62
+        },
+        {
+          "name": "sample-fmp4_hevc_cbcs-mp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 6.066666666666666,
+          "ended": true,
+          "frames": 2
+        },
+        {
+          "name": "avc-fmp4",
+          "transport": "file",
+          "audio": [
+            {
+              "id": "3",
+              "label": "",
+              "language": "en",
+              "enabled": true,
+              "selected": true
+            },
+            {
+              "id": "4",
+              "label": "",
+              "language": "ja",
+              "enabled": false,
+              "selected": true
+            }
+          ],
+          "text": [],
+          "duration": 2.0212890625,
+          "ended": true,
+          "frames": 2
+        },
+        {
+          "name": "wvtt-plain-fmp4",
+          "transport": "file",
+          "audio": [
+            {
+              "id": "3",
+              "label": "",
+              "language": "en",
+              "enabled": true,
+              "selected": true
+            },
+            {
+              "id": "4",
+              "label": "",
+              "language": "ja",
+              "enabled": false,
+              "selected": true
+            }
+          ],
+          "text": [
+            {
+              "label": "",
+              "language": "en",
+              "cues": [
+                {
+                  "text": "Hello player",
+                  "start": 0.1,
+                  "end": 1.021288888888889,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                },
+                {
+                  "text": "Hello player",
+                  "start": 1.021288888888889,
+                  "end": 1.6,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                }
+              ],
+              "active": [
+                "Hello player"
+              ]
+            },
+            {
+              "label": "",
+              "language": "ja",
+              "cues": [
+                {
+                  "text": "Hello player",
+                  "start": 0.1,
+                  "end": 1.021288888888889,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                },
+                {
+                  "text": "Hello player",
+                  "start": 0.65,
+                  "end": 1.571288888888889,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                },
+                {
+                  "text": "Hello player",
+                  "start": 1.021288888888889,
+                  "end": 1.6,
+                  "vertical": "",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                }
+              ],
+              "active": [
+                "Hello player",
+                "Hello player"
+              ]
+            }
+          ],
+          "duration": 2.0212890625,
+          "ended": true,
+          "frames": 43
+        },
+        {
+          "name": "wvtt-settings-fmp4",
+          "transport": "file",
+          "audio": [
+            {
+              "id": "3",
+              "label": "",
+              "language": "en",
+              "enabled": true,
+              "selected": true
+            },
+            {
+              "id": "4",
+              "label": "",
+              "language": "ja",
+              "enabled": false,
+              "selected": true
+            }
+          ],
+          "text": [
+            {
+              "label": "",
+              "language": "en",
+              "cues": [
+                {
+                  "text": "Hello",
+                  "start": 0.1,
+                  "end": 0.5,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                },
+                {
+                  "text": "Hello",
+                  "start": 0.5,
+                  "end": 1,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                },
+                {
+                  "text": "Second",
+                  "start": 0.5,
+                  "end": 1,
+                  "vertical": "rl",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                },
+                {
+                  "text": "Hello",
+                  "start": 1,
+                  "end": 1.6,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                }
+              ],
+              "active": [
+                "Hello",
+                "Second"
+              ]
+            },
+            {
+              "label": "",
+              "language": "ja",
+              "cues": [
+                {
+                  "text": "こんにちは",
+                  "start": 0.5,
+                  "end": 1.15,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                },
+                {
+                  "text": "Second",
+                  "start": 0.5,
+                  "end": 1.15,
+                  "vertical": "rl",
+                  "position": "auto",
+                  "line": "auto",
+                  "align": "center"
+                },
+                {
+                  "text": "こんにちは",
+                  "start": 1,
+                  "end": 1.6,
+                  "vertical": "",
+                  "position": 20,
+                  "line": 10,
+                  "align": "start"
+                }
+              ],
+              "active": [
+                "こんにちは",
+                "Second"
+              ]
+            }
+          ],
+          "duration": 2.0212890625,
+          "ended": true,
+          "frames": 37
+        },
+        {
+          "name": "negative-cts-fmp4",
+          "transport": "file",
+          "audio": [
+            {
+              "id": "2",
+              "label": "",
+              "language": "",
+              "enabled": true,
+              "selected": true
+            }
+          ],
+          "text": [],
+          "duration": 2,
+          "ended": true,
+          "frames": 1
+        },
+        {
+          "name": "sample-fmp4_hevc_cbcs-fmp4",
+          "transport": "file",
+          "audio": [],
+          "text": [],
+          "duration": 6.066,
+          "ended": true,
+          "frames": 1
+        }
+      ],
+      "mse": [
+        {
+          "name": "wvtt-plain-fmp4",
+          "transport": "mse",
+          "ended": true,
+          "textTracks": 0
+        },
+        {
+          "name": "wvtt-settings-fmp4",
+          "transport": "mse",
+          "ended": true,
+          "textTracks": 0
+        }
+      ],
+      "shaka": {
+        "version": "v5.2.13-debug",
+        "mixedMdatError": 3000,
+        "externalVttActive": [
+          "Hello sidecar"
+        ],
+        "externalVttEnded": true
+      }
+    },
+    "avfoundation": [
+      {
+        "name": "avc-mp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": []
+      },
+      {
+        "name": "wvtt-plain-mp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": [
+          "Hello player"
+        ]
+      },
+      {
+        "name": "wvtt-plain-mp4",
+        "subtitleSelection": 1,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": [
+          "Hello player"
+        ]
+      },
+      {
+        "name": "wvtt-settings-mp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": [
+          "Hello",
+          "Second"
+        ]
+      },
+      {
+        "name": "wvtt-settings-mp4",
+        "subtitleSelection": 1,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": [
+          "Second",
+          "こんにちは"
+        ]
+      },
+      {
+        "name": "negative-cts-mp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 60,
+        "cueTexts": []
+      },
+      {
+        "name": "sample-fmp4_hevc_cbcs-mp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 175,
+        "cueTexts": []
+      },
+      {
+        "name": "avc-fmp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": []
+      },
+      {
+        "name": "wvtt-plain-fmp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": [
+          "Hello player"
+        ]
+      },
+      {
+        "name": "wvtt-plain-fmp4",
+        "subtitleSelection": 1,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": [
+          "Hello player"
+        ]
+      },
+      {
+        "name": "wvtt-settings-fmp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": [
+          "Hello",
+          "Second"
+        ]
+      },
+      {
+        "name": "wvtt-settings-fmp4",
+        "subtitleSelection": 1,
+        "ended": true,
+        "frames": 20,
+        "cueTexts": [
+          "Second",
+          "こんにちは"
+        ]
+      },
+      {
+        "name": "negative-cts-fmp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 60,
+        "cueTexts": []
+      },
+      {
+        "name": "sample-fmp4_hevc_cbcs-fmp4",
+        "subtitleSelection": 0,
+        "ended": true,
+        "frames": 178,
+        "cueTexts": []
+      }
+    ],
+    "iina": [
+      {
+        "name": "avc-mp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          },
+          {
+            "id": 2,
+            "selected": 2,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "wvtt-plain-mp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          },
+          {
+            "id": 2,
+            "selected": 2,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "wvtt-settings-mp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          },
+          {
+            "id": 2,
+            "selected": 2,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "negative-cts-mp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "sample-fmp4_hevc_cbcs-mp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "avc-fmp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          },
+          {
+            "id": 2,
+            "selected": 2,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "wvtt-plain-fmp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          },
+          {
+            "id": 2,
+            "selected": 2,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "wvtt-settings-fmp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          },
+          {
+            "id": 2,
+            "selected": 2,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "negative-cts-fmp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "sample-fmp4_hevc_cbcs-fmp4",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [],
+        "subtitleTracks": 0,
+        "subtitleText": null
+      },
+      {
+        "name": "external-sidecar",
+        "runtime": "mpv v0.38.0",
+        "eof": true,
+        "audioSelections": [
+          {
+            "id": 1,
+            "selected": 1,
+            "codec": "AAC (Advanced Audio Coding)"
+          },
+          {
+            "id": 2,
+            "selected": 2,
+            "codec": "AAC (Advanced Audio Coding)"
+          }
+        ],
+        "subtitleTracks": 1,
+        "subtitleText": "Hello sidecar"
+      }
+    ],
+    "vlc": [
+      {
+        "name": "avc-mp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 58,
+        "displayed": 19,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [
+          "1",
+          "2"
+        ],
+        "selectedSubtitleIds": [],
+        "screenshots": [
+          "vlc-2026-10-10-16h48m50s104.png"
+        ]
+      },
+      {
+        "name": "wvtt-plain-mp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 64,
+        "displayed": 32,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [
+          "1",
+          "2"
+        ],
+        "selectedSubtitleIds": [
+          "3",
+          "4"
+        ],
+        "screenshots": [
+          "vlc-2026-10-10-16h48m58s316.png"
+        ]
+      },
+      {
+        "name": "wvtt-settings-mp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 58,
+        "displayed": 28,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [
+          "1",
+          "2"
+        ],
+        "selectedSubtitleIds": [
+          "3",
+          "4"
+        ],
+        "screenshots": [
+          "vlc-2026-10-10-16h49m06s523.png"
+        ]
+      },
+      {
+        "name": "negative-cts-mp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 92,
+        "displayed": 41,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [
+          "1"
+        ],
+        "selectedSubtitleIds": [],
+        "screenshots": [
+          "vlc-2026-10-10-16h49m14s226.png"
+        ]
+      },
+      {
+        "name": "sample-fmp4_hevc_cbcs-mp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 90,
+        "displayed": 34,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [],
+        "selectedSubtitleIds": [],
+        "screenshots": [
+          "vlc-2026-10-10-16h49m21s572.png"
+        ]
+      },
+      {
+        "name": "avc-fmp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 50,
+        "displayed": 18,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [
+          "1",
+          "2"
+        ],
+        "selectedSubtitleIds": [],
+        "screenshots": [
+          "vlc-2026-10-10-16h49m31s292.png"
+        ]
+      },
+      {
+        "name": "wvtt-plain-fmp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 50,
+        "displayed": 25,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [
+          "1",
+          "2"
+        ],
+        "selectedSubtitleIds": [
+          "3",
+          "4"
+        ],
+        "screenshots": [
+          "vlc-2026-10-10-16h49m39s496.png"
+        ]
+      },
+      {
+        "name": "wvtt-settings-fmp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 50,
+        "displayed": 25,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [
+          "1",
+          "2"
+        ],
+        "selectedSubtitleIds": [
+          "3",
+          "4"
+        ],
+        "screenshots": [
+          "vlc-2026-10-10-16h49m47s699.png"
+        ]
+      },
+      {
+        "name": "negative-cts-fmp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 66,
+        "displayed": 29,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [
+          "1"
+        ],
+        "selectedSubtitleIds": [],
+        "screenshots": [
+          "vlc-2026-10-10-16h49m55s254.png"
+        ]
+      },
+      {
+        "name": "sample-fmp4_hevc_cbcs-fmp4",
+        "runtime": "VLC 3.0.23 arm64",
+        "decoded": 79,
+        "displayed": 32,
+        "stoppedAfterPlayback": true,
+        "selectedAudioIds": [],
+        "selectedSubtitleIds": [],
+        "screenshots": [
+          "vlc-2026-10-10-16h50m02s495.png"
+        ]
+      }
+    ]
+  },
+  "evidenceHashes": {
+    "manifest.json": "145ea24fe6aa65dff87d9c29d62e856ba8e2be4c2f6ea3baec57e51e0afc4505",
+    "browser-chrome.json": "1526d6b5bfc5a0fbc6e9e0c8cb5242b85fc03cddfb14aa24f8dcd75512a6dd68",
+    "browser-safari.json": "35114a01b1b485e78dd673be243cb93a554c5a7d7ae6c2cf27d62069f01b9481",
+    "avfoundation.json": "1e9957c7e1a58dfdf20d363734b9b230d35af3ffa161c0d27519b92021dc8f94",
+    "iina.json": "4b600dd52a027d5088e2a4bb8d058598f06eee04702d0dc24ef1b489af3a0c51",
+    "vlc.json": "0c83862d95467af5b9db7bab49bb1dabda7cdf630491db85f99986ebac2a4f55"
+  },
+  "platform": {
+    "os": "macOS 27.0.1",
+    "build": "26A434",
+    "arch": "arm64",
+    "chrome": "155.0.8059.40",
+    "safari": "27.0.1 (22625.1.29.11.28)",
+    "iina": "1.4.4 (168)",
+    "vlc": "3.0.23 arm64"
+  }
+}

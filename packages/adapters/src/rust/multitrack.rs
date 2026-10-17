@@ -1,7 +1,7 @@
 //! Multi-track wire v2. Legacy continuous sessions keep wire v1 and their report.
 use super::continuous::failure;
 use super::*;
-use hls_transmux::capabilities::*;
+use hls_engine::capabilities::*;
 
 #[derive(Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -28,7 +28,11 @@ pub struct Audio {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Subtitle {
-    id: String,
+    pub id: String,
+    #[serde(default)]
+    pub embedded: Option<bool>,
+    #[serde(default)]
+    pub sidecar: Option<Value>,
     timeline_input_id: String,
     metadata: Metadata,
 }
@@ -38,29 +42,24 @@ pub struct Selection {
     embedded_audio: String,
     primary_audio: Metadata,
     audio_tracks: Vec<Audio>,
-    subtitle_tracks: Vec<Subtitle>,
+    pub subtitle_tracks: Vec<Subtitle>,
     playback_target: Option<String>,
 }
 impl Selection {
-    pub fn create(
-        &self,
-        source: Arc<dyn Source>,
-        keys: KeySession,
-        options: ContinuousOptions,
-    ) -> std::result::Result<MultiTrackSession, Value> {
+    pub fn inputs(&self, source: Arc<dyn Source>) -> std::result::Result<EngineInputs, Value> {
         let embedded = match self.embedded_audio.as_str() {
             "keep" => EmbeddedAudio::Keep,
             "exclude" => EmbeddedAudio::Exclude,
             _ => return Err(error("MULTITRACK_FAILED", "InvalidOptions")),
         };
-        let mut inputs = MultiTrackInputs::new(
-            ContinuousInput::new(InputId::new("primary").unwrap(), source.clone()),
+        let mut inputs = EngineInputs::new(
+            EngineInput::new(InputId::new("primary").unwrap(), source.clone()),
             embedded,
         )
         .with_primary_audio(self.primary_audio.track());
         for a in &self.audio_tracks {
             inputs = inputs.with_audio(
-                ContinuousInput::new(
+                EngineInput::new(
                     InputId::new(&a.id)
                         .map_err(|_| error("MULTITRACK_FAILED", "InvalidOptions"))?,
                     source.clone(),
@@ -69,14 +68,18 @@ impl Selection {
             );
         }
         for t in &self.subtitle_tracks {
-            inputs = inputs.with_subtitle(SubtitleTrack::new(
-                InputId::new(&t.id).map_err(|_| error("MULTITRACK_FAILED", "InvalidOptions"))?,
-                InputId::new(&t.timeline_input_id)
-                    .map_err(|_| error("MULTITRACK_FAILED", "InvalidOptions"))?,
-                t.metadata.track(),
-            ));
+            inputs = inputs.with_subtitle(
+                SubtitleTrack::new(
+                    InputId::new(&t.id)
+                        .map_err(|_| error("MULTITRACK_FAILED", "InvalidOptions"))?,
+                    InputId::new(&t.timeline_input_id)
+                        .map_err(|_| error("MULTITRACK_FAILED", "InvalidOptions"))?,
+                    t.metadata.track(),
+                )
+                .with_embedded(t.embedded.unwrap_or(true)),
+            );
         }
-        MultiTrackSession::new(inputs, keys, options).map_err(failure)
+        Ok(inputs)
     }
     /// Query the player's container/layout gate. Actual codecs and encryption are
     /// validated by the session from media bytes, never guessed from URL suffixes.
@@ -115,7 +118,11 @@ impl Selection {
         )
         .with_host_waiter(true)
         .with_memory_capacity(capacity.unwrap_or(1))
-        .with_subtitles(!self.subtitle_tracks.is_empty())
+        .with_subtitles(
+            self.subtitle_tracks
+                .iter()
+                .any(|t| t.embedded.unwrap_or(true)),
+        )
         .with_decode_gaps(gaps)
         .with_playback(playback);
         let decision = query_multitrack_capability(&q);
@@ -126,58 +133,7 @@ impl Selection {
     }
 }
 
-pub enum Session {
-    Legacy(ContinuousSession),
-    Multi(MultiTrackSession),
-}
-impl Session {
-    pub fn handles(&self) -> (ContinuousHandle, Option<MultiTrackHandle>) {
-        match self {
-            Self::Legacy(s) => (s.handle(), None),
-            Self::Multi(s) => {
-                let h = s.handle();
-                (h.control().clone(), Some(h))
-            }
-        }
-    }
-    pub async fn into_bytes(
-        self,
-        capacity: usize,
-        format: OutputFormat,
-    ) -> ContinuousResult<(Vec<u8>, Value)> {
-        match self {
-            Self::Legacy(s) => s
-                .into_bytes(capacity, format)
-                .await
-                .map(|(b, r)| (b, json!(r))),
-            Self::Multi(s) => s
-                .into_bytes(capacity, format)
-                .await
-                .map(|(b, r)| (b, report(r))),
-        }
-    }
-    pub async fn write_to_outputs<P: ContinuousWriterProvider>(
-        self,
-        provider: &mut P,
-    ) -> ContinuousResult<Value> {
-        match self {
-            Self::Legacy(s) => s.write_to_outputs(provider).await.map(|r| json!(r)),
-            Self::Multi(s) => s.write_to_outputs(provider).await.map(report),
-        }
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn write_to_files<P: ContinuousFileProvider>(
-        self,
-        provider: &mut P,
-        options: FileOutputOptions,
-    ) -> ContinuousResult<Value> {
-        match self {
-            Self::Legacy(s) => s.write_to_files(provider, options).await.map(|r| json!(r)),
-            Self::Multi(s) => s.write_to_files(provider, options).await.map(report),
-        }
-    }
-}
-fn report(r: MultiTrackReport) -> Value {
+pub fn report(r: EngineReport) -> Value {
     let mut value = json!(r.media());
     value["configurationId"] = json!(r.configuration_id());
     value["tracks"] = json!(r.tracks().iter().map(|t| json!({
@@ -195,14 +151,14 @@ fn report(r: MultiTrackReport) -> Value {
     value
 }
 
-pub async fn command(handle: &MultiTrackHandle, text: &str) -> Value {
+pub async fn command(handle: &EngineHandle, text: &str) -> Value {
     let v: Value = match serde_json::from_str(text) {
         Ok(v) => v,
         Err(_) => return error("MULTITRACK_FAILED", "InvalidCommand"),
     };
     let action = v["action"].as_str().unwrap_or("");
     if !matches!(action, "cues" | "tryCues" | "initialCues" | "endSubtitles") {
-        return super::continuous::command(handle.control(), text).await;
+        return super::continuous::command(handle, text).await;
     }
     let result = async {
         let id = InputId::new(v["inputId"].as_str().unwrap_or("")).map_err(|_| error("SUBTITLE_INVALID", "UnknownInput"))?;
@@ -215,8 +171,8 @@ pub async fn command(handle: &MultiTrackHandle, text: &str) -> Value {
         let a = if matches!(action, "tryCues" | "initialCues") {
             match handle.accept_cues(track, &cues) {
                 Ok(a) => a,
-                Err(e) if e.kind() == ContinuousErrorKind::WouldBlock && action == "tryCues" => return Ok(json!({"wouldBlock":true})),
-                Err(e) if e.kind() == ContinuousErrorKind::WouldBlock => return Err(error("RESOURCE_LIMIT_EXCEEDED", "InitialSubtitleBudget")),
+                Err(e) if e.kind() == EngineErrorKind::WouldBlock && action == "tryCues" => return Ok(json!({"wouldBlock":true})),
+                Err(e) if e.kind() == EngineErrorKind::WouldBlock => return Err(error("RESOURCE_LIMIT_EXCEEDED", "InitialSubtitleBudget")),
                 Err(e) => return Err(failure(e)),
             }
         } else { handle.accept_cues_when_ready(track, &cues).await.map_err(failure)? };

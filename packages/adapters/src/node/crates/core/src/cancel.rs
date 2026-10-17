@@ -1,13 +1,13 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use hls_transmux::CancelToken;
+use hls_engine::CancelToken;
 
 /// Cooperative cancellation token bridging napi `AbortSignal` to the
-/// `hls-transmux` pipeline.
+/// `hls-engine` pipeline.
 ///
 /// Wraps `tokio_util::sync::CancellationToken` and implements
-/// `hls_transmux::CancelToken` so it can be threaded into `TransmuxOptions`.
+/// `hls_engine::CancelToken` so it can be threaded into `TransmuxOptions`.
 #[derive(Debug, Clone, Default)]
 pub struct JobCancelToken {
     token: tokio_util::sync::CancellationToken,

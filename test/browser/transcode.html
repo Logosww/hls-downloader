@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+  <body>
+    <script type="module">
+      import { HlsDownloader } from '/packages/core/src/index.ts';
+      import { BrowserAdapter } from '/packages/adapters/src/browser/index.ts';
+      import { transcodeMedia } from '/packages/adapters/src/browser/mediabunny.ts';
+      const secret = (hex) => Uint8Array.from(hex.match(/../g).map((v) => parseInt(v, 16)));
+      window.runUnsupportedEncoder = async () => {
+        // Run in a fresh page so codec-probe caches cannot hide encoder absence.
+        globalThis.VideoEncoder = undefined;
+        return new HlsDownloader({ adapter: BrowserAdapter })
+          .download({
+            url: location.origin + '/cases/dual-False/master.m3u8',
+            transcode: { preset: 'vp9' },
+          })
+          .then(
+            () => ({ code: 'unexpected success' }),
+            (e) => ({ code: e.code, reason: e.reason }),
+          );
+      };
+      window.runTranscode = async () => {
+        const d = new HlsDownloader({ adapter: BrowserAdapter }),
+          results = [];
+        const options = {
+          url: location.origin + '/cases/dual-True/master.m3u8',
+          audio: { groupId: 'a', name: 'en' },
+          timeline: {
+            range: {
+              start: { ticks: '2200', timescale: 1000 },
+              end: { ticks: '4200', timescale: 1000 },
+            },
+          },
+          decryption: {
+            keyResolver: async (r) => ({
+              key: secret(
+                r.resourceKind === 'media' && r.originalSequence === '9007199254740994'
+                  ? '603deb1015ca71be2b73aef0857d7781'
+                  : '2b7e151628aed2a6abf7158809cf4f3c',
+              ),
+            }),
+          },
+        };
+        for (const preset of ['h264', 'hevc', 'vp9']) {
+          try {
+            const r = await d.download({ ...options, transcode: { preset } });
+            if (r.report !== undefined) throw Error('Intermediate report exposed');
+            const blob = await (await fetch(r.blobURL)).blob();
+            URL.revokeObjectURL(r.blobURL);
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            let binary = '';
+            for (const b of bytes) binary += String.fromCharCode(b);
+            results.push({ preset, data: btoa(binary), mime: blob.type });
+          } catch (e) {
+            if (e.code !== 'UNSUPPORTED_OUTPUT' || e.reason !== 'UnsupportedEncoder') throw e;
+            results.push({ preset, unsupported: true });
+          }
+        }
+        // Verify default audio selection and sample-encrypted media through the real WebCodecs path.
+        for (const name of ['dual-False', 'sample-dual-schemes', 'sample-fmp4_hevc_cbcs']) {
+          try {
+            const r = await d.download({
+              ...options,
+              audio: undefined,
+              url: location.origin + '/cases/' + name + '/master.m3u8',
+              transcode: { preset: 'vp9' },
+            });
+            const bytes = new Uint8Array(await (await fetch(r.blobURL)).arrayBuffer());
+            URL.revokeObjectURL(r.blobURL);
+            let binary = '';
+            for (const b of bytes) binary += String.fromCharCode(b);
+            results.push({ preset: 'vp9', name, data: btoa(binary) });
+          } catch (e) {
+            if (e.code !== 'UNSUPPORTED_OUTPUT' || e.reason !== 'UnsupportedEncoder') throw e;
+            results.push({ preset: 'vp9', name, unsupported: true });
+          }
+        }
+        const source = await d.download({ ...options, transcode: undefined });
+        const blob = await (await fetch(source.blobURL)).blob();
+        URL.revokeObjectURL(source.blobURL);
+        const limited = await transcodeMedia({
+          blob,
+          transcode: { preset: 'vp9' },
+          maxBytes: 32,
+        }).catch((e) => e);
+        if (limited.code !== 'RESOURCE_LIMIT_EXCEEDED')
+          throw Error('Output limit: ' + limited.code);
+        const controller = new AbortController();
+        const cancelled = await transcodeMedia({
+          blob,
+          transcode: { preset: 'vp9' },
+          maxBytes: 1048576,
+          signal: controller.signal,
+          onProgress() {
+            controller.abort();
+          },
+        }).catch((e) => e);
+        if (cancelled.code !== 'ABORTED') throw Error('Cancellation: ' + cancelled.code);
+        return results;
+      };
+    </script>
+  </body>
+</html>

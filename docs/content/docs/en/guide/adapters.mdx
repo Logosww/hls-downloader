@@ -9,7 +9,7 @@ HLS Downloader uses an adapter pattern to support different runtimes. Choose the
 - **Node.js** — `NodeAdapter` (Rust N-API native implementation)
 
 <Callout type="warn" title="Transmux by default">
-**Ordinary `download()` preserves source codecs and transmuxes to MP4.** BrowserAdapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly; NodeAdapter uses its native implementation.
+**Ordinary `download()` preserves source codecs and transmuxes to MP4.** BrowserAdapter uses [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly; NodeAdapter uses its native implementation.
 
 Browser transcoding uses Mediabunny and WebCodecs. Node transcoding loads native FFmpeg on demand.
 
@@ -19,17 +19,17 @@ Browser transcoding uses Mediabunny and WebCodecs. Node transcoding loads native
 
 Read the same matrix from `downloader.capabilities` at runtime.
 
-| Capability         | Browser         | Node            |
-| ------------------ | --------------- | --------------- |
-| Download / stream  | yes / yes       | yes / yes       |
-| Configurable retry | yes             | yes             |
-| Transcode presets  | h264, hevc, vp9 | h264, hevc, vp9 |
-| Byte range         | yes             | yes             |
-| AES-128 (finite VOD) | yes | yes |
-| Finite sample profiles | yes | yes |
-| Opt-in timeline / split outputs | yes | yes |
-| Persistent output  | no              | yes             |
-| Live recording     | yes              | yes              |
+| Capability                      | Browser         | Node            |
+| ------------------------------- | --------------- | --------------- |
+| Download / stream               | yes / yes       | yes / yes       |
+| Configurable retry              | yes             | yes             |
+| Transcode presets               | h264, hevc, vp9 | h264, hevc, vp9 |
+| Byte range                      | yes             | yes             |
+| AES-128 (finite VOD)            | yes             | yes             |
+| Finite sample profiles          | yes             | yes             |
+| Opt-in timeline / split outputs | yes             | yes             |
+| Persistent output               | no              | yes             |
+| Live recording                  | yes             | yes             |
 
 ## BrowserAdapter (Browser)
 
@@ -39,7 +39,7 @@ import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 import { BrowserAdapter } from '@logosw/hls-downloader/adapters/browser';
 ```
 
-The browser adapter uses [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly for ordinary downloads. `download()` returns a classic fast-start MP4; `downloadToStream()` emits fragmented MP4 chunks. External-audio output with initial track offsets is verified for file/Blob playback. Chromium MSE ignores leading empty edits; an MSE host must map timestamps per track instead of appending these multiplexed bytes unchanged to one SourceBuffer. The SDK does not provide that MSE mapping.
+The browser adapter uses [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly for ordinary downloads. `download()` returns a classic fast-start MP4; `downloadToStream()` emits fragmented MP4 chunks. External-audio output with initial track offsets is verified for file/Blob playback. Chromium MSE ignores leading empty edits; an MSE host must map timestamps per track instead of appending these multiplexed bytes unchanged to one SourceBuffer. The library does not provide that MSE mapping.
 
 When `transcode` is provided, Mediabunny uses WebCodecs — BrowserAdapter does not ship or load `ffmpeg.wasm`. Supported presets are `h264`, `hevc`, and `vp9`, with optional `videoBitrate` and `audioBitrate`. Codec support depends on `VideoEncoder.isConfigSupported()` and `AudioEncoder.isConfigSupported()` in the current browser.
 
@@ -51,7 +51,7 @@ On the package 8-segment fixture (Chrome 150 / macOS, CPU path, median of 3 runs
 
 | Path              | New engine           | Baseline                     | Median wall         | Speedup    |
 | ----------------- | -------------------- | ---------------------------- | ------------------- | ---------- |
-| Transmux          | `hls-transmux` WASM  | Mediabunny remux             | ~1.9 ms vs ~9.5 ms  | ≈ **5.0×** |
+| Transmux          | `hls-engine` WASM    | Mediabunny remux             | ~1.9 ms vs ~9.5 ms  | ≈ **5.0×** |
 | Transcode (H.264) | Mediabunny WebCodecs | `ffmpeg.wasm` (multi-thread) | ~531 ms vs ~1164 ms | ≈ **2.2×** |
 
 ### Example

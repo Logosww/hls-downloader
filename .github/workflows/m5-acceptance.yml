@@ -1,0 +1,203 @@
+name: M5 static platform acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m5-platform-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  VCPKG_TAG: 'dc1dbc7d46ceb78858f26d21fd22ee4d530e30ea'
+  HLS_FFMPEG_STATIC: '1'
+
+jobs:
+  platform:
+    name: M5 static acceptance (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    env:
+      FFMPEG_LIBAVCODEC_MIN_MAJOR: '63'
+      FFMPEG_LIBAVCODEC_MAX_MAJOR: '63'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+            vcpkg_triplet: x64-linux
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            vcpkg_triplet: arm64-linux
+          - name: darwin-x64
+            os: macos-15-intel
+            vcpkg_triplet: x64-osx
+          - name: darwin-arm64
+            os: macos-14
+            vcpkg_triplet: arm64-osx
+          - name: windows-x64
+            os: windows-latest
+            vcpkg_triplet: x64-windows-static-md
+          - name: windows-arm64
+            os: windows-11-arm
+            vcpkg_triplet: arm64-windows-static-md
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pnpm
+        with:
+          cache: 'true'
+          install: 'false'
+
+      - name: Install vcpkg host dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev
+          # ubuntu-24.04-arm pins system CMake to 3.31.6, but vcpkg's z_vcpkg_spdx.cmake
+          # uses string(JSON STRING_ENCODE) requiring CMake 4.3+. ARM runners set
+          # VCPKG_FORCE_SYSTEM_BINARIES=1, so vcpkg can't download its own CMake — upgrade it.
+          if [ "$(dpkg --print-architecture)" = "arm64" ]; then
+            python3 -m pip install --user --break-system-packages --upgrade cmake
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            hash -r
+          fi
+          cmake --version
+
+      - name: Install vcpkg host dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake ninja pkg-config nasm openssl@3
+
+      - name: Enable MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      - name: Install LLVM (Windows, bindgen / ffmpeg-sys)
+        if: runner.os == 'Windows'
+        uses: KyleMayes/install-llvm-action@v2.0.7
+        with:
+          version: '19.1.7'
+          arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      - name: Set LIBCLANG_PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not $env:LLVM_PATH) { throw 'LLVM_PATH missing after install-llvm-action' }
+          $llvmBin = Join-Path $env:LLVM_PATH 'bin'
+          "LIBCLANG_PATH=$llvmBin" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PATH=$llvmBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Resolve VCPKG_ROOT (Unix)
+        if: runner.os != 'Windows'
+        id: vcpkg_unix_root
+        shell: bash
+        run: |
+          R="${HOME}/vcpkg"
+          echo "root=$R" >> "$GITHUB_OUTPUT"
+          echo "VCPKG_ROOT=$R" >> "$GITHUB_ENV"
+
+      - name: Resolve VCPKG_ROOT (Windows)
+        if: runner.os == 'Windows'
+        id: vcpkg_win_root
+        shell: pwsh
+        run: |
+          $r = Join-Path $env:USERPROFILE 'vcpkg'
+          Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$r"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "root=$r"
+
+      - name: Restore vcpkg (Unix)
+        if: runner.os != 'Windows'
+        id: vcpkg_cache_unix
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.vcpkg_unix_root.outputs.root }}
+          key: vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          restore-keys: |
+            vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
+
+      - name: Restore vcpkg (Windows)
+        if: runner.os == 'Windows'
+        id: vcpkg_cache_win
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.vcpkg_win_root.outputs.root }}
+          key: vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          restore-keys: |
+            vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-
+
+      - name: Setup vcpkg + static FFmpeg (Unix)
+        if: runner.os != 'Windows'
+        run: node scripts/setup-vcpkg-ffmpeg.ts ${{ matrix.vcpkg_triplet }}
+
+      - name: Setup vcpkg + static FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: node scripts/setup-vcpkg-ffmpeg.ts ${{ matrix.vcpkg_triplet }}
+
+      - name: Save vcpkg (Unix)
+        if: success() && runner.os != 'Windows' && steps.vcpkg_cache_unix.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.vcpkg_unix_root.outputs.root }}
+          key: vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+
+      - name: Save vcpkg (Windows)
+        if: success() && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.vcpkg_win_root.outputs.root }}
+          key: vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+
+      - name: Log FFmpeg (pkg-config, Unix)
+        if: runner.os != 'Windows'
+        run: |
+          "$PKG_CONFIG" --modversion libavcodec
+          "$PKG_CONFIG" --modversion libavformat
+
+      - name: Log FFmpeg (pkg-config, Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & $env:PKG_CONFIG --modversion libavcodec
+          & $env:PKG_CONFIG --modversion libavformat
+
+      - name: Assert FFmpeg binding compatibility
+        run: node scripts/assert-ffmpeg-version.ts
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install matching WASM bindings CLI
+        run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/adapters/src/node -> target
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build native module
+        run: pnpm --filter "@hls-downloader/adapters" run build:native
+
+      - name: Assemble SDK distributions
+        run: pnpm --filter @hls-downloader/test exec node m5/build-platform.ts
+
+      - name: Validate static linkage and isolated optional-package installation
+        run: pnpm --filter @hls-downloader/test exec node m5/platform.ts --out ../test-results/m5/platform-final
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5-platform-${{ matrix.name }}
+          path: |
+            test-results/m5/platform-final/summary.json
+            test-results/m5/platform-final/*.log
+            test-results/m5/platform-final/tarballs/*.tgz
+          if-no-files-found: error

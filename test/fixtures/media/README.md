@@ -28,7 +28,7 @@ The `hevc-ts` and `hevc-fmp4` variants use the same sources and durations, with
 `encrypted.ts` encrypts these clear fixtures independently with Node/OpenSSL
 AES-128-CBC and PKCS#7 padding. Mixed-container external-audio tests shift TS
 PES clocks by -1.4 seconds to place both independently generated inputs on the
-same timeline; the SDK receives the resulting timestamps unchanged.
+same timeline; the library receives the resulting timestamps unchanged.
 
 The offset regression passes `alignClocks: false` (the fourth positional argument
 to `encryptedRoutes`) to preserve the original TS/fMP4 clock difference. It

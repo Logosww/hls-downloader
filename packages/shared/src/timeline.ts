@@ -36,39 +36,18 @@ export type HlsTimelineTrack = {
 export type HlsTimelineOutputDescriptor = {
   index: string;
   actualRange: HlsPresentationRange;
-  reason: 'Initial' | 'ConfigurationChanged' | 'Gap';
+  reason: 'Initial' | 'ConfigurationChanged' | 'Gap' | 'Unknown';
   tracks: HlsTimelineTrack[];
 };
 export type HlsTimelineOutputReport = HlsTimelineOutputDescriptor & {
   bytesWritten: string;
   mappings: HlsTimelineMapping[];
 };
-export type HlsTimelineReport = {
-  schemaVersion: 1;
-  requested: HlsPresentationRange | null;
-  actual: HlsPresentationRange;
-  preroll: HlsPresentationRange | null;
-  postroll: HlsPresentationRange | null;
+export type HlsTimelineMap = {
+  schemaVersion: 2;
+  complete: boolean;
   outputs: HlsTimelineOutputReport[];
   gaps: HlsPresentationRange[];
-  dependencies: {
-    slot: HlsTimelineSlot;
-    map: { revision: string; ordinal: string } | null;
-    keys: { revision: string; ordinal: string }[];
-    mapKeys: { revision: string; ordinal: string }[];
-  }[];
-  randomAccessPoints: {
-    slot: HlsTimelineSlot;
-    sampleIndex: string;
-    source: HlsMediaTime;
-    presentation: HlsMediaTime;
-    outputIndex: string;
-  }[];
-  indexedResources: string;
-  resourceReads: string;
-  sourceBytes: string;
-  peakPlannedSamples: string;
-  peakPlannedResources: string;
 };
 export type HlsTimelineSlot = {
   inputId: string;
@@ -76,18 +55,18 @@ export type HlsTimelineSlot = {
   epoch: string;
   sequence: string;
 };
-export type HlsCompletedOutput = HlsTimelineOutputDescriptor & {
+export type HlsCompletedOutput = import('./recording').HlsRecordingOutputRequest & {
   filePath?: string;
   bytesWritten?: string;
 };
 export type HlsOutputFactory = (
-  output: HlsTimelineOutputDescriptor,
+  output: import('./recording').HlsRecordingOutputRequest,
 ) => Promise<WritableStream<Uint8Array>>;
 export type HlsOutputsResult<T> = {
   operationId: string;
   totalSegments: number;
-  outputs: (Omit<T, 'totalSegments' | 'timelineReport'> & { index: string })[];
-  timelineReport: HlsTimelineReport;
+  outputs: (Omit<T, 'totalSegments' | 'report'> & { index: string })[];
+  report: import('./multitrack').HlsEngineReport;
 };
 export type HlsSidecar = {
   outputIndex: string;
@@ -99,7 +78,7 @@ export type HlsTimelineTrackSelection = { inputId: string; trackId: number };
 export type HlsChapter = { range: HlsPresentationRange; title: string; id?: string };
 export type HlsChapterOptions = {
   chapters: readonly HlsChapter[];
-  timelineReport: HlsTimelineReport;
+  timelineMap: HlsTimelineMap;
   track?: HlsTimelineTrackSelection;
   filename?: string;
 };

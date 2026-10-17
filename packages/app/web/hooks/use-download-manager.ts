@@ -7,7 +7,7 @@ import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/adapt
 import type {
   VariantSelectOptions,
   HlsMultiTimelineOptions,
-  HlsTimelineReport,
+  HlsTimelineMap,
   HlsChapter,
   HlsSidecar,
   HlsCompletedOutput,
@@ -61,7 +61,7 @@ export type DownloadTask = {
   multiTrackReport?: HlsMultiTrackReport;
   multiTrackBytes?: string;
   timeline?: HlsMultiTimelineOptions;
-  timelineReport?: HlsTimelineReport;
+  timelineMap?: HlsTimelineMap;
   outputs?: TaskOutput[];
   subtitle?: { groupId: string; name: string };
   chapters?: HlsChapter[];
@@ -79,7 +79,7 @@ type Action =
       id: string;
       patch: Pick<
         Partial<DownloadTask>,
-        'outputs' | 'sidecars' | 'sidecarError' | 'timelineReport' | 'multiTrackReport'
+        'outputs' | 'sidecars' | 'sidecarError' | 'timelineMap' | 'multiTrackReport'
       >;
     };
 
@@ -219,7 +219,7 @@ export function useDownloadManager(maxConcurrent = 3) {
         ? createMultiTrackMemoryOutput(task.filename, task.multiTrack.maxBytes)
         : undefined;
       void (async () => {
-        let report: HlsTimelineReport | undefined;
+        let report: HlsTimelineMap | undefined;
         if (task.multiTrack) {
           const { maxBytes, ...config } = task.multiTrack;
           const split = config.timeline?.changePolicy === 'split';
@@ -293,8 +293,8 @@ export function useDownloadManager(maxConcurrent = 3) {
             const handle = fileHandles.current.get(task.id);
             const directory = directories.current.get(task.id);
             const result = await downloader.downloadToWritables(options, fileOutput.factory);
-            report = result.timelineReport;
-            fileOutput.complete(report.outputs);
+            report = result.report?.timelineMap;
+            fileOutput.complete(result.report.outputs);
             if (!mounted.current || controller.signal.aborted) return;
             dispatch({
               type: 'update',
@@ -302,8 +302,8 @@ export function useDownloadManager(maxConcurrent = 3) {
               patch: {
                 status: 'saved',
                 percentage: 100,
-                timelineReport: report,
-                outputs: report.outputs.map(({ index }) => ({
+                timelineMap: report,
+                outputs: result.report.outputs.map(({ index }) => ({
                   index,
                   title: directory ? outputFilename(task.filename, index) : handle!.name,
                   saved: true,
@@ -320,14 +320,14 @@ export function useDownloadManager(maxConcurrent = 3) {
               for (const output of result.outputs) URL.revokeObjectURL(output.blobURL);
               return;
             }
-            report = result.timelineReport;
+            report = result.report?.timelineMap;
             dispatch({
               type: 'update',
               id: task.id,
               patch: {
                 status: 'completed',
                 percentage: 100,
-                timelineReport: report,
+                timelineMap: report,
                 outputs: result.outputs.map((output) => ({
                   index: output.index,
                   title: outputFilename(task.filename, output.index),
@@ -376,7 +376,7 @@ export function useDownloadManager(maxConcurrent = 3) {
             try {
               sidecars.push(
                 ...exportChapters({
-                  timelineReport: report,
+                  timelineMap: report,
                   chapters: task.chapters,
                   filename: `${task.filename}.chapters`,
                 }),
@@ -390,7 +390,7 @@ export function useDownloadManager(maxConcurrent = 3) {
               const result = await downloader.downloadSubtitleOutputs({
                 ...options,
                 operationId: `${task.id}:subtitles`,
-                timelineReport: report,
+                timelineMap: report,
                 subtitle: task.subtitle,
                 filename: `${task.filename}.subtitles`,
               });
@@ -677,8 +677,8 @@ export function useDownloadManager(maxConcurrent = 3) {
     const sidecar = task.sidecars?.find((item) => item.filename === filename);
     const text =
       sidecar?.text ??
-      (filename === undefined && (task.multiTrackReport || task.timelineReport)
-        ? JSON.stringify(task.multiTrackReport ?? task.timelineReport, null, 2)
+      (filename === undefined && (task.multiTrackReport || task.timelineMap)
+        ? JSON.stringify(task.multiTrackReport ?? task.timelineMap, null, 2)
         : undefined);
     if (text === undefined) return;
     const url = URL.createObjectURL(

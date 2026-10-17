@@ -21,6 +21,7 @@ export function createRecording<O extends HlsRecordingOutput>(
     options: HlsRecordingOptions<O>,
     host: HlsRecordingHost,
   ) => Promise<{ report: HlsRecordingReport }>,
+  adapterName?: string,
 ): HlsRecordingSession<O> {
   const operationId = options.operationId ?? globalThis.crypto.randomUUID();
   const controller = new AbortController();
@@ -218,7 +219,7 @@ export function createRecording<O extends HlsRecordingOutput>(
         operationId,
         report: {
           ...report,
-          outputs: completed,
+          outputs: out.type === 'file' && options.resume ? report.outputs : completed,
           historyTruncated: report.historyTruncated || truncated,
         },
         ...(out.type === 'blob'
@@ -238,8 +239,12 @@ export function createRecording<O extends HlsRecordingOutput>(
       setState(error.code === Code.ABORTED ? 'cancelled' : 'failed');
       throw new HlsDownloaderError(error.code, error.message, {
         ...error,
+        adapter: error.adapter ?? adapterName,
         cause: error.cause,
-        completedRecordingOutputs: [...completed],
+        completedRecordingOutputs:
+          options.output.type === 'file' && options.resume
+            ? (error.completedRecordingOutputs ?? [...completed])
+            : [...completed],
         recordingHistoryTruncated: truncated,
       });
     } finally {

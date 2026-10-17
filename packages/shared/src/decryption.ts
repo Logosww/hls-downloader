@@ -4,7 +4,7 @@ export interface HlsKeyRequest {
   inputId: string;
   resourceKind: 'media' | 'map';
   uri: string;
-  method: 'AES-128' | 'SAMPLE-AES' | 'SAMPLE-AES-CTR';
+  method: 'AES-128' | 'SAMPLE-AES' | 'SAMPLE-AES-CTR' | 'AES-256-GCM';
   kid?: string;
   keyFormat: string;
   keyFormatVersions: readonly number[];
@@ -24,6 +24,8 @@ export type HlsKeyResolver = (request: HlsKeyRequest) => Promise<{
   expiresInMs?: number;
 } | null>;
 export interface HlsDecryptionOptions {
+  /** Experimental HLS draft-22 whole-resource profile. Defaults to false. */
+  experimentalGcm?: boolean;
   /** Replaces the default identity HTTP provider. Only null permits candidate fallback. */
   keyResolver?: HlsKeyResolver;
   keyFormats?: readonly { format: string; versions: readonly number[] }[];

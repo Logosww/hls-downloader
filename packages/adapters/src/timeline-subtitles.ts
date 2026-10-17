@@ -5,15 +5,16 @@ import {
   type HlsDownloaderAdapterInternal,
   type HlsDownloaderSubtitleOutputsOptions,
   type HlsDownloaderBrowserOperationOptions,
-  type HlsWebVttPart,
 } from '@hls-downloader/shared';
 import { readManifest, resolveMedia } from './renditions';
-import { readBoundedResource } from './bounded';
+import { readSubtitleParts } from './subtitle-resources';
+import type { RecordingBridgeFactory } from './recording';
 import { assertActive } from './browser/request';
 export async function exportTimelineSubtitles(
   adapter: HlsDownloaderAdapterInternal,
   options: HlsDownloaderSubtitleOutputsOptions &
     HlsDownloaderBrowserOperationOptions & { signal: AbortSignal },
+  factory: RecordingBridgeFactory,
 ) {
   const media = await resolveMedia({ ...options, timeline: {} }, false, true);
   const rendition = media.subtitles.find(
@@ -27,56 +28,20 @@ export async function exportTimelineSubtitles(
   if (!rendition.uri || !adapter.parseMediaPlaylist)
     throw new HlsDownloaderError(Code.UNSUPPORTED_RENDITION, 'External WebVTT playlist required');
   const source = await readManifest(rendition.uri, options);
-  const playlist = await adapter.parseMediaPlaylist(source.text, source.url);
-  if (
-    !playlist.endList ||
-    playlist.playlistType === 'Event' ||
-    playlist.segments.some((s) => s.gap || s.keys.length || s.map?.keys.length)
-  )
-    throw new HlsDownloaderError(
-      Code.UNSUPPORTED_RENDITION,
-      'Timeline subtitles require finite clear WebVTT',
-    );
-  const headers = new Map<string, string>(),
-    parts: HlsWebVttPart[] = [];
-  const load = async (resource: {
-    uri: string;
-    range: { offset: string; length: string } | null;
-  }) =>
-    new TextDecoder('utf-8', { fatal: true }).decode(
-      (
-        await readBoundedResource(
-          { url: resource.uri, offset: resource.range?.offset, length: resource.range?.length },
-          16 * 1024 * 1024,
-          options.headers,
-          options.maxRetry ?? adapter.segmentRetryAttempts,
-          options.signal,
-          Code.SEGMENT_FETCH_FAILED,
-          options.browserRequest,
-        )
-      ).bytes,
-    );
-  for (const segment of playlist.segments) {
-    let header: string | undefined;
-    if (segment.map) {
-      const id = JSON.stringify([segment.map.uri, segment.map.range]);
-      header = headers.get(id);
-      if (header === undefined) {
-        header = await load(segment.map);
-        headers.set(id, header);
-      }
-    }
-    parts.push({
-      text: await load(segment),
-      header,
-      epoch: segment.epoch,
-      programDateTime: segment.programDateTime,
-      duration: segment.duration,
-    });
-  }
+  const parts = await readSubtitleParts(adapter, options, source, factory);
   assertActive(options.signal);
+  const outputs = mapTimelineWebVtt(parts, options.timelineMap, options.track, options.filename);
+  const bytes = outputs.reduce(
+    (total, output) => total + new TextEncoder().encode(output.text).length,
+    0,
+  );
+  if (bytes > (options.maxBytes ?? 16 * 1024 * 1024))
+    throw new HlsDownloaderError(
+      Code.RESOURCE_LIMIT_EXCEEDED,
+      'Subtitle collection exceeds maxBytes',
+    );
   return {
-    outputs: mapTimelineWebVtt(parts, options.timelineReport, options.track, options.filename),
+    outputs,
     totalSegments: parts.length,
   };
 }

@@ -44,7 +44,8 @@ export async function readBoundedResource(
           attempt,
         });
       }
-      if (offset !== undefined) {
+      const fullRangeResponse = offset !== undefined && response.status === 200;
+      if (offset !== undefined && !fullRangeResponse) {
         const match = response.headers
           .get('content-range')
           ?.match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
@@ -75,21 +76,29 @@ export async function readBoundedResource(
           throw new HlsDownloaderError(capCode, 'Resource exceeds byte limit');
         }
         size += part.value.length;
-        if (length !== undefined && BigInt(size) > length) {
+        if (!fullRangeResponse && length !== undefined && BigInt(size) > length) {
           retryable = false;
           throw new HlsDownloaderError(code, 'Range response is too long');
         }
         chunks.push(part.value);
       }
-      if (length !== undefined && BigInt(size) !== length)
+      if (
+        length !== undefined &&
+        (fullRangeResponse ? BigInt(size) < offset! + length : BigInt(size) !== length)
+      ) {
+        retryable = false;
         throw new HlsDownloaderError(code, 'Incomplete byte range');
+      }
       const bytes = new Uint8Array(size);
       let position = 0;
       for (const chunk of chunks) {
         bytes.set(chunk, position);
         position += chunk.length;
       }
-      return { bytes, url: response.url || resource.url };
+      return {
+        bytes: fullRangeResponse ? bytes.slice(Number(offset!), Number(offset! + length!)) : bytes,
+        url: response.url || resource.url,
+      };
     } catch (error) {
       assertActive(signal);
       if (!retryable || attempt >= normalizeMaxAttempts(maxRetry))

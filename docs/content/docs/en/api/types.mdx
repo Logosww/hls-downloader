@@ -183,10 +183,11 @@ Per-call options for `download()` and `downloadToStream()`. `filename` is a plai
 ```ts
 type HlsDownloaderStreamResult = {
   totalSegments: number;
+  report?: HlsEngineReport;
 };
 ```
 
-Resolution value of `HlsDownloader.downloadToStream()`. The library itself does not write to disk — fMP4 bytes are pushed via the `onChunk` callback; callers decide whether to persist (e.g. via `ReadableStream.tee()`), so only the segment count is returned. Both `BrowserAdapter` and `NodeAdapter` support this method.
+Resolution value of `HlsDownloader.downloadToStream()`. The library itself does not write to disk — fMP4 bytes are pushed via the `onChunk` callback; callers decide whether to persist (e.g. via `ReadableStream.tee()`), and the result includes the Engine `report`. Both `BrowserAdapter` and `NodeAdapter` support this method.
 
 ## GlobalOptions
 
@@ -209,6 +210,7 @@ Exported from `@hls-downloader/core`. `AdapterSpecificOptions<T>` is inferred fr
 type BrowserAdapterDownloadResult = {
   blobURL: string;
   totalSegments: number;
+  report?: HlsEngineReport;
 };
 ```
 
@@ -218,6 +220,7 @@ type BrowserAdapterDownloadResult = {
 type NodeAdapterDownloadResult = {
   filePath: string;
   totalSegments: number;
+  report?: HlsEngineReport;
 };
 ```
 
@@ -236,10 +239,10 @@ Options for `downloadToWritable()`. Returns `HlsDownloaderStreamResult` includin
 
 ```ts
 import type { NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
-// { directory: string }
+// { directory: string; durability?: 'flush' | 'sync-all' }
 ```
 
-Node-only per-call `download()` option. `AdapterCapabilities.resumableDownload?: boolean` is false when absent. Recovery errors add `RESUME_CONFLICT`, `RESUME_INVALID`, and `RESUME_IO_FAILED`.
+Node deterministic-file download and recording option; durability defaults to `sync-all`. Browser, Blob, Writable and file factories do not support recovery. Errors include `RESUME_CONFLICT`, `RESUME_INVALID`, `RESUME_IO_FAILED` and `RESUME_REPLAY_REQUIRED`. See [Engine recovery](/guide/engine).
 
 ## HlsDownloaderBrowserRequestOptions
 
@@ -276,12 +279,25 @@ Master results add optional `renditions`; variants add `audioGroup`, `subtitlesG
 
 `HlsDownloaderSubtitleOptions` contains fetch options plus required `subtitle: { groupId, name }`, optional `variant`, `audio`, `operationId`, `filename`, `maxRetry`, and `downloadConcurrency`. Browser additionally accepts `browserRequest`. `HlsDownloaderSubtitleResult` contains `operationId`, `text`, `mimeType: 'text/vtt'`, `filename`, and `totalSegments`.
 
-## Timeline types
+## Engine types
 
-Root and shared exports include `HlsMediaTime`, `HlsPresentationRange`, `HlsTimelineOptions`, `HlsMultiTimelineOptions`, `HlsTimelineReport`, `HlsTimelineMapping`, `HlsTimelineOutputDescriptor`, `HlsOutputFactory`, `HlsCompletedOutput`, `HlsSidecar` and `HlsChapterOptions`. `HlsDownloaderOutputsOptions` excludes transcoding/recovery; only its timeline accepts `changePolicy`. Sample key requests include optional `kid` and the expanded method union.
+`HlsEngineReport`, `HlsEngineEvent`, `HlsEngineOutputRequest`, `HlsEngineOutputReport`,
+`HlsTimelineMap`, `HlsResumeOptions`, `HlsCapabilityQuery`, `HlsCapabilityDecision`.
 
-`RANGE_INVALID`, `TIMELINE_FAILED`, `RESOURCE_CHANGED` and `BRIDGE_VERSION_MISMATCH` extend `HlsDownloaderErrorCode`. Safe errors may expose `trackId`, decimal-string `sampleIndex`, `scheme` and `completedOutputs`; raw keys and provider messages are excluded.
+[Contracts and examples](/guide/engine).
 
-## Multi-track types
+## HlsSubtitleSidecar / HlsSubtitleCommit
 
-`HlsMultiTrackOptions<O>` requires `embeddedAudio` and an explicit recording-style `output`. `HlsAudioTrackSelection`, `HlsSubtitleTrackSelection`, `HlsTrackMetadata` and `HlsMultiTrackPlaybackTarget` describe selection and playback checks. `HlsMultiTrackSession<O>` accepts arbitrary selected media IDs for controls; `HlsMultiTrackResult<O>` infers Blob or file-path results from the adapter/output. `HlsMultiTrackReport`, `HlsMultiTrackInfo`, `HlsSubtitleCueReport` and `HlsMultiTrackEvent` expose separate multi-track metadata and subtitle receipts without changing legacy track enums. `HlsMultiTrackCapabilities` is optional on custom adapters. `MULTITRACK_FAILED` covers multi-track session/control failures; existing resource, subtitle, encryption, cancellation and output error codes retain their meanings.
+Subtitle selections in `HlsMultiTrackOptions` accept the following outputs. File sidecars require Node fixed media files; recovery requires a fixed file for every selected subtitle. See the [Engine guide](/guide/engine#continuous-webvtt-sidecars) for completion, split and recovery semantics.
+
+```ts
+type HlsSubtitleSidecarRequest = { inputId: string; outputIndex: string };
+type HlsSubtitleSidecar =
+  | { type: 'writable'; writable: WritableStream<Uint8Array> }
+  | { type: 'writables'; acquire: (request: HlsSubtitleSidecarRequest) => Promise<WritableStream<Uint8Array>> }
+  | { type: 'file'; path: string };
+```
+
+`HlsSubtitleTrackSelection` adds `embedded?: boolean` (default `true`) and `sidecar?: HlsSubtitleSidecar`. `HlsMultiTrackEvent` adds `{ type: 'subtitleCommit'; commit: HlsSubtitleCommit }`; its `cues` carry receipt/input/track/output identity, generation/epoch, payload/settings, exact output times and disposition (`Written`, `Clipped`, `RejectedLate`, `RejectedRange`). `frontiers` carry input/track/output, generation/epoch and committed `end`. Counters and epochs are decimal strings.
+
+`HlsDownloaderSubtitleOptions` adds `decryption` and `maxBytes` (default 16 MiB); `HlsDownloaderSubtitleOutputsOptions` inherits both. Static multi-track capabilities add `subtitleResources` and `subtitleSidecars: { outputs, resume }`.

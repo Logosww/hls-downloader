@@ -1,11 +1,10 @@
 import type {
   HlsTimelineOptions,
   HlsMultiTimelineOptions,
-  HlsTimelineReport,
+  HlsTimelineMap,
   HlsOutputsResult,
   HlsSidecar,
   HlsTimelineTrackSelection,
-  HlsTimelineOutputDescriptor,
 } from './timeline';
 import type { HlsDecryptionOptions, HlsDecryptionProgress, HlsMediaPlaylist } from './decryption';
 import type { HlsDownloaderError } from './errors';
@@ -120,13 +119,14 @@ export type AdapterCapabilities = Readonly<{
       scheme: string;
       codecs: readonly string[];
     }>[];
-    containers: readonly ['ts', 'fmp4'];
+    containers: readonly ['ts', 'fmp4', 'packed-aac'];
+    experimentalMethods?: readonly ['AES-256-GCM'];
     codecs: readonly ['avc', 'hevc', 'aac-lc'];
     finite: true;
     externalAudio: true;
-    resume: false;
+    resume: boolean;
   }>;
-  timeline?: Readonly<{ finite: true; ranges: true; epochs: true; split: true; resume: false }>;
+  timeline?: Readonly<{ finite: true; ranges: true; epochs: true; split: true; resume: boolean }>;
   multiTrack?: import('./multitrack').HlsMultiTrackCapabilities;
   recording?: import('./recording').HlsRecordingCapabilities;
   liveRecording: boolean;
@@ -199,6 +199,8 @@ export type HlsDownloaderBrowserTranscodeOptions = {
 };
 
 export type HlsDownloaderDownloadOptions = {
+  /** Maximum collected MP4 bytes; browser default is 256 MiB. */
+  maxBytes?: number;
   timeline?: HlsTimelineOptions;
   decryption?: HlsDecryptionOptions;
   /** Stable identifier used to correlate lifecycle events for this operation. */
@@ -218,6 +220,9 @@ export type HlsDownloaderWritableOptions = HlsDownloaderFetchOptions &
   Omit<HlsDownloaderDownloadOptions, 'transcode'> & { transcode?: never };
 
 export type HlsDownloaderSubtitleOptions = HlsDownloaderFetchOptions & {
+  decryption?: HlsDownloaderDownloadOptions['decryption'];
+  /** Collected UTF-8 subtitle bytes. Defaults to 16 MiB. */
+  maxBytes?: number;
   operationId?: string;
   filename?: string;
   maxRetry?: number;
@@ -238,17 +243,17 @@ export type HlsDownloaderOutputsOptions = Omit<HlsDownloaderWritableOptions, 'ti
   timeline?: HlsMultiTimelineOptions;
 };
 export type HlsDownloaderSubtitleOutputsOptions = HlsDownloaderSubtitleOptions & {
-  timelineReport: HlsTimelineReport;
+  timelineMap: HlsTimelineMap;
   track?: HlsTimelineTrackSelection;
 };
 /** Internal output control, completed after the upstream flush. */
 export type HlsOutputControl = (request: {
   action: 'acquire' | 'complete';
-  output: HlsTimelineOutputDescriptor;
+  output: import('./recording').HlsRecordingOutputRequest;
 }) => Promise<string>;
 
 export type HlsDownloaderStreamResult = {
-  timelineReport?: HlsTimelineReport;
+  report?: import('./multitrack').HlsEngineReport;
   operationId: string;
   totalSegments: number;
 };
@@ -271,6 +276,9 @@ export interface HlsDownloaderAdapterInternal<
     host: import('./recording').HlsRecordingHost,
   ): Promise<{ report: import('./recording').HlsRecordingReport }>;
   parseMediaPlaylist?(text: string, url: string): Promise<HlsMediaPlaylist>;
+  queryCapability(
+    query: import('./capability').HlsCapabilityQuery,
+  ): Promise<import('./capability').HlsCapabilityDecision>;
   readonly capabilities: AdapterCapabilities;
   chunkDownloadConcurrency: number;
   segmentRetryAttempts: number;
@@ -304,7 +312,9 @@ export interface HlsDownloaderAdapterInternal<
     write: (bytes: Uint8Array, index: string) => Promise<void>,
     control: HlsOutputControl,
   ): Promise<
-    Omit<HlsDownloaderStreamResult, 'operationId'> & { timelineReport: HlsTimelineReport }
+    Omit<HlsDownloaderStreamResult, 'operationId'> & {
+      report: import('./multitrack').HlsEngineReport;
+    }
   >;
   downloadSubtitleOutputs?(
     options: HlsDownloaderSubtitleOutputsOptions & RequestOptions,

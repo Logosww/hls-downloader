@@ -133,3 +133,28 @@ confirmation or displaying a parsing error. The test runs in CI after the librar
 Run `pnpm test:browser:recording` from the repository root. If Playwright's bundled Chromium is unavailable, set `HLS_TEST_CHROMIUM_PATH` to an existing Chrome executable. The Node suite first writes `test-results/recording-native.json`; Chrome compares the 13 open-input profiles, verifies key-wait cancellation/late completion and sink-close errors, and exercises VOD pause with delayed resume, stop and cancellation.
 
 `pnpm test:recording` also checks polling overlap, empty windows, source rewrites, explicit generation restart, GAP/configuration splits, capacity errors, Node publication and Blob conversion. The 8/64/256 repeated-input checks compare core queue/sample peaks and bounded mapping/output history, excluding caller-owned snapshots and collected bytes. These accelerated checks are not multi-hour RSS measurements.
+
+
+### M4 Engine 1.0.1 / selected VOD transcoding — 2026-10-09
+
+Run `pnpm test:browser:transcode` with `HLS_TEST_CHROMIUM_PATH` pointing to the
+installed Chrome executable. It checks actual preset codecs with ffprobe,
+FFmpeg decoding, audio/video starts, decodable ranges, and native media playback
+to `ended`. It also verifies missing-encoder rejection in a fresh page, bounded
+encoded output and cancellation without unhandled errors. No intermediate Engine
+report may escape as the encoded result's report.
+
+The existing timeline, recording, multitrack and engine browser commands remain
+separate gates; their hash/report comparisons do not by themselves prove playback
+in a player. See [current evidence and player limits](../engine-1.0-validation.md).
+
+## AES-128 WebVTT and continuous sidecars
+
+```sh
+HLS_TEST_CHROMIUM_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" pnpm --filter @hls-downloader/test test:browser:subtitles
+```
+
+Runs real BrowserAdapter/WASM with AES-128 MAP/rotation, embedded and sidecar-only
+output, slow Writable acknowledgements, subtitle commit frontiers, actual video
+playback, finite export and cancellation during a blocked sidecar write.
+Local JSON evidence: `test-results/subtitle-sidecars-chrome.json`.

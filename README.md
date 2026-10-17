@@ -14,7 +14,7 @@
 
 用于解析 HLS（`.m3u8`）并下载、合并为可播放文件的 TypeScript 库。通过 `**HlsDownloader**` 统一入口，按运行环境选择适配器：
 
-- **浏览器**：`@hls-downloader/adapters/browser`（`hls-transmux` WebAssembly + Mediabunny WebCodecs）
+- **浏览器**：`@hls-downloader/adapters/browser`（`hls-engine` WebAssembly + Mediabunny WebCodecs）
 - **Node.js**：`@hls-downloader/adapters/node`（Rust N-API 原生实现，性能与路径处理更适合服务端）
 
 ### 安装
@@ -99,7 +99,7 @@ await downloader.init();
 
 `downloadToStream()` 通过 `onChunk` 输出 fMP4，适合 HTTP 转发或浏览器 MSE。两端均边下载边输出；`onChunk` 不等待 Promise，异步目标背压请使用 `downloadToWritable()`。**库本身不落盘**。
 
-带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。SDK 不提供该 MSE 映射。
+带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。本库不提供该 MSE 映射。
 
 ```ts
 import { createServer } from 'node:http';
@@ -181,7 +181,7 @@ server.listen(3000);
 | 可配置重试          | 是              | 是              |
 | Transcode presets   | h264、hevc、vp9 | h264、hevc、vp9 |
 | Byte range          | 是              | 是              |
-| AES-128（有限 VOD） | 是 | 是 |
+| AES-128（有限 VOD） | 是              | 是              |
 | 持久输出            | 否（Blob URL）  | 是（文件路径）  |
 | `writableOutput`    | true            | true            |
 | `resumableDownload` | false           | true            |
@@ -211,7 +211,7 @@ server.listen(3000);
 
 A TypeScript library for parsing HLS (`.m3u8`) playlists and downloading/merging streams into playable files. Use the `**HlsDownloader**` facade and pick an adapter for your runtime:
 
-- **Browser**: `@hls-downloader/adapters/browser` (`hls-transmux` WebAssembly + Mediabunny WebCodecs)
+- **Browser**: `@hls-downloader/adapters/browser` (`hls-engine` WebAssembly + Mediabunny WebCodecs)
 - **Node.js**: `@hls-downloader/adapters/node` (Rust N-API; better fit for servers and path handling)
 
 ### Installation
@@ -308,7 +308,7 @@ await downloader.init();
 
 `downloadToStream()` emits fMP4 through `onChunk` for HTTP forwarding or browser MSE. Both adapters download and emit incrementally. `onChunk` does not await promises; use writable output for asynchronous destination backpressure. **The library itself does not write to disk.**
 
-External-audio output with initial track offsets is verified for file/Blob playback. Chromium MSE ignores leading empty edits; an MSE host must map timestamps per track instead of appending these multiplexed bytes unchanged to one SourceBuffer. The SDK does not provide that MSE mapping.
+External-audio output with initial track offsets is verified for file/Blob playback. Chromium MSE ignores leading empty edits; an MSE host must map timestamps per track instead of appending these multiplexed bytes unchanged to one SourceBuffer. The library does not provide that MSE mapping.
 
 ```ts
 import { createServer } from 'node:http';
@@ -385,11 +385,11 @@ The same data is available at runtime through `downloader.capabilities`.
 | Configurable retry     | yes             | yes             |
 | Transcode presets      | h264, hevc, vp9 | h264, hevc, vp9 |
 | Byte range             | yes             | yes             |
-| AES-128 (finite VOD) | yes | yes |
+| AES-128 (finite VOD)   | yes             | yes             |
 | Persistent output      | no (Blob URL)   | yes (file path) |
 | `writableOutput`       | true            | true            |
 | `resumableDownload`    | false           | true            |
-| Live recording         | yes              | yes              |
+| Live recording         | yes             | yes             |
 
 ### NodeAdapter options
 
@@ -418,27 +418,6 @@ Only use streams you are allowed to access, and follow the source site’s terms
 `downloadToWritable(options, writable)` incrementally emits fMP4 with backpressure. Browser and Node support it. Callback streaming is incremental but does not await asynchronous consumers.
 
 详见 [中文 API](docs/content/docs/zh/api/hls-downloader.mdx#downloadtowritable) / [English API](docs/content/docs/en/api/hls-downloader.mdx#downloadtowritable).
-
-## Node resumable downloads / Node 可恢复下载（v3.6）
-
-```ts
-import { HlsDownloader } from '@logosw/hls-downloader/core';
-import { NodeAdapter, type NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
-
-const downloader = new HlsDownloader({ adapter: NodeAdapter });
-const resume: NodeAdapterResumeOptions = { directory: './download-jobs/video' };
-const result = await downloader.download({
-  url: 'https://example.com/media.m3u8',
-  filename: 'video',
-  resume,
-  signal: new AbortController().signal,
-});
-// After interruption, call download again with the same options and a new signal.
-```
-
-Use the same URL, headers, variant and output target after interruption. Node plain VOD downloads support verified segment caching and cross-process recovery; transcoding, aria2 and streaming output are excluded. Check `downloader.capabilities.resumableDownload`. Success removes media recovery data and keeps a small completion receipt and lock file. `clearCache()` does not delete the recovery directory.
-
-中断后使用相同 URL、请求头、variant 和输出目标再次调用。仅支持 Node 普通 VOD 下载，不支持转码、aria2 和流式输出。失败保留恢复数据；成功清理媒体缓存，保留完成凭据和锁文件。`clearCache()` 不删除恢复目录。输入变化报 `RESUME_INVALID`，目录占用报 `RESUME_CONFLICT`，存储失败报 `RESUME_IO_FAILED`。
 
 ## Browser request context / 浏览器请求上下文
 
@@ -480,32 +459,25 @@ Extensions own permissions, restricted-header rules and credential destination p
 
 扩展负责权限、受限头规则及凭据目标域策略。Cookie/Referer/Origin 不能仅依赖普通 headers 重放；浏览器策略和站点授权仍可能阻止访问。不要无条件向 CDN 或重定向目标扩散凭据。详见中英文 Adapter API 文档。
 
-## Audio selection and subtitles
+## Engine 1.0
 
-Browser 与 Node 的 download、stream、writable 都支持通过 `audio: { language: 'en' }` 或 `{ groupId, name }` 选择一条音轨。省略时自动选默认轨道。`parseHls()` 返回 rendition 元数据，`downloadSubtitles()` 独立导出对齐的 WebVTT。新音轨能力不与恢复、转码或 aria2 组合。
+所有 HLS 下载、流式输出和录制统一使用 `hls-engine 1.0.2`，remux/录制结果通过 `report: HlsEngineReport` 返回。选轨 VOD 转码支持解密与可解码范围，转码结果不返回中间 Engine 报告。
+普通 Browser 下载默认容量 256 MiB；Blob 录制仍需显式 `maxBytes`。
+Node 确定文件路径支持 schema-2 恢复及 `durability: 'sync-all' | 'flush'`，默认 `sync-all`；不兼容旧恢复目录。
+GCM 通过 `decryption.experimentalGcm` 显式开启。`queryCapability()` 区分容器和播放支持。
+字幕/章节有限导出使用 `report.timelineMap`，不再接受旧报告。
+AES-128 WebVTT 支持 segment/MAP、轮换及持续 sidecar：两端 Writable，Node 固定路径及 schema-2 联合恢复。
+`subtitleTracks[].embedded: false` 可仅输出 sidecar；有限字幕导出支持 `decryption` 与 `maxBytes`（默认 16 MiB）。
 
-Both adapters support one selected audio rendition across download, stream and writable output. Inspect `parseHls().renditions` on master results, and use `downloadSubtitles()` for an aligned WebVTT export. Audio selection cannot be combined with recovery, transcoding or aria2.
+All HLS operations use `hls-engine 1.0.2` and expose `report: HlsEngineReport` for remux/recording. Selected VOD transcoding supports decryption and decodable ranges; encoded results omit the intermediate Engine report.
+Browser downloads default to a 256 MiB capacity; Blob recording requires an explicit limit.
+Native deterministic files support schema-2 recovery with `sync-all` durability by default.
+Experimental draft-22 GCM requires opt-in. Use `queryCapability()` for declared container,
+playback and recovery conditions; finite mapped exports require a complete `report.timelineMap`.
+AES-128 WebVTT supports segments/MAPs, rotation and continuous sidecars: Writable on both runtimes,
+fixed files with schema-2 joint recovery on Node. Set `subtitleTracks[].embedded: false` for sidecar-only
+output. Finite subtitle exports accept `decryption` and `maxBytes` (default 16 MiB).
+Old reports and schema-1 recovery are removed. Transcoding remains FFmpeg/WebCodecs.
 
-### AES-128 VOD
-
-AES-128 有限 VOD 已支持 TS/fMP4、AVC/HEVC/AAC-LC 和单条外置音轨，可输出 MP4 文件/Blob 或 fMP4 stream/writable。默认按媒体请求策略读取 identity key；可通过每次调用的 `decryption.keyResolver` 替换。暂不支持加密恢复、转码、aria2 或加密字幕；Live/EVENT 请使用下文的 `startRecording()`。完整选项和预算见[适配器 API](docs/content/docs/zh/api/adapters.mdx#aes-128-vod)。
-
-Finite AES-128 VOD supports TS/fMP4, AVC/HEVC/AAC-LC and one external audio track, with classic MP4 file/Blob and fMP4 stream/writable output. Identity keys use the media request policy by default; per-call `decryption.keyResolver` replaces it. Encrypted recovery, transcoding, aria2 and subtitles are unsupported; use `startRecording()` below for Live/EVENT. See the [adapter API](docs/content/docs/en/api/adapters.mdx#aes-128-vod) for options and resource budgets.
-
-### 时间轴与 sample 解密 / Timeline and sample decryption
-
-显式 `timeline` 支持有限范围、epoch 和 gap 策略，返回请求/实际可解码区间。`downloadOutputs()` 和 `downloadToWritables()` 提供多输出，`downloadSubtitleOutputs()` / `exportChapters()` 按报告生成 WebVTT sidecar。有限 TS SAMPLE-AES（AVC/AAC）及 fMP4 cbcs/cenc（AVC/HEVC/AAC）按清单自动启用。范围恢复、转码和 aria2 组合仍不支持；Live/EVENT 使用独立录制入口，详见[时间轴 API](docs/content/docs/zh/api/hls-downloader.mdx#时间范围与多输出)。
-
-Opt-in `timeline` adds finite ranges, epochs, gap policies and requested/actual decodable intervals. `downloadOutputs()` / `downloadToWritables()` support multiple outputs; `downloadSubtitleOutputs()` / `exportChapters()` produce aligned WebVTT sidecars. Finite TS SAMPLE-AES (AVC/AAC) and fMP4 cbcs/cenc (AVC/HEVC/AAC) are selected automatically. Range recovery, transcoding and aria2 combinations remain unsupported; Live/EVENT uses the separate recording API. See the [timeline API](docs/content/docs/en/api/hls-downloader.mdx#timeline-ranges-and-multiple-outputs).
-
-### 持续录制 / Continuous recording
-
-`startRecording({ url, output })` 同步返回控制句柄：支持 Live/EVENT、VOD 暂停、停止排空和取消。Browser 可选择 writable 或必须指定 `maxBytes` 的 Blob；Node 可选择 writable 或不覆盖已有目标的文件。现有 `download*()` 保持有限下载语义。详见 [中文 API](docs/content/docs/zh/api/adapters.mdx)。
-
-`startRecording({ url, output })` returns a control handle for Live/EVENT, pausable VOD, stop/drain and cancellation. Browser supports writable or explicitly bounded Blob output; Node supports writable or non-overwriting files. Existing `download*()` methods remain finite-only. See the recording section in the [Adapter API](docs/content/docs/en/api/adapters.mdx).
-
-### 多轨输出 / Multi-track output
-
-新增 `downloadMultiTrack()` 和 `startMultiTrackRecording()`，通过显式 `embeddedAudio`、`audioTracks`、`subtitleTracks` 同时保留多音轨及内嵌 wvtt 字幕。Browser/Node 均支持 TS、fMP4 和新入口专用的 Packed AAC，支持矩阵与播放限制见[多轨 API](docs/content/docs/zh/api/hls-downloader.mdx#固定多轨下载与录制)。Web 示例应用提供多轨有限下载的显式音轨、字幕选择与有界输出。
-
-Use `downloadMultiTrack()` for finite ENDLIST inputs and `startMultiTrackRecording()` for VOD/Live/EVENT. Explicit track selection supports multiple audio tracks, embedded wvtt subtitles and Packed AAC through these new entries. Outputs use the recording-style Blob/file/writable configuration. Container output does not imply direct browser playback; see the [multi-track API](docs/content/docs/en/api/hls-downloader.mdx#fixed-multi-track-downloads-and-recording). The Web example exposes explicit audio/subtitle selection and bounded outputs for finite multi-track downloads.
+See [English Engine guide](docs/content/docs/en/guide/engine.mdx) and
+[中文 Engine 指南](docs/content/docs/zh/guide/engine.mdx) for API examples.

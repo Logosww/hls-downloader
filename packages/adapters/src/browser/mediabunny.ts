@@ -1,37 +1,17 @@
 import {
-  BufferSource,
-  BufferTarget,
+  BlobSource,
+  StreamTarget,
   Conversion,
-  CustomPathedSource,
-  HLS_FORMATS,
+  MP4,
   Input,
   Mp4OutputFormat,
   Output,
   QUALITY_HIGH,
   WebMOutputFormat,
 } from 'mediabunny';
-import { HlsDownloaderError, HlsDownloaderErrorCode } from '@hls-downloader/shared';
+import { HlsDownloaderError, HlsDownloaderErrorCode as Code } from '@hls-downloader/shared';
 import type { HlsDownloaderBrowserTranscodeOptions } from '@hls-downloader/shared';
-import { readResource } from './writable';
-import type { HlsDownloaderBrowserRequestOptions } from '@hls-downloader/shared';
-
-export type TranscodeHlsOptions = {
-  url: string;
-  playlist: string;
-  transcode: HlsDownloaderBrowserTranscodeOptions;
-  headers?: Record<string, string>;
-  browserRequest?: HlsDownloaderBrowserRequestOptions;
-  maxRetry: number;
-  signal?: AbortSignal;
-  onSegmentLoaded?: (loaded: number) => void;
-  onProgress?: (progress: number) => void;
-  segmentUrls?: string[];
-};
-
-export type TranscodeHlsResult = {
-  buffer: ArrayBuffer;
-  mimeType: 'video/mp4' | 'video/webm';
-};
+import { assertActive } from './request';
 
 const TRANSCODE_PRESETS = {
   h264: { videoCodec: 'avc', audioCodec: 'aac', container: 'mp4' },
@@ -56,75 +36,68 @@ function parseBitrate(value: string | number | undefined): number | undefined {
   return Number(match[1]) * multiplier;
 }
 
-function createHlsSource(
-  url: string,
-  browserRequest: HlsDownloaderBrowserRequestOptions | undefined,
-  playlist: string,
-  headers: Record<string, string> | undefined,
-  signal: AbortSignal | undefined,
-  maxRetry: number,
-  segmentUrls: string[],
-  onSegmentLoaded: ((loaded: number) => void) | undefined,
-) {
-  const normalizedSegments = new Set(segmentUrls.map((segmentUrl) => resolveUrl(segmentUrl, url)));
-  const loadedSegments = new Set<string>();
-  const sourceCache = new Map<string, Promise<ArrayBuffer>>([
-    [url, Promise.resolve(new TextEncoder().encode(playlist).buffer)],
-  ]);
-
-  return new CustomPathedSource(url, async ({ path }) => {
-    const resolvedUrl = resolveUrl(String(path), url);
-    const bufferPromise =
-      sourceCache.get(resolvedUrl) ??
-      fetchBuffer(resolvedUrl, headers, signal, maxRetry, browserRequest);
-    sourceCache.set(resolvedUrl, bufferPromise);
-    void bufferPromise.catch(() => sourceCache.delete(resolvedUrl));
-    const buffer = await bufferPromise;
-
-    if (normalizedSegments.has(resolvedUrl) && !loadedSegments.has(resolvedUrl)) {
-      loadedSegments.add(resolvedUrl);
-      onSegmentLoaded?.(loadedSegments.size);
-    }
-
-    return new BufferSource(buffer);
-  });
-}
-
-export async function transcodeHls({
-  url,
+/** Transcode only clear, selected and timeline-normalized Engine output. */
+export async function transcodeMedia({
+  blob,
   transcode,
-  playlist,
-  headers,
-  browserRequest,
-  maxRetry,
+  maxBytes,
   signal,
-  onSegmentLoaded,
   onProgress,
-  segmentUrls = [],
-}: TranscodeHlsOptions): Promise<TranscodeHlsResult> {
+}: {
+  blob: Blob;
+  transcode: HlsDownloaderBrowserTranscodeOptions;
+  maxBytes: number;
+  signal?: AbortSignal;
+  onProgress?: (progress: number) => void;
+}): Promise<{ buffer: ArrayBuffer; mimeType: 'video/mp4' | 'video/webm' }> {
+  assertActive(signal);
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
+    throw new HlsDownloaderError(Code.RESOURCE_LIMIT_EXCEEDED, 'Invalid transcode capacity');
   const preset = TRANSCODE_PRESETS[transcode.preset];
-  const source = createHlsSource(
-    url,
-    browserRequest,
-    playlist,
-    headers,
-    signal,
-    maxRetry,
-    segmentUrls,
-    onSegmentLoaded,
+  const input = new Input({ source: new BlobSource(blob), formats: [MP4] });
+  // A seekable bounded target also supports WebM header updates. Check before allocating.
+  let bytes = new Uint8Array(0),
+    length = 0;
+  let outputFailure: HlsDownloaderError | undefined;
+  let conversion: Conversion | undefined;
+  let cancellation: Promise<void> | undefined;
+  const abort = () => {
+    cancellation ??= conversion?.cancel().catch(() => {});
+  };
+  const target = new StreamTarget(
+    new WritableStream({
+      write({ data, position }) {
+        if (signal?.aborted || outputFailure) return;
+        const end = position + data.byteLength;
+        if (!Number.isSafeInteger(end) || position < 0 || end > maxBytes) {
+          outputFailure = new HlsDownloaderError(
+            Code.RESOURCE_LIMIT_EXCEEDED,
+            'Transcoded output exceeds maxBytes',
+          );
+          // Keep the borrowed target closable while Conversion tears down its encoders.
+          queueMicrotask(abort);
+          return;
+        }
+        if (end > bytes.length) {
+          const next = new Uint8Array(Math.min(maxBytes, Math.max(end, bytes.length * 2, 65536)));
+          next.set(bytes);
+          bytes = next;
+        }
+        bytes.set(data, position);
+        length = Math.max(length, end);
+      },
+    }),
   );
-  const input = new Input({ source, formats: HLS_FORMATS });
-  const target = new BufferTarget();
   const output = new Output({
     format:
       preset.container === 'webm'
         ? new WebMOutputFormat()
-        : new Mp4OutputFormat({ fastStart: 'in-memory' }),
+        : new Mp4OutputFormat({ fastStart: 'fragmented' }),
     target,
   });
-
+  signal?.addEventListener('abort', abort, { once: true });
   try {
-    const conversion = await Conversion.init({
+    conversion = await Conversion.init({
       input,
       output,
       tracks: 'primary',
@@ -141,67 +114,31 @@ export async function transcodeHls({
         forceTranscode: true,
       },
     });
-
-    if (!conversion.isValid) {
-      const reasons = conversion.discardedTracks.map((track) => track.reason).join(', ');
-      throw new TypeError(
-        `Browser cannot transcode preset "${transcode.preset}"${reasons ? `: ${reasons}` : ''}`,
+    assertActive(signal);
+    if (!conversion.isValid || conversion.discardedTracks.length)
+      throw new HlsDownloaderError(
+        Code.UNSUPPORTED_OUTPUT,
+        `Browser cannot transcode every selected track with preset "${transcode.preset}"`,
+        { reason: 'UnsupportedEncoder' },
       );
-    }
-
     conversion.onProgress = onProgress;
-    const onAbort = () => void conversion.cancel();
-    if (signal?.aborted) {
-      throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-        adapter: 'BrowserAdapter',
-      });
-    }
-    signal?.addEventListener('abort', onAbort, { once: true });
-    try {
-      await conversion.execute();
-    } catch (error) {
-      if (signal?.aborted) {
-        throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-          adapter: 'BrowserAdapter',
-        });
-      }
-      throw error;
-    } finally {
-      signal?.removeEventListener('abort', onAbort);
-    }
-    if (!target.buffer) throw new Error('Mediabunny did not produce a transcoded buffer');
-
+    await conversion.execute();
+    await cancellation;
+    assertActive(signal);
+    if (outputFailure) throw outputFailure;
     return {
-      buffer: target.buffer,
+      buffer: bytes.slice(0, length).buffer,
       mimeType: preset.container === 'webm' ? 'video/webm' : 'video/mp4',
     };
+  } catch (cause) {
+    abort();
+    await cancellation;
+    assertActive(signal);
+    if (outputFailure) throw outputFailure;
+    if (cause instanceof HlsDownloaderError) throw cause;
+    throw new HlsDownloaderError(Code.TRANSCODE_FAILED, 'Browser transcoding failed', { cause });
   } finally {
+    signal?.removeEventListener('abort', abort);
     input.dispose();
-  }
-}
-
-async function fetchBuffer(
-  url: string,
-  headers?: Record<string, string>,
-  signal?: AbortSignal,
-  maxRetry = 1,
-  browserRequest?: HlsDownloaderBrowserRequestOptions,
-): Promise<ArrayBuffer> {
-  const response = await readResource(
-    { url },
-    headers,
-    maxRetry,
-    signal ?? new AbortController().signal,
-    HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
-    browserRequest,
-  );
-  return Uint8Array.from(response.bytes).buffer;
-}
-
-function resolveUrl(path: string, baseUrl: string): string {
-  try {
-    return new URL(path, baseUrl).href;
-  } catch {
-    return path;
   }
 }

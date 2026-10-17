@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   exportChapters,
   mapTimelineWebVtt,
-  type HlsTimelineReport,
+  type HlsTimelineMap,
   type HlsTimelineMapping,
 } from '../packages/shared/src/index';
 const t = (ticks: number | string, timescale = 1) => ({ ticks: String(ticks), timescale });
@@ -27,12 +27,9 @@ const mapping = (
   wrapAnchor: t(source),
   programDateTime: null,
 });
-const report = (maps: HlsTimelineMapping[]): HlsTimelineReport => ({
-  schemaVersion: 1,
-  requested: range(0, 10),
-  actual: range(0, 10),
-  preroll: null,
-  postroll: null,
+const report = (maps: HlsTimelineMapping[]): HlsTimelineMap => ({
+  schemaVersion: 2,
+  complete: true,
   outputs: [...new Set(maps.map((m) => m.outputIndex))].map((index) => ({
     index,
     actualRange: range(0, 10),
@@ -42,13 +39,6 @@ const report = (maps: HlsTimelineMapping[]): HlsTimelineReport => ({
     mappings: maps.filter((m) => m.outputIndex === index),
   })),
   gaps: [],
-  dependencies: [],
-  randomAccessPoints: [],
-  indexedResources: '2',
-  resourceReads: '6',
-  sourceBytes: '3000',
-  peakPlannedSamples: '10',
-  peakPlannedResources: '2',
 });
 const part = (text: string, epoch = '0', programDateTime: string | null = null) => ({
   text,
@@ -59,7 +49,7 @@ const part = (text: string, epoch = '0', programDateTime: string | null = null) 
 describe('timeline sidecars', () => {
   it('clips chapters and rebases separate files', () => {
     const outputs = exportChapters({
-      timelineReport: report([mapping('0', 100, 0, 5, '0'), mapping('1', 0, 5, 10, '1')]),
+      timelineMap: report([mapping('0', 100, 0, 5, '0'), mapping('1', 0, 5, 10, '1')]),
       chapters: [{ range: range(3, 8), title: 'A < B', id: 'chapter' }],
     });
     expect(outputs.map((o) => o.filename)).toEqual(['chapters.001.vtt', 'chapters.002.vtt']);
@@ -70,7 +60,7 @@ describe('timeline sidecars', () => {
   it('collapses common gaps for chapters and WebVTT equally', () => {
     const r = report([mapping('0', 100, 0, 4, '0'), mapping('0', 106, 6, 10, '0', 4)]);
     const chapters = exportChapters({
-      timelineReport: r,
+      timelineMap: r,
       chapters: [{ range: range(7, 8), title: 'chapter' }],
     });
     const vtt = mapTimelineWebVtt(
@@ -127,7 +117,7 @@ describe('timeline sidecars', () => {
     const r = report([m]);
     r.outputs[0]!.tracks[0]!.codec = 'Aac';
     expect(
-      exportChapters({ timelineReport: r, chapters: [{ range: range(1, 2), title: 'audio' }] })[0]!
+      exportChapters({ timelineMap: r, chapters: [{ range: range(1, 2), title: 'audio' }] })[0]!
         .text,
     ).toContain('00:00:01.000 --> 00:00:02.000');
   });
@@ -135,7 +125,7 @@ describe('timeline sidecars', () => {
     const m = mapping('0', 0, 0, 1, '0');
     m.presentation = { start: t('9007199254740993', 1000), end: t('9007199254741993', 1000) };
     const out = exportChapters({
-      timelineReport: report([m]),
+      timelineMap: report([m]),
       chapters: [
         {
           title: 'precise',
@@ -148,12 +138,21 @@ describe('timeline sidecars', () => {
   it('rejects invalid chapters and report versions', () => {
     expect(() =>
       exportChapters({
-        timelineReport: report([mapping('0', 0, 0, 10, '0')]),
+        timelineMap: report([mapping('0', 0, 0, 10, '0')]),
         chapters: [{ title: 'bad', range: range(3, 2) }],
       }),
     ).toThrow();
     expect(() =>
-      exportChapters({ timelineReport: { schemaVersion: 2 } as any, chapters: [] }),
+      exportChapters({ timelineMap: { schemaVersion: 2 } as any, chapters: [] }),
     ).toThrow();
   });
+});
+
+it('maps signed presentation preroll onto a nonnegative output clock', () => {
+  const r = report([mapping('0', 0, -1, 2, '0')]);
+  const output = exportChapters({
+    timelineMap: r,
+    chapters: [{ range: range(-1, 2), title: 'Preroll' }],
+  });
+  expect(output[0]!.text).toContain('00:00:00.000 --> 00:00:03.000');
 });

@@ -24,7 +24,7 @@ export type SelectedMedia = {
 };
 export type RequestOptions = HlsDownloaderFetchOptions &
   HlsDownloaderDownloadOptions &
-  HlsDownloaderBrowserOperationOptions;
+  HlsDownloaderBrowserOperationOptions & { __rejectAudio?: boolean };
 
 export function parseManifest(text: string, url: string): ParseHlsResult {
   if (!text.trimStart().startsWith('#EXTM3U'))
@@ -172,14 +172,9 @@ export async function resolveMedia(
   throw new HlsDownloaderError(Code.MANIFEST_INVALID, 'Master playlist recursion limit exceeded');
 }
 
-export type Timeline = {
-  origin: { ticks: string; timescale: number };
-  tracks: { role: string; timescale: number; editOffset: string; wrapAnchor?: string | null }[];
-};
-export type PreparedReport = {
-  timelineReport?: import('@hls-downloader/shared').HlsTimelineReport;
+export type EngineBridgeResult = {
+  report?: import('@hls-downloader/shared').HlsEngineReport;
   totalSegments: number;
-  timeline: Timeline;
   error?: {
     code: string;
     inputRole?: 'primary' | 'audio';
@@ -188,7 +183,7 @@ export type PreparedReport = {
     url?: string;
   };
 };
-export function checkPreparedReport(report: PreparedReport): PreparedReport {
+export function checkEngineResult(report: EngineBridgeResult): EngineBridgeResult {
   if (report.error) {
     const { code, ...details } = report.error;
     throw new HlsDownloaderError(
@@ -203,18 +198,4 @@ export function checkPreparedReport(report: PreparedReport): PreparedReport {
     );
   }
   return report;
-}
-export function preparedRequest(
-  media: SelectedMedia,
-  concurrency: number,
-  mode: string,
-  output?: string,
-): string {
-  return JSON.stringify({
-    primary: { url: media.primary.url, text: media.primary.text },
-    audio: media.audio ? { url: media.audio.url, text: media.audio.text } : null,
-    concurrency: Math.max(1, Math.floor(Number.isFinite(concurrency) ? concurrency : 1)),
-    mode,
-    output,
-  });
 }

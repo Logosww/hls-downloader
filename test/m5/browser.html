@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8" /><title>M5 recording resource probe</title>
+<script type="module">
+  import { HlsDownloader } from '../../packages/core/src/index.ts';
+  import { BrowserAdapter } from '../../packages/adapters/src/browser/index.ts';
+  import { ensureWasm } from '../../packages/adapters/src/browser/wasm.ts';
+  import init from '../../packages/adapters/src/browser/generated/hls_transmux_browser_wasm.js';
+  import { record } from './record.ts';
+  await ensureWasm();
+  const { memory } = await init();
+  window.wasmBytes = () => memory.buffer.byteLength;
+  window.record = (url, count, cancelAt) =>
+    record(
+      new HlsDownloader({ adapter: BrowserAdapter }),
+      url,
+      count,
+      undefined,
+      undefined,
+      cancelAt,
+    );
+</script>

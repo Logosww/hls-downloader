@@ -1,5 +1,6 @@
 import type { HlsDownloaderFetchOptions, HlsDownloaderDownloadOptions } from './types';
 import type { HlsMediaTime, HlsPresentationRange, HlsTimelineTrack } from './timeline';
+export type HlsResumeOptions = { directory: string; durability?: 'flush' | 'sync-all' };
 export type HlsRecordingState =
   | 'preparing'
   | 'running'
@@ -42,7 +43,7 @@ export type HlsRecordingProgress = {
   committed: string;
   committedSlot: { inputId: string; generation: string; epoch: string; sequence: string } | null;
 };
-export type HlsRecordingReport = {
+export type HlsEngineMediaReport = {
   schemaVersion: 1;
   endReason: 'Eof' | 'Stop' | 'DurationLimit';
   inputs: HlsRecordingProgress[];
@@ -119,9 +120,9 @@ export type HlsRecordingOptions<O extends HlsRecordingOutput = HlsRecordingOutpu
       };
       onEvent?: (event: HlsRecordingEvent & { operationId: string }) => void;
       transcode?: never;
-      resume?: never;
+
       aria2?: never;
-    };
+    } & (O extends { type: 'file' } ? { resume?: HlsResumeOptions } : { resume?: never });
 export type HlsRecordingResult<O extends HlsRecordingOutput = HlsRecordingOutput> = {
   operationId: string;
   report: HlsRecordingReport;
@@ -170,6 +171,11 @@ export type HlsRecordingCapabilities = Readonly<{
   split: true;
   ranges: true;
   methods: readonly string[];
-  resume: false;
+  resume: boolean;
   startPosition: 'window-start';
 }>;
+
+export type HlsRecordingReport = import('./multitrack').HlsEngineReport;
+export type HlsEngineOutputRequest = HlsRecordingOutputRequest;
+export type HlsEngineOutputReport = HlsRecordingOutputReport;
+export type HlsEngineEvent = import('./multitrack').HlsMultiTrackEvent;

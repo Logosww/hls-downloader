@@ -81,7 +81,6 @@
     "test:types:resume": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/resume-api.typecheck.ts",
     "test:browser:extension": "pnpm --filter @hls-downloader/test run test:browser:extension",
     "test:app-web:metadata": "pnpm --filter @hls-downloader/test run test:app-web:metadata",
-    "test:native:prepared": "pnpm --filter @hls-downloader/test run test:native:prepared",
     "test:browser:renditions": "pnpm --filter @hls-downloader/test run test:browser:renditions",
     "test:types:renditions": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/renditions-api.typecheck.ts",
     "test:app-web:renditions": "pnpm --filter @hls-downloader/test run test:app-web:renditions",
@@ -98,7 +97,14 @@
     "test:multitrack": "pnpm --filter @hls-downloader/test run test:multitrack",
     "test:browser:multitrack": "pnpm --filter @hls-downloader/test run test:browser:multitrack",
     "test:types:multitrack": "tsc --ignoreConfig --noEmit --moduleResolution bundler --module esnext --target esnext --strict --skipLibCheck --typeRoots packages/adapters/node_modules/@types --types node test/multitrack-api.typecheck.ts",
-    "test:app-web:multitrack": "pnpm --filter @hls-downloader/test run test:app-web:multitrack"
+    "test:app-web:multitrack": "pnpm --filter @hls-downloader/test run test:app-web:multitrack",
+    "test:engine": "pnpm --filter @hls-downloader/test run test:engine",
+    "test:browser:engine": "pnpm --filter @hls-downloader/test run test:browser:engine",
+    "test:m4": "pnpm --filter @hls-downloader/test run test:m4",
+    "test:browser:transcode": "pnpm --filter @hls-downloader/test run test:browser:transcode",
+    "test:m5:resources": "pnpm --filter @hls-downloader/test run test:m5:resources",
+    "test:m5:soak": "pnpm --filter @hls-downloader/test run test:m5:soak",
+    "test:m5:gates": "pnpm --filter @hls-downloader/test run test:m5:gates"
   },
   "dependencies": {
     "@hls-downloader/adapters": "workspace:*",
@@ -115,5 +121,5 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@12.9.1"
+  "packageManager": "pnpm@12.14.0"
 }

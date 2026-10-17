@@ -88,6 +88,11 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   get isInit(): boolean {
     return this.#isInit;
   }
+  queryCapability(
+    query: import('@hls-downloader/shared').HlsCapabilityQuery,
+  ): Promise<import('@hls-downloader/shared').HlsCapabilityDecision> {
+    return this.#adapter.queryCapability(query);
+  }
   get capabilities(): AdapterCapabilities {
     return this.#adapter.capabilities;
   }
@@ -180,8 +185,8 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       ...('timeline' in options && options.timeline
         ? { timeline: structuredClone(options.timeline) }
         : {}),
-      ...('timelineReport' in options && options.timelineReport
-        ? { timelineReport: structuredClone(options.timelineReport) }
+      ...('timelineMap' in options && options.timelineMap
+        ? { timelineMap: structuredClone(options.timelineMap) }
         : {}),
       ...('track' in options && options.track ? { track: { ...(options.track as object) } } : {}),
       ...(decryption
@@ -456,7 +461,12 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       output: { ...options.output },
       primaryAudio: options.primaryAudio && { ...options.primaryAudio },
       audioTracks: options.audioTracks && structuredClone(options.audioTracks),
-      subtitleTracks: options.subtitleTracks && structuredClone(options.subtitleTracks),
+      subtitleTracks: options.subtitleTracks?.map((t) => ({
+        ...t,
+        selector: { ...t.selector },
+        metadata: t.metadata && { ...t.metadata },
+        sidecar: t.sidecar && { ...t.sidecar },
+      })),
       limits: options.limits && structuredClone(options.limits),
       durationLimit: options.durationLimit && { ...options.durationLimit },
     });
@@ -483,6 +493,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
           finite,
         );
       },
+      this.#adapter.name,
     );
     const result = session.result.catch((error: unknown) => {
       const e = normalizeHlsError(error, HlsDownloaderErrorCode.MULTITRACK_FAILED);
@@ -518,21 +529,25 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       limits: options.limits && structuredClone(options.limits),
       durationLimit: options.durationLimit && { ...options.durationLimit },
     });
-    return createRecording(snapshot, async (request, host) => {
-      if (
-        !this.#adapter.runRecording ||
-        !this.capabilities.recording?.outputs.includes(request.output.type)
-      )
-        throw new HlsDownloaderError(
-          HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-          'Recording output unavailable',
+    return createRecording(
+      snapshot,
+      async (request, host) => {
+        if (
+          !this.#adapter.runRecording ||
+          !this.capabilities.recording?.outputs.includes(request.output.type)
+        )
+          throw new HlsDownloaderError(
+            HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+            'Recording output unavailable',
+          );
+        await awaitRecordingInit(this.init(), request.signal!);
+        return this.#adapter.runRecording(
+          injectContext(request, this.#createOperationContext(request.operationId!)),
+          host,
         );
-      await awaitRecordingInit(this.init(), request.signal!);
-      return this.#adapter.runRecording(
-        injectContext(request, this.#createOperationContext(request.operationId!)),
-        host,
-      );
-    });
+      },
+      this.#adapter.name,
+    );
   }
   async downloadOutputs(
     options: HlsDownloaderOutputsOptions &
@@ -569,7 +584,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     outputFactory: HlsOutputFactory,
   ): Promise<
     HlsDownloaderStreamResult & {
-      timelineReport: import('@hls-downloader/shared').HlsTimelineReport;
+      report: import('@hls-downloader/shared').HlsEngineReport;
     }
   > {
     options = this.#snapshotRequestOptions(options);

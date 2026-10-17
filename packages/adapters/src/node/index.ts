@@ -1,3 +1,6 @@
+import { finiteEngine } from '../engine';
+import { transcodeFile } from './transcode';
+import { assertActive } from '../browser/request';
 import { runMultiTrack, multiTrackCapabilities } from '../multitrack';
 import {
   runRecording,
@@ -6,18 +9,10 @@ import {
   type RecordingBridgeFactory,
 } from '../recording';
 import { exportTimelineSubtitles } from '../timeline-subtitles';
-import { timelineProfile, validateTimeline } from '../timeline';
-import { executeKeyed } from '../keyed';
-import {
-  executeMedia,
-  requiresKeyed,
-  parseMediaMetadata,
-  decryptionProfile,
-  type KeyedEngine,
-} from '../keyed';
+import { timelineProfile } from '../timeline';
+import { parseMediaMetadata, decryptionProfile } from '../keyed';
 import { resolveMedia, selectAudio } from '../renditions';
-import { withOperation, exportSubtitles, type Engine } from '../prepared';
-import { assertActive } from '../browser/request';
+import { withOperation, exportSubtitles } from '../prepared';
 import {
   createAdapter,
   emitAdapterEvent,
@@ -45,13 +40,9 @@ import {
   assertSupportedSegments,
 } from '@hls-downloader/shared';
 import {
-  openResumeTask,
-  closeResumeTask,
-  runResumeTask,
   initFfmpeg,
-  preparedNative,
-  keyedNative,
-  timelineNative,
+  inspectRecoveryNative,
+  queryCapabilityNative,
   continuousCreate,
   continuousCommand,
   continuousRun,
@@ -59,18 +50,14 @@ import {
   parseHlsNative,
   downloadAndMerge,
   extractPoster,
-  transmuxHlsNative,
-  createCancelToken,
-  cancelJob,
   type NapiParseHlsResult,
   type NapiAria2Config,
 } from './native.js';
-import { extractPosterFromSegmentUrl } from './poster';
 import { randomUUID } from 'node:crypto';
-import { mkdir, rm, rename } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { mkdir, mkdtemp, link, rm } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 
-export type NodeAdapterResumeOptions = { directory: string };
+export type NodeAdapterResumeOptions = import('@hls-downloader/shared').HlsResumeOptions;
 type DownloadOnlyOptions = { resume?: NodeAdapterResumeOptions };
 
 export type NodeAdapterAria2Options = NapiAria2Config;
@@ -80,7 +67,7 @@ type AdditionalOptions = {
 type DownloadResult = {
   filePath: string;
   totalSegments: number;
-  timelineReport?: import('@hls-downloader/shared').HlsTimelineReport;
+  report?: import('@hls-downloader/shared').HlsEngineReport;
 };
 export type HlsDownloaderNodeAdapter = HlsDownloaderAdapterInternal<
   AdditionalOptions,
@@ -227,11 +214,7 @@ const parseHls: HlsDownloaderNodeAdapter['parseHls'] = async function (
     : parseResultCache.get(cacheKey);
   if (cached) return cached;
 
-  const napiResult = await parseHlsNative(
-    url,
-    headers,
-    (options as Record<string, unknown>).__resumeJobId as string | undefined,
-  );
+  const napiResult = await parseHlsNative(url, headers);
   const result = toParseHlsResult(napiResult);
   // set 内部会跳过 error，不再缓存失败结果
   if (!(options as Record<string, unknown>).resume) parseResultCache.set(cacheKey, result);
@@ -344,91 +327,73 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode, signal } =
     mergeDownloadOptions(this, globalOptions, options);
 
-  if (options.timeline) {
-    validateTimeline(options.timeline, false);
-    if (transcode !== undefined || options.resume !== undefined || aria2?.enabled)
+  if (!needsFfmpegTranscode(transcode) && !aria2?.enabled) {
+    const filePath = resolve(filename);
+    const result = await finiteEngine(
+      this,
+      {
+        ...options,
+        url,
+        headers,
+        maxRetry,
+        signal,
+        transcode: undefined,
+        __rejectAudio: transcode !== undefined,
+      },
+      { type: 'file', path: filePath, format: 'mp4' },
+      nodeRecordingBridge,
+    );
+    emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+    return { filePath, totalSegments: result.totalSegments, report: result.report };
+  }
+  if (needsFfmpegTranscode(transcode) && !aria2?.enabled) {
+    if (
+      options.resume ||
+      (options.timeline &&
+        'changePolicy' in options.timeline &&
+        options.timeline.changePolicy === 'split')
+    )
       throw new HlsDownloaderError(
         HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-        'Timeline output cannot use transcoding, recovery or aria2',
+        'Transcoding cannot use recovery or split outputs',
       );
+    const filePath = resolve(filename);
+    const workDir = await mkdtemp(join(dirname(filePath), `.hls-transcode-${filename}-`));
+    try {
+      const input = join(workDir, 'input.mp4');
+      const { aria2: _aria2, ...engineOptions } = options;
+      const result = await finiteEngine(
+        this,
+        { ...engineOptions, url, headers, maxRetry, signal, transcode: undefined },
+        { type: 'file', path: input, format: 'fmp4' },
+        nodeRecordingBridge,
+      );
+      emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS);
+      const output = join(workDir, filename);
+      await transcodeFile(input, output, buildFfmpegOutputArgs(transcode), signal);
+      assertActive(signal);
+      // Publish without replacing an existing destination. Staging is on the same filesystem.
+      try {
+        await link(output, filePath);
+      } catch (cause) {
+        throw new HlsDownloaderError(
+          HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
+          'Cannot publish transcoded output',
+          { cause },
+        );
+      }
+      emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
+      return { filePath, totalSegments: result.totalSegments };
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
   }
-  emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
-
-  if (signal?.aborted) {
-    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-      adapter: this.name,
-    });
-  }
-
-  if (options.decryption && (options.resume || transcode !== undefined || aria2?.enabled))
+  if (options.resume || options.decryption || options.audio || options.timeline)
     throw new HlsDownloaderError(
       HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-      'Decryption is incompatible with recovery, transcoding or aria2',
+      'Transcode/aria2 cannot use Engine options',
     );
-  if (options.audio && (options.resume || transcode !== undefined || aria2?.enabled))
-    throw new HlsDownloaderError(
-      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-      'Audio selection is incompatible with recovery, transcoding or aria2',
-    );
-  if (options.resume === undefined && !needsFfmpegTranscode(transcode) && !aria2?.enabled) {
-    return withOperation(
-      { ...options, url, headers, filename, maxRetry, downloadConcurrency, signal, transcode },
-      async (request) => {
-        const media = await resolveMedia(request, transcode !== undefined, true);
-        emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-        const workDir = join(process.cwd(), randomUUID());
-        await mkdir(workDir, { recursive: true });
-        try {
-          const output = join(workDir, 'output.mp4');
-          const report = await executeMedia(
-            this,
-            request,
-            media,
-            nodeEngine,
-            nodeKeyedEngine,
-            'file',
-            async () => {},
-            output,
-            nodeTimelineEngine,
-          );
-          const filePath = resolve(filename);
-          assertActive(request.signal);
-          try {
-            await rename(output, filePath);
-          } catch (cause) {
-            throw new HlsDownloaderError(
-              HlsDownloaderErrorCode.OUTPUT_WRITE_FAILED,
-              'Failed to publish output file',
-              { cause },
-            );
-          }
-          emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-          return {
-            filePath,
-            totalSegments: report.totalSegments,
-            timelineReport: report.timelineReport,
-          };
-        } finally {
-          await rm(workDir, { recursive: true, force: true });
-        }
-      },
-      this.name,
-    );
-  }
-  if (options.resume !== undefined) {
-    return downloadResumable(this, options, {
-      url,
-      headers,
-      filename,
-      maxRetry,
-      downloadConcurrency,
-      aria2,
-      transcode,
-      signal,
-    });
-  }
-
-  const { segments, resolvedUrl } = await resolveToSegments(this, { ...options, url, headers });
+  const { segments } = await resolveToSegments(this, { ...options, url, headers });
   emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
 
   const workDir = join(process.cwd(), randomUUID());
@@ -442,45 +407,8 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   }));
 
   const transcodeArgs = needsFfmpegTranscode(transcode) ? buildFfmpegOutputArgs(transcode) : null;
-  const shouldUseFfmpeg = !!transcodeArgs || aria2?.enabled;
 
   try {
-    if (!shouldUseFfmpeg) {
-      const { jobId, cleanup } = await setupCancelToken(signal);
-      try {
-        const filePath = await downloadAndTransmux({
-          resolvedUrl,
-          workDir,
-          filename,
-          headers,
-          downloadConcurrency,
-          maxRetry,
-          cancelJobId: jobId,
-          onProgress: (completed, total) => {
-            emitAdapterEvent(this, options, HlsDownloaderEvent.DOWNLOADING_SEGMENTS, {
-              total,
-              completed,
-            });
-          },
-          onMuxProgress: (completed, total) => {
-            emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
-              total,
-              completed,
-            });
-          },
-        });
-
-        emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-
-        return {
-          filePath,
-          totalSegments: segments.length,
-        };
-      } finally {
-        cleanup();
-      }
-    }
-
     ensureFfmpegLoaded(this, options);
     const self = this;
     const filePath = await downloadAndMerge(
@@ -520,259 +448,20 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   }
 };
 
-function resumeError(cause: unknown): HlsDownloaderError {
-  const message = cause instanceof Error ? cause.message : String(cause);
-  const code = Object.values(HlsDownloaderErrorCode).find((code) => message.startsWith(`${code}:`));
-  return new HlsDownloaderError(
-    code ?? HlsDownloaderErrorCode.TRANSMUX_FAILED,
-    code ? message : 'Resumable download failed',
-    { adapter: 'NodeAdapter', cause },
-  );
-}
-
-async function downloadResumable(
-  adapter: HlsDownloaderNodeAdapter,
-  options: Parameters<HlsDownloaderNodeAdapter['download']>[0],
-  merged: ReturnType<typeof mergeDownloadOptions>,
-): Promise<DownloadResult> {
-  const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode, signal } =
-    merged;
-  if (transcode !== undefined || aria2?.enabled) {
-    throw new HlsDownloaderError(
-      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-      'Recovery supports plain Node downloads only',
-      { adapter: adapter.name },
-    );
-  }
-  if (
-    !options.resume ||
-    typeof options.resume.directory !== 'string' ||
-    !options.resume.directory.trim()
-  ) {
-    throw new HlsDownloaderError(
-      HlsDownloaderErrorCode.RESUME_INVALID,
-      'A recovery directory is required',
-    );
-  }
-  if (!filename || filename === '.' || filename.includes('..') || /[/\\]/.test(filename)) {
-    throw new HlsDownloaderError(
-      HlsDownloaderErrorCode.RESUME_INVALID,
-      'Output filename must be a basename',
-    );
-  }
-  const normalizedHeaders = Object.entries(headers ?? {})
-    .map(([key, value]) => [key.toLowerCase(), value])
-    .sort(([a], [b]) => a!.localeCompare(b!));
-  const identity = JSON.stringify({
-    url,
-    headers: normalizedHeaders,
-    variant: options.variant
-      ? Object.fromEntries(Object.entries(options.variant).sort(([a], [b]) => a.localeCompare(b)))
-      : null,
-  });
-  let session: Awaited<ReturnType<typeof openResumeTask>> | undefined;
-  // A token is required even without a user signal: storage failures cancel native work.
-  const directory = resolve(options.resume.directory);
-  const output = resolve(filename);
-  const { jobId, cleanup } = await setupCancelToken(signal ?? new AbortController().signal);
-  let active = true;
-  try {
-    session = await openResumeTask(directory, identity, output);
-    if (signal?.aborted)
-      throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted');
-    let resolvedUrl = '';
-    if (session.needsInput) {
-      ({ resolvedUrl } = await resolveToSegments(adapter, {
-        ...options,
-        url,
-        headers,
-        __resumeJobId: jobId,
-      }));
-    }
-    emitAdapterEvent(adapter, options, HlsDownloaderEvent.SOURCE_PARSED);
-    const result = await runResumeTask(
-      session.id,
-      resolvedUrl,
-      headers ?? null,
-      downloadConcurrency,
-      maxRetry,
-      jobId!,
-      (err: Error | null, progress: [string, number, number]) => {
-        if (err || !active) return;
-        const [phase, completed, total] = progress;
-        emitAdapterEvent(
-          adapter,
-          options,
-          phase === 'merging'
-            ? HlsDownloaderEvent.STITCHING_SEGMENTS
-            : HlsDownloaderEvent.DOWNLOADING_SEGMENTS,
-          { completed, total },
-        );
-      },
-    );
-    active = false;
-    emitAdapterEvent(adapter, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
-      completed: result.totalSegments,
-      total: result.totalSegments,
-    });
-    emitAdapterEvent(adapter, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-    return result;
-  } catch (cause) {
-    if (cause instanceof HlsDownloaderError) throw cause;
-    throw resumeError(cause);
-  } finally {
-    active = false;
-    if (session) closeResumeTask(session.id);
-    cleanup();
-  }
-}
-
-type DownloadAndTransmuxOptions = {
-  resolvedUrl: string;
-  workDir: string;
-  filename: string;
-  headers?: Record<string, string>;
-  downloadConcurrency: number;
-  maxRetry: number;
-  cancelJobId?: string | null;
-  onProgress: (completed: number, total: number) => void;
-  onMuxProgress: (completed: number, total: number) => void;
-};
-
-/**
- * 为一次下载任务创建取消令牌。若 signal 已中止则立即抛出 AbortError；
- * 否则注册 abort 监听器，触发时调用 cancelJob 通知 Rust 端。
- * 返回 cleanup 函数用于在任务结束（成功或失败）后移除监听器并清理注册表。
- */
-async function setupCancelToken(
-  signal?: AbortSignal,
-): Promise<{ jobId: string | null; cleanup: () => void }> {
-  if (!signal) return { jobId: null, cleanup: () => {} };
-
-  if (signal.aborted) {
-    throw new HlsDownloaderError(HlsDownloaderErrorCode.ABORTED, 'Download aborted', {
-      adapter: 'NodeAdapter',
-    });
-  }
-
-  const jobId = await createCancelToken();
-  const onAbort = () => {
-    try {
-      cancelJob(jobId);
-    } catch {}
-  };
-  signal.addEventListener('abort', onAbort, { once: true });
-  if (signal.aborted) onAbort();
-
-  return {
-    jobId,
-    cleanup: () => {
-      signal.removeEventListener('abort', onAbort);
-      try {
-        cancelJob(jobId);
-      } catch {}
-    },
-  };
-}
-
-async function downloadAndTransmux({
-  resolvedUrl,
-  workDir,
-  filename,
-  headers,
-  downloadConcurrency,
-  maxRetry,
-  cancelJobId,
-  onProgress,
-  onMuxProgress,
-}: DownloadAndTransmuxOptions) {
-  // hls-transmux 的 StreamingMp4 路径下，下载与 mux 是流式交织进行的，
-  // 单一 on_progress 同时反映下载与 mux 进度。这里把进度映射到
-  // DOWNLOADING_SEGMENTS 事件；末端完成时由 onMuxProgress 触发一次
-  // STITCHING_SEGMENTS 满 progress，保持原两阶段事件语义。
-  const filePath = await transmuxHlsNative(
-    resolvedUrl,
-    workDir,
-    filename,
-    headers ?? null,
-    downloadConcurrency,
-    maxRetry,
-    cancelJobId ?? null,
-    onProgress,
-  );
-  onMuxProgress(1, 1);
-  return filePath;
-}
-
-const nodeEngine: Engine = async (request, read, write, progress, signal) => {
-  const { jobId, cleanup } = await setupCancelToken(signal);
-  let active = true;
-  try {
-    return await preparedNative(
-      request,
-      jobId!,
-      async (err: Error | null, resource: string) => {
-        if (err) throw err;
-        return Buffer.from(await read(resource));
-      },
-      async (err: Error | null, bytes: Buffer) => {
-        if (err) throw err;
-        await write(new Uint8Array(bytes));
-      },
-      (err: Error | null, event: string) => {
-        if (!err && active) progress(event);
-      },
-    );
-  } finally {
-    active = false;
-    cleanup();
-  }
-};
 const downloadToWritable: NonNullable<HlsDownloaderNodeAdapter['downloadToWritable']> =
   async function (this: HlsDownloaderNodeAdapter, options, write) {
-    if (options.timeline) validateTimeline(options.timeline, false);
-    const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
-    const merged = { ...mergeDownloadOptions(this, globalOptions, options), transcode: undefined };
-    return withOperation(
-      { ...options, ...merged },
-      async (request) => {
-        emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
-        const media = await resolveMedia(
-          request,
-          Boolean((options as Record<string, unknown>).__rejectAudio),
-          true,
-        );
-        if ((media.audio || requiresKeyed(media, request)) && merged.aria2?.enabled)
-          throw new HlsDownloaderError(
-            HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-            'Audio selection cannot use aria2',
-          );
-        emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-        if (requiresKeyed(media, request) && (options as Record<string, unknown>).__rejectAudio)
-          throw new HlsDownloaderError(
-            HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-            'Encrypted input cannot be transcoded',
-          );
-        const report = await executeMedia(
-          this,
-          request,
-          media,
-          nodeEngine,
-          nodeKeyedEngine,
-          'stream',
-          write,
-          undefined,
-          nodeTimelineEngine,
-        );
-        emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS, {
-          completed: report.totalSegments,
-          total: report.totalSegments,
-        });
-        return { totalSegments: report.totalSegments, timelineReport: report.timelineReport };
+    return finiteEngine(
+      this,
+      {
+        ...options,
+        ...mergeFetchOptions(getAdapterGlobalOptionsFromInternal(this, options), options),
       },
-      this.name,
+      { type: 'writable', writable: undefined as never },
+      nodeRecordingBridge,
+      (bytes) => write(bytes),
     );
   };
+
 const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async function (
   this: HlsDownloaderNodeAdapter,
   options,
@@ -792,8 +481,7 @@ const downloadToStream: HlsDownloaderNodeAdapter['downloadToStream'] = async fun
     this,
     {
       ...options,
-      transcode: undefined,
-      __rejectAudio: merged.transcode !== undefined,
+      transcode: merged.transcode,
     } as Parameters<NonNullable<HlsDownloaderNodeAdapter['downloadToWritable']>>[0],
     async (bytes) => {
       onChunk(bytes);
@@ -819,7 +507,7 @@ const downloadSubtitles: NonNullable<HlsDownloaderNodeAdapter['downloadSubtitles
           this,
           { ...request, subtitle: options.subtitle, filename: options.filename },
           media,
-          nodeEngine,
+          nodeRecordingBridge,
         );
       },
       this.name,
@@ -828,114 +516,51 @@ const downloadSubtitles: NonNullable<HlsDownloaderNodeAdapter['downloadSubtitles
 
 const downloadToWritables: NonNullable<HlsDownloaderNodeAdapter['downloadToWritables']> =
   async function (this: HlsDownloaderNodeAdapter, options, write, control) {
-    const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
-    const merged = { ...mergeDownloadOptions(this, globalOptions, options), transcode: undefined };
-    if (
-      options.transcode !== undefined ||
-      (options as Record<string, unknown>).resume !== undefined ||
-      merged.aria2?.enabled
-    )
-      throw new HlsDownloaderError(
-        HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-        'Timeline output cannot use transcoding, recovery or aria2',
-      );
-    const timeline = options.timeline ?? {};
-    validateTimeline(timeline, true);
-    return withOperation(
-      { ...options, ...merged, timeline },
-      async (request) => {
-        emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
-        const media = await resolveMedia(request, false, true);
-        emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-        const report = await executeKeyed(
-          this,
-          request,
-          media,
-          nodeTimelineEngine,
-          'stream-outputs',
-          (bytes, index) => write(bytes, index!),
-          undefined,
-          control,
-        );
-        return { totalSegments: report.totalSegments, timelineReport: report.timelineReport! };
+    return finiteEngine(
+      this,
+      {
+        ...options,
+        ...mergeFetchOptions(getAdapterGlobalOptionsFromInternal(this, options), options),
       },
-      this.name,
+      {
+        type: 'writables',
+        acquire: async () => {
+          throw new Error('internal output');
+        },
+      },
+      nodeRecordingBridge,
+      write,
+      control,
     );
   };
 const downloadOutputs: NonNullable<HlsDownloaderNodeAdapter['downloadOutputs']> = async function (
   this: HlsDownloaderNodeAdapter,
   options,
 ) {
-  const merged = mergeDownloadOptions(
+  const base = (options.filename ?? 'output').replace(/\.mp4$/i, '');
+  const outputs: any[] = [];
+  const out = {
+    type: 'files',
+    acquire: async (o: import('@hls-downloader/shared').HlsRecordingOutputRequest) =>
+      resolve(`${base}.${(BigInt(o.index) + 1n).toString().padStart(3, '0')}.mp4`),
+    format: 'mp4',
+  };
+  const result = await finiteEngine(
     this,
-    getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options),
     options,
-  );
-  if (
-    merged.transcode !== undefined ||
-    merged.aria2?.enabled ||
-    (options as Record<string, unknown>).resume !== undefined
-  )
-    throw new HlsDownloaderError(
-      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
-      'Timeline output cannot use transcoding, recovery or aria2',
-    );
-  const timeline = options.timeline ?? {};
-  validateTimeline(timeline, true);
-  return withOperation(
-    { ...options, ...merged, timeline },
-    async (request) => {
-      emitAdapterEvent(this, options, HlsDownloaderEvent.STARTING_DOWNLOAD);
-      const media = await resolveMedia(request, false, true);
-      emitAdapterEvent(this, options, HlsDownloaderEvent.SOURCE_PARSED);
-      const paths = new Map<string, string>();
-      const completed: import('@hls-downloader/shared').HlsCompletedOutput[] = [];
-      try {
-        const report = await executeKeyed(
-          this,
-          request,
-          media,
-          nodeTimelineEngine,
-          'file-outputs',
-          async () => {},
-          undefined,
-          async (r) => {
-            if (r.action === 'acquire') {
-              const path = resolve(
-                merged.filename.replace(/\.mp4$/i, '') +
-                  '.' +
-                  (BigInt(r.output.index) + 1n).toString().padStart(3, '0') +
-                  '.mp4',
-              );
-              paths.set(r.output.index, path);
-              return path;
-            }
-            completed.push({ ...r.output, filePath: paths.get(r.output.index)! });
-            return '';
-          },
-        );
-        const outputs = completed.map((o) => ({
-          index: o.index,
-          filePath: o.filePath!,
-        }));
-        emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-        return {
-          outputs,
-          totalSegments: report.totalSegments,
-          timelineReport: report.timelineReport!,
-        };
-      } catch (error) {
-        if (error instanceof HlsDownloaderError)
-          throw new HlsDownloaderError(error.code, error.message, {
-            ...error,
-            cause: error.cause,
-            completedOutputs: completed,
-          });
-        throw error;
+    out as import('@hls-downloader/shared').HlsRecordingOutput,
+    nodeRecordingBridge,
+    undefined,
+    async (r) => {
+      if (r.action === 'acquire') {
+        const filePath = await out.acquire(r.output);
+        outputs.push({ index: r.output.index, filePath });
+        return filePath;
       }
+      return '';
     },
-    this.name,
   );
+  return { ...result, outputs };
 };
 
 const downloadSubtitleOutputs: NonNullable<HlsDownloaderNodeAdapter['downloadSubtitleOutputs']> =
@@ -947,19 +572,26 @@ const downloadSubtitleOutputs: NonNullable<HlsDownloaderNodeAdapter['downloadSub
     return withOperation(
       { ...options, ...merged },
       (request) =>
-        exportTimelineSubtitles(this, {
-          ...request,
-          subtitle: options.subtitle,
-          timelineReport: options.timelineReport,
-          track: options.track,
-          filename: options.filename,
-        }),
+        exportTimelineSubtitles(
+          this,
+          {
+            ...request,
+            subtitle: options.subtitle,
+            timelineMap: options.timelineMap,
+            track: options.track,
+            filename: options.filename,
+          },
+          nodeRecordingBridge,
+        ),
       this.name,
     );
   };
 
 const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   name: 'NodeAdapter',
+  async queryCapability(query) {
+    return checkRecording(queryCapabilityNative(JSON.stringify(query)));
+  },
   capabilities: {
     download: true,
     stream: true,
@@ -967,8 +599,8 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
     configurableRetry: true,
     byteRange: true,
     aes128: true,
-    decryption: decryptionProfile,
-    timeline: timelineProfile,
+    decryption: Object.freeze({ ...decryptionProfile, resume: true }),
+    timeline: Object.freeze({ ...timelineProfile, resume: true }),
     liveRecording: true,
     recording: recordingCapabilities(false),
     multiTrack: multiTrackCapabilities(false),
@@ -1019,100 +651,6 @@ export const NodeAdapter: HlsDownloaderNodeAdapter = nodeAdapter;
 
 export default NodeAdapter;
 
-const nodeKeyedEngine: KeyedEngine = async (
-  request,
-  read,
-  write,
-  resolve,
-  abort,
-  progress,
-  signal,
-) => {
-  if (typeof timelineNative !== 'function')
-    throw new HlsDownloaderError(
-      HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
-      'Incompatible native bridge',
-    );
-  const { jobId, cleanup } = await setupCancelToken(signal);
-  let active = true;
-  try {
-    return await keyedNative(
-      request,
-      jobId!,
-      async (err: Error | null, value: string) => {
-        if (err) throw err;
-        return Buffer.from(await read(value));
-      },
-      async (err: Error | null, bytes: Buffer) => {
-        if (err) throw err;
-        await write(new Uint8Array(bytes));
-      },
-      async (err: Error | null, value: string) => {
-        if (err) throw err;
-        const reply = await resolve(value);
-        return { ...reply, key: Buffer.from(reply.key) };
-      },
-      (err: Error | null, id: string) => {
-        if (!err && active) abort(id);
-      },
-      (err: Error | null, event: string) => {
-        if (!err && active) progress(event);
-      },
-    );
-  } finally {
-    active = false;
-    cleanup();
-  }
-};
-
-const nodeTimelineEngine: KeyedEngine = async (
-  request,
-  read,
-  write,
-  resolve,
-  abort,
-  _progress,
-  signal,
-  control,
-) => {
-  if (typeof timelineNative !== 'function')
-    throw new HlsDownloaderError(
-      HlsDownloaderErrorCode.BRIDGE_VERSION_MISMATCH,
-      'Incompatible native bridge',
-    );
-  const { jobId, cleanup } = await setupCancelToken(signal);
-  let active = true;
-  try {
-    return await timelineNative(
-      request,
-      jobId!,
-      async (err: Error | null, value: string) => {
-        if (err) throw err;
-        return Buffer.from(await read(value));
-      },
-      async (err: Error | null, value: [Buffer, string]) => {
-        if (err) throw err;
-        await write(new Uint8Array(value[0]), value[1]);
-      },
-      async (err: Error | null, value: string) => {
-        if (err) throw err;
-        const r = await resolve(value);
-        return { ...r, key: Buffer.from(r.key) };
-      },
-      (err: Error | null, id: string) => {
-        if (!err && active) abort(id);
-      },
-      async (err: Error | null, value: string) => {
-        if (err) throw err;
-        return control ? control(JSON.parse(value)) : '';
-      },
-    );
-  } finally {
-    active = false;
-    cleanup();
-  }
-};
-
 const nodeRecordingBridge: RecordingBridgeFactory = async (
   request,
   read,
@@ -1157,3 +695,6 @@ const nodeRecordingBridge: RecordingBridgeFactory = async (
     dispose() {},
   };
 };
+
+nodeRecordingBridge.inspectRecovery = async (directory) =>
+  checkRecording(inspectRecoveryNative(directory));

@@ -1,3 +1,5 @@
+import { runMultiTrack } from './multitrack';
+import { finiteEngine } from './engine';
 import { mergeWebVtt } from './subtitles';
 import {
   HlsDownloaderError,
@@ -9,134 +11,17 @@ import {
   type HlsDownloaderAdapterInternal,
   type HlsDownloaderSubtitleOptions,
 } from '@hls-downloader/shared';
-import { assertActive, cancellable } from './browser/request';
-import { readResource } from './browser/writable';
-import {
-  checkPreparedReport,
-  preparedRequest,
-  readManifest,
-  type SelectedMedia,
-  type RequestOptions,
-  type PreparedReport,
-} from './renditions';
+import { assertActive } from './browser/request';
+import { readBoundedResource } from './bounded';
+import { readManifest, type SelectedMedia, type RequestOptions } from './renditions';
 
-export type Engine = (
-  request: string,
-  read: (request: string) => Promise<Uint8Array>,
-  write: (bytes: Uint8Array) => Promise<void>,
-  progress: (event: string) => void,
-  signal: AbortSignal,
-) => Promise<string>;
-
-/** Owns request cancellation and suppresses late bridge calls, including non-cooperative sinks. */
-export async function withOperation<T>(
-  options: RequestOptions,
-  action: (options: RequestOptions & { signal: AbortSignal }) => Promise<T>,
-  adapterName = 'BrowserAdapter',
-): Promise<T> {
-  const controller = new AbortController();
-  const abort = () => controller.abort(options.signal?.reason);
-  options.signal?.addEventListener('abort', abort, { once: true });
-  if (options.signal?.aborted) abort();
-  try {
-    assertActive(controller.signal);
-    return await action({ ...options, signal: controller.signal });
-  } catch (e) {
-    if (controller.signal.aborted && controller.signal.reason instanceof HlsDownloaderError)
-      throw controller.signal.reason;
-    if (e instanceof HlsDownloaderError)
-      throw new HlsDownloaderError(e.code, e.message, { ...e, adapter: adapterName, cause: e });
-    throw e;
-  } finally {
-    controller.abort();
-    options.signal?.removeEventListener('abort', abort);
-  }
-}
-
-export async function executePrepared(
-  adapter: HlsDownloaderAdapterInternal,
-  options: RequestOptions & { signal: AbortSignal },
-  media: SelectedMedia,
-  engine: Engine,
-  mode: string,
-  write: (bytes: Uint8Array) => Promise<void>,
-  output?: string,
-): Promise<PreparedReport> {
-  let originalError: unknown;
-  const guard =
-    <A extends unknown[], R>(fn: (...args: A) => Promise<R>) =>
-    async (...args: A): Promise<R> => {
-      try {
-        assertActive(options.signal);
-        return await cancellable(fn(...args), options.signal);
-      } catch (e) {
-        originalError ??= e;
-        throw e;
-      }
-    };
-  let active = true;
-  try {
-    const result = await engine(
-      preparedRequest(
-        media,
-        options.downloadConcurrency ?? adapter.chunkDownloadConcurrency,
-        mode,
-        output,
-      ),
-      guard(async (request) => {
-        const { url, offset, length } = JSON.parse(request);
-        const resource = await readResource(
-          { url, range: offset != null ? { offset, length } : undefined },
-          options.headers,
-          options.maxRetry ?? adapter.segmentRetryAttempts,
-          options.signal,
-          Code.SEGMENT_FETCH_FAILED,
-          options.browserRequest,
-        );
-        return resource.bytes;
-      }),
-      guard(write),
-      (event) => {
-        if (!active || options.signal.aborted) return;
-        const p = JSON.parse(event);
-        if (p.phase === 'processing')
-          emitAdapterEvent(adapter, options, Event.DOWNLOADING_SEGMENTS, {
-            total: p.total,
-            completed: p.completed,
-          });
-      },
-      options.signal,
-    );
-    const report = JSON.parse(result) as PreparedReport;
-    if (originalError) {
-      if (originalError instanceof HlsDownloaderError && report.error) {
-        originalError = new HlsDownloaderError(originalError.code, originalError.message, {
-          ...originalError,
-          adapter: adapter.name,
-          inputRole: report.error.inputRole ?? undefined,
-          phase: report.error.phase,
-          cause: originalError,
-        });
-      }
-      throw originalError;
-    }
-    assertActive(options.signal);
-    return checkPreparedReport(report);
-  } catch (e) {
-    if (options.signal.aborted && options.signal.reason instanceof HlsDownloaderError)
-      throw options.signal.reason;
-    if (options.signal.aborted) assertActive(options.signal);
-    throw originalError ?? e;
-  } finally {
-    active = false;
-  }
-}
+export { withOperation } from './operation';
 
 export async function exportSubtitles(
   adapter: HlsDownloaderAdapterInternal,
   options: RequestOptions & HlsDownloaderSubtitleOptions & { signal: AbortSignal },
   media: SelectedMedia,
-  engine: Engine,
+  engine: import('./recording').RecordingBridgeFactory,
 ): Promise<Omit<HlsDownloaderSubtitleResult, 'operationId'>> {
   const rendition = media.subtitles.find(
     (r) => r.groupId === options.subtitle.groupId && r.name === options.subtitle.name,
@@ -154,23 +39,110 @@ export async function exportSubtitles(
   const source = await readManifest(rendition.uri, options);
   if (source.parsed.type !== 'segment')
     throw new HlsDownloaderError(Code.SUBTITLE_INVALID, 'Subtitles require a media playlist');
+  const metadata = await adapter.parseMediaPlaylist!(source.text, source.url);
+  if (metadata.segments.some((s) => s.keys.length || s.map?.keys.length)) {
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    const maxBytes = options.maxBytes ?? 16 * 1024 * 1024;
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
+      throw new HlsDownloaderError(
+        Code.RESOURCE_LIMIT_EXCEEDED,
+        'Invalid subtitle collection limit',
+      );
+    await runMultiTrack(
+      adapter,
+      {
+        ...options,
+        transcode: undefined,
+        timeline: undefined,
+        audio: undefined,
+        embeddedAudio: options.audio ? 'exclude' : 'keep',
+        audioTracks: options.audio ? [{ id: 'audio', selector: options.audio }] : [],
+        subtitleTracks: [
+          {
+            id: 'subtitle',
+            selector: options.subtitle,
+            embedded: false,
+            sidecar: {
+              type: 'writable',
+              writable: new WritableStream<Uint8Array>({
+                write(chunk) {
+                  bytes += chunk.byteLength;
+                  if (bytes > maxBytes)
+                    throw new HlsDownloaderError(
+                      Code.RESOURCE_LIMIT_EXCEEDED,
+                      'Subtitle collection exceeds maxBytes',
+                    );
+                  chunks.push(chunk);
+                },
+              }),
+            },
+          },
+        ],
+        output: { type: 'writable', writable: undefined as never },
+      },
+      {
+        ready() {},
+        async write() {},
+        async control() {
+          return '';
+        },
+      },
+      engine,
+      true,
+      !options.audio,
+    );
+    const buffer = new Uint8Array(bytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      buffer.set(chunk, offset);
+      offset += chunk.length;
+    }
+    emitAdapterEvent(adapter, options, Event.READY_FOR_DOWNLOAD);
+    return {
+      text: new TextDecoder().decode(buffer),
+      mimeType: 'text/vtt',
+      filename: options.filename ?? 'subtitles.vtt',
+      totalSegments: metadata.segments.length,
+    };
+  }
   assertSupportedSegments(source.parsed.data, adapter.name);
-  const report = await executePrepared(adapter, options, media, engine, 'probe', async () => {});
+
+  const { report } = await finiteEngine(
+    adapter,
+    options,
+    { type: 'writable', writable: undefined as never },
+    engine,
+  );
+  const track = report.tracks.find((t) => t.kind === 'video') ?? report.tracks[0];
+  const mapping = report.mappings.find(
+    (m) => m.inputId === track?.inputId && m.trackId === track.id,
+  );
+  if (!mapping) throw new HlsDownloaderError(Code.SUBTITLE_INVALID, 'Missing media mapping');
   const parts: { text: string; header?: string; duration: number }[] = [];
   const headers = new Map<string, string>();
-  const load = async (url: string, range?: { offset: number; length: number }) =>
-    new TextDecoder('utf-8', { fatal: true }).decode(
-      (
-        await readResource(
-          { url, range },
-          options.headers,
-          options.maxRetry ?? adapter.segmentRetryAttempts,
-          options.signal,
-          Code.SEGMENT_FETCH_FAILED,
-          options.browserRequest,
-        )
-      ).bytes,
+  const maxBytes = options.maxBytes ?? 16 * 1024 * 1024;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
+    throw new HlsDownloaderError(Code.RESOURCE_LIMIT_EXCEEDED, 'Invalid subtitle collection limit');
+  let collectedBytes = 0;
+  const load = async (url: string, range?: { offset: number; length: number }) => {
+    const resource = await readBoundedResource(
+      { url, offset: range?.offset.toString(), length: range?.length.toString() },
+      maxBytes,
+      options.headers,
+      options.maxRetry ?? adapter.segmentRetryAttempts,
+      options.signal,
+      Code.SEGMENT_FETCH_FAILED,
+      options.browserRequest,
     );
+    collectedBytes += resource.bytes.byteLength;
+    if (collectedBytes > maxBytes)
+      throw new HlsDownloaderError(
+        Code.RESOURCE_LIMIT_EXCEEDED,
+        'Subtitle collection exceeds maxBytes',
+      );
+    return new TextDecoder('utf-8', { fatal: true }).decode(resource.bytes);
+  };
   for (const segment of source.parsed.data) {
     let header: string | undefined;
     if (segment.map) {
@@ -191,7 +163,23 @@ export async function exportSubtitles(
       total: source.parsed.data.length,
     });
   }
-  const text = mergeWebVtt(parts, report.timeline);
+  const text = mergeWebVtt(parts, {
+    origin: mapping.sourceStart,
+    outputStart: mapping.outputStart,
+    tracks: [
+      {
+        wrapAnchor: (
+          (BigInt(mapping.sourceStart.ticks) * 90000n) /
+          BigInt(mapping.sourceStart.timescale)
+        ).toString(),
+      },
+    ],
+  });
+  if (new TextEncoder().encode(text).length > maxBytes)
+    throw new HlsDownloaderError(
+      Code.RESOURCE_LIMIT_EXCEEDED,
+      'Subtitle collection exceeds maxBytes',
+    );
   assertActive(options.signal);
   emitAdapterEvent(adapter, options, Event.READY_FOR_DOWNLOAD);
   return {

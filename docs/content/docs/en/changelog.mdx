@@ -12,20 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **BrowserAdapter / NodeAdapter**: Add `downloadMultiTrack()` and `startMultiTrackRecording()` with explicit retained audio tracks, embedded plain-text WebVTT subtitles and Packed AAC-LC (clear, AES-128, SAMPLE-AES). Add separate multi-track reports and optional playback compatibility checks across finite downloads, recording and split outputs; existing single-audio APIs remain compatible.
+- Support AES-128 WebVTT segments and MAPs with key rotation in finite exports and multi-track download/recording. Subtitle exports accept `decryption` and `maxBytes` (16 MiB by default).
+- Add continuous WebVTT sidecars with acknowledged Writable outputs on both runtimes, optional embedding, commit events, and Node fixed-file schema-2 recovery including split outputs.
 
-- **BrowserAdapter / NodeAdapter**: Add `startRecording()` for Live/EVENT and pausable VOD, with stop/drain, cancellation, one external audio track and supported AES/sample decryption. Support backpressured writable output, bounded Browser Blob output, and non-overwriting Node files, including explicit split output factories. Recording reports retain bounded history; persistent recording recovery is not supported.
-
-- **BrowserAdapter / NodeAdapter**: Add opt-in `timeline` ranges, epoch mapping and gap policies, with actual decodable ranges and timeline reports. Add `downloadOutputs()` and backpressured `downloadToWritables()` for explicit configuration/gap splitting; failures retain completed files or closed writable outputs.
-- Support finite TS SAMPLE-AES (AVC/AAC-LC) and fMP4 cbcs/cenc (AVC/HEVC/AAC-LC), including external audio and timeline outputs. Key resolvers now receive sample methods and optional KIDs; decryption capabilities describe supported combinations.
-- Add `downloadSubtitleOutputs()` and `exportChapters()` for WebVTT sidecars aligned to completed timeline reports, including split outputs. Add typed range, timeline, resource-change and bridge-version errors.
-- **BrowserAdapter / NodeAdapter**: Support finite AES-128 TS/fMP4 VOD with AVC/HEVC/AAC-LC, key rotation, encrypted MAPs and one external audio track across download, stream and writable output. Add per-operation `decryption` providers, budgets, structured progress and typed key/decryption errors; encrypted recovery, transcoding, aria2 and subtitles remain unsupported.
-- Add `parseMediaPlaylist(text, url)` for structured metadata with lossless protocol integers, and `capabilities.decryption` to describe the supported profile.
+- Support default or selected single-audio VOD transcoding with existing presets, decryption and decodable ranges on Browser and Node. Browser rejects unsupported selected tracks and bounds encoded output with `maxBytes`; Node preserves existing destinations.
+- Add multi-track downloads and recording with selected audio tracks, embedded WebVTT, Packed AAC, bounded history, pause, stop/drain and cancellation.
+- Add asynchronous `queryCapability()` to distinguish container support, playback support, rejection reasons and recovery requirements without fetching media.
+- Add opt-in experimental draft-22 `AES-256-GCM` with 32-byte keys and `AUTHENTICATION_FAILED` diagnostics.
+- Support schema-2 recovery for Node deterministic file downloads and recordings, including ranges, split outputs and encrypted inputs with stable key versions. Add `durability` (default `sync-all`) and `RESUME_REPLAY_REQUIRED`.
 
 ### Changed
 
-- External-audio fMP4 output preserves initial track offsets with correct file/Blob duration; MSE hosts must map timestamps per track.
-- Download playlist selection now enforces a 4 MiB manifest limit; configure `decryption.limits.manifestBytes` for larger finite playlists.
+- **Breaking:** Remux and recording operations return unified `HlsEngineReport` through `report`; remove `timelineReport` and its full index contract. Sidecar and chapter exports now require a complete `HlsTimelineMap`.
+- **Breaking:** Reject schema-1 recovery directories with `RESUME_INVALID` without modifying their contents.
+- Browser `download()` now accepts `maxBytes`, defaulting to 256 MiB; Blob recording requires an explicit capacity. Writable completion waits for destination closure.
+- Preserve exact decimal protocol integers, structured resource/sample error context and already published outputs on failure.
+
+### Fixed
+
+- Avoid spurious `RESOURCE_CHANGED` errors when encrypted WebVTT playlists slide, while continuing to reject rewrites of overlapping subtitle resources.
+- Preserve decoded AAC samples across audio gaps in classic MP4 output.
+- Consistently report `RESUME_REPLAY_REQUIRED` for missing snapshot replay before modifying recovered output.
 
 ## [3.7.0] - 2026-10-04
 

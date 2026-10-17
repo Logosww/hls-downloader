@@ -7,8 +7,8 @@ description: 'BrowserAdapter 与 NodeAdapter 的专有选项与行为。'
 
 <Callout type="info" title="默认 Transmux">
   各适配器的**普通下载默认走 transmux/remux，不重编码**。BrowserAdapter 使用
-  [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly 做 transmux，使用 Mediabunny
-  WebCodecs 做 `transcode`；NodeAdapter 仅在需要时初始化原生 FFmpeg。
+  [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly 做 transmux，使用 Mediabunny
+  WebCodecs 做 `transcode`；NodeAdapter 使用本机 FFmpeg 命令进行转码。
 </Callout>
 
 ## BrowserAdapter
@@ -17,7 +17,7 @@ description: 'BrowserAdapter 与 NodeAdapter 的专有选项与行为。'
 import { BrowserAdapter } from '@hls-downloader/adapters/browser';
 ```
 
-普通下载使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly。`download()` 返回经典 fast-start MP4；`downloadToStream()` 输出 fragmented MP4 分块。
+普通下载使用 [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly。`download()` 返回经典 fast-start MP4；`downloadToStream()` 输出 fragmented MP4 分块。
 
 转码使用 Mediabunny 与 WebCodecs，不依赖 `@ffmpeg/ffmpeg`。BrowserAdapter 支持 `h264`、`hevc`、`vp9` 预设及可选的 `videoBitrate`、`audioBitrate`。当前浏览器不支持所需编码器配置时会明确报错。
 
@@ -140,106 +140,243 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 
 使用 `downloadToWritable()` 获得有界媒体缓冲与异步写入目标。现有回调流式接口行为不变。
 
-Node 恢复下载使用单次调用选项 `resume: { directory }`，仅支持普通 VOD 文件输出，不能与转码、启用的 aria2 或流式 API 组合。详见[恢复下载](./hls-downloader)。
+## 统一 Engine 输出
 
-## AES-128 VOD
+所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.0.2`，保留现有方法名。
+FFmpeg/WebCodecs 仍负责独立的转码路径。有限下载要求每个选定输入均有 ENDLIST；
+`startRecording()` 和 `startMultiTrackRecording()` 支持 Live/EVENT 清单刷新。
 
-带初始音视频偏移的外置音轨合流，已验证文件/Blob 播放。Chromium MSE 会忽略前置空 edit；接入 MSE 时，播放端必须分别映射各轨道时间戳，不能将这些合流字节原样追加到单个 SourceBuffer。SDK 不提供该 MSE 映射。
+转封装和录制结果通过 `report: HlsEngineReport` 返回输入进度、轨道、字幕回执、完成输出、请求/实际区间、
+有界映射及历史截断标记。协议计数、generation、sequence 和 ticks 保持十进制字符串，
+精确运算使用 `BigInt`。已移除 `timelineReport` 及完整资源/sample 索引契约。
 
-BrowserAdapter 和 NodeAdapter 会自动识别选中媒体清单中的 AES-128。支持有限 TS/fMP4 VOD、AVC/HEVC 视频和 AAC-LC 音频，包含明密切换、密钥轮换、加密 MAP 和一条选中的外置音轨。`download()` 输出 classic MP4；callback stream 和 writable 输出 fMP4。浏览器播放仍取决于设备的编解码器支持。
+`download()` 默认选择外部默认音轨，也可用 `audio` 指定。
+`downloadMultiTrack()` 显式传入 `embeddedAudio: 'keep' | 'exclude'`，并支持
+`audioTracks`、`subtitleTracks` 和 `playbackTarget`；不会读取未选中的 rendition。
+`parseMediaPlaylist(text, url)` 无网络解析无损元数据，`parseHls()` 继续提供选流及选轨信息。
 
-默认 identity/version-1 key 与媒体共用 headers、重试、取消以及 Browser 的 `browserRequest` transport/credentials。key 必须恰好 16 字节；响应读取上限为 17 字节，非法长度不会重试。
+Browser `download({ url, maxBytes? })` 的默认收集上限为 **256 MiB**。
+录制的 `{ type: 'blob', maxBytes }` 必须显式指定容量。容量限制收集字节，不是进程总内存上限，
+也不包括 classic MP4 索引的全部开销。Writable 逐次等待 write 和 close；
+callback `downloadToStream()` 不等待回调返回的 Promise。
 
-```ts
-await downloader.downloadToWritable(
-  {
-    url: 'https://example.com/video.m3u8',
-    decryption: {
-      keyResolver: async (request) => {
-        const response = await fetch(request.uri, { signal: request.signal });
-        if (!response.ok) throw new Error('Key request failed');
-        return { key: new Uint8Array(await response.arrayBuffer()), expiresInMs: 60_000 };
-      },
-    },
-  },
-  writable,
-);
-```
+`downloadOutputs()` 返回 `{ operationId, totalSegments, outputs, report }`。
+Browser 返回 fMP4 Blob URL，Node 返回 classic MP4，文件名依次为
+`basename.001.mp4`、`basename.002.mp4`。Blob URL 用后需 revoke。
+`downloadToWritables()` 使用工厂获取每个 sink；分割通过 `timeline.changePolicy: 'split'`
+开启，单个借用 Writable 不能分割。失败的 `error.completedOutputs` 保留已发布文件及
+已成功关闭的 Writable。READY/result 完成必须等待目标关闭。
 
-`decryption` 是 download、stream、writable 的单次操作选项：
+## 选轨 VOD 转码
 
-| 字段 | 契约 |
-| --- | --- |
-| `keyResolver` | 替代 HTTP provider。返回 `{ key: Uint8Array, version?: string, expiresInMs?: number }` 或 `null`。只有 `null` 允许尝试其他已声明 KEYFORMAT 候选；throw/reject 会安全失败，不暴露其消息，不自动回退 HTTP。 |
-| `keyFormats` | 有序的 `{ format: string, versions: readonly number[] }[]`，默认 identity/version 1；自定义格式须显式声明。 |
-| `encryptedRanges` | 默认 `'reject'`。`'complete-resources'` 表示调用者确认每个 range 都是独立完整加密且填充的资源；响应须为 206，Content-Range 和长度须完全匹配。 |
-| `limits` | 正安全整数，默认值见下文；限制 source 读取，不等于进程或 Blob 总内存上限。 |
+`download({ url, audio?, decryption?, timeline?, transcode: { preset } })` 支持
+`h264`、`hevc`、`vp9`，可使用默认或显式选择的单条外置音轨。
+Engine 先完成选轨、解密和可解码范围处理，生成明文 fMP4，再交给 Node FFmpeg
+或 Browser WebCodecs 编码。范围可能扩展至随机访问边界，不是精确到帧裁切。
+不会读取未选中的 rendition。结果保留 `totalSegments` 和文件/Blob URL，但不返回
+`report`，因为中间 remux 报告不能代表最终编码产物。
 
-resolver 请求包含 `operationId`、`inputId`、`resourceKind`、`uri`、`method`、`keyFormat`、`keyFormatVersions`、`originalSequence`、`epoch`、`generation`、`declaration`、`resolveRevision`、`refreshGeneration`、`refreshReason` 及独立请求的 `signal`。协议大整数为十进制字符串。`expiresInMs` 是非负安全整数的相对有效期，0 表示立即过期。取消会中止待处理 resolver 请求并丢弃迟到结果；即使 `operationId` 相同，不同操作也不共享 key 缓存。
+Browser 按实际编码器/解码器能力检查所有选定轨道；不支持时返回 `UNSUPPORTED_OUTPUT`，
+不会静默丢弃音频。`maxBytes` 默认 256 MiB，分别限制中间媒体和转码输出，非总内存限制。
+Node 需要 PATH 中的 `ffmpeg` 可执行文件，保留已存在的目标文件；成功、失败、取消均清理
+临时文件，完成等待编码器退出及最终输出发布。
 
-默认 `limits`：`manifestBytes = 4 MiB`、`resourceBytes = 16 MiB`、`waitingBytes = 32 MiB`、`resources = 2`、`keyRequests = 2`、`cachedKeys = 8`、`keyWaiters = 2`。`waitingBytes` 至少等于 `resourceBytes`。普通下载选择清单时也受 manifest 上限约束；大型有限清单可提高 `manifestBytes`。显式配置 `decryption` 时，明文输入也会进入结构化有限输入路径；`resources` 控制该路径的并发，原有明文路径继续使用 `downloadConcurrency`。
+多音轨容器转码、字幕烧录、录制、恢复、split 和流式转码仍不支持。
+`queryCapability()` 查询 Engine remux/录制组合，不查询编码器可用性；
+`transcodePresets` 列出候选预设，实际支持在转换时检查。
 
-`capabilities.aes128` 表示上述有限能力，`capabilities.decryption` 描述 method、container、codec、外置音频及不支持加密恢复的边界。GCM、加密 resume、转码、aria2 和加密 WebVTT 暂不支持；支持的 Live/EVENT 输入使用 `startRecording()`。discontinuity 需显式配置 `timeline`；有限 sample 解密见下文。清单已知的不支持组合在 key/media 工作前拒绝；容器和编码验证需要读取媒体。
+## 支持组合与剩余限制
 
-错误区分 `KEY_UNAVAILABLE`、`KEY_RESOLUTION_FAILED`、`KEY_INVALID`、`KEY_EXPIRED`、`ENCRYPTION_INVALID`、`DECRYPT_FAILED`、`MEDIA_INVALID` 和 `RESOURCE_LIMIT_EXCEEDED`。CBC 不提供认证，不保证所有错误 key 都可检测。公共错误和事件不包含 resolver 消息、key bytes 或 key version。
-
-`DECRYPTION_PROGRESS` 的 `payload.decryption` 提供各输入 discovered/committed 计数，以及分开的 media/MAP downloaded、decrypted、ready 计数，均为十进制字符串。明文资源不增加 decrypted 计数，committed 不是恢复 checkpoint。只有目标成功 close 后才发出公共完成事件。
-
-## Finite sample encryption
-
-| Container / 容器 | Method | Scheme | Codec |
+| 输入/profile | 有限文件/Blob、回调流、Writable | Live/EVENT Writable | Node 确定文件路径恢复 |
 | --- | --- | --- | --- |
-| TS | SAMPLE-AES | sample CBC | AVC, AAC-LC |
-| fMP4 | SAMPLE-AES | cbcs | AVC, HEVC, AAC-LC |
-| fMP4 | SAMPLE-AES-CTR | cenc | AVC, HEVC, AAC-LC |
+| 明文 / AES-128 TS、fMP4，AVC/HEVC + AAC-LC | 支持，含选轨和范围 | 支持 | 支持；加密恢复须提供稳定密钥版本 |
+| TS SAMPLE-AES AVC/AAC-LC | 支持 | 支持 | 支持 |
+| fMP4 cenc/cbcs AVC/HEVC/AAC-LC | 支持 | 支持 | 支持 |
+| Packed AAC-LC 明文 / AES-128 / SAMPLE-AES | 支持；必须提供 ID3 时间锚点 | 支持 | 支持 |
+| draft-22 GCM 资源加密 | 仅显式开启 | 仅显式开启 | 显式开启并提供稳定密钥版本 |
+| 明文 / AES-128 WebVTT | 有限导出、plain-text wvtt 内嵌及持续 sidecar | 内嵌 wvtt 与 sidecar Writable | 每条选中字幕须使用固定 sidecar 文件；AES-128 须提供稳定密钥版本 |
 
-以上 profile 按清单自动选择，不要求 `timeline`。支持一条替换外置音轨、文件/Blob、callback stream、writable、范围及拆分输出。`capabilities.decryption.profiles` 表示明确组合，不能把顶层 methods/containers/codecs 列表理解为任意组合。
+容器支持不代表所有播放器均能播放。1.0.1 修复 classic MP4 的 AAC gap 解码内容，
+当前 1.0.2 回归继续通过；其他轨道的 empty edit 限制和保守能力判断仍保留。
 
-`HlsKeyRequest.method` 包含上述三种方法；可选 `kid` 为 32 位小写十六进制字符串。resolver 仍返回 16 字节二进制 key，沿用 TTL、unavailable 与取消语义。支持 identity HTTP 或调用方提供的原始密钥，不实现 license/CDM 交换。`decryption.limits.samples` 默认每资源 65,536 个 sample；容器解析器另有 65,536 项上限。其他资源/key 默认预算不变。CBC/CTR 不保证检测每个错误密钥。
+2026-10-10 在 macOS arm64 上实测以下结果。每个文件 profile 均测试 classic MP4 与 fMP4，
+包括 AVC/双 AAC、明文 wvtt、cue settings、AAC gap 和解密后的 HEVC cbcs。
 
-TS HEVC SAMPLE-AES、TS SAMPLE-AES-CTR、Packed AAC、任意密文切片、GCM、恢复、转码、aria2 和加密字幕仍不支持。cenc/cbcs 容器元数据限制遵循 [hls-transmux 0.8.0](https://github.com/Logosww/hls-transmux/blob/8d6c54f/docs/sample-encryption.md)。
+| 播放器 | 文件播放与音轨 | 字幕及限制 |
+| --- | --- | --- |
+| Safari 27.0.1 / AVFoundation | 10 个文件均到达结束；Safari 可切换 EN/JA 音轨；AVPlayer 14 次播放取得实际视频帧 | 文件 wvtt 可选双字幕，cue 文本/布局属性可读；MSE 播放未暴露字幕轨 |
+| Chrome 155 | 10 个文件均实际解码并到达结束；未暴露音轨切换 API | 文件内嵌 wvtt 未暴露字幕轨；两个多轨 MSE 样本均失败 |
+| IINA 1.4.4 / mpv 0.38.0 | 10 个文件播放至 EOF，双音轨选择状态可切换 | 不识别内嵌 wvtt；外置 WebVTT 实际显示通过 |
+| VLC 3.0.23 | 10 个文件有解码/显示帧，双音轨选择状态可切换 | 可选两条 wvtt，简单字幕有截图；cue settings 布局不能视为保真 |
+| Shaka 5.2.13（Chrome / Safari） | 外置 WebVTT 与 MP4 播放至结束 | 外置 cue 实际激活；mixed-mdat wvtt 解析失败（3000） |
 
-## 持续录制
+这组结果不承诺其他系统/版本、任意字幕样式或音频设备输出正确性。Safari 后台帧计数不用于
+完整帧数验收；轨道选择状态与独立 PCM 解码分别验证，不将它们当作扬声器录音证据。
+`playbackTarget` 限制不因一次文件播放成功而放宽。
+录制起点仅 `window-start`；最新完整分片/PDT 起点和额外音频 codec 明确延期。
+本库已接通 Engine 1.0.2 的 AES-128 WebVTT 及持续 sidecar；具体契约见下文。
+内嵌字幕的播放器限制继续保留。
 
-`startRecording()` 同步返回控制句柄，支持 Live/EVENT 持续录制及可暂停的有限 VOD 会话。现有 `download*()` 保持有限下载语义。录制从首次可用清单窗口开头开始，清晰度和可选的一条替换音轨在会话内保持固定。
+## 持续 WebVTT sidecar
+
+`downloadMultiTrack()` 和 `startMultiTrackRecording()` 支持明文及 AES-128 WebVTT
+segment/MAP，包括密钥轮换和原始 sequence IV。字幕与媒体共用 operation 的 key session、
+取消及资源预算。SAMPLE-AES、CTR、GCM WebVTT 仍不支持；持续路径仅支持纯文本与标准
+cue settings，不支持样式块及富文本 cue 标记。
 
 ```ts
-const recording = downloader.startRecording({
-  url: 'https://example.com/live.m3u8',
-  output: { type: 'writable', writable: destination },
+const session = downloader.startMultiTrackRecording({
+  url,
+  embeddedAudio: 'keep',
+  subtitleTracks: [{
+    id: 'english',
+    selector: { groupId: 'subs', name: 'English' },
+    embedded: false,
+    sidecar: { type: 'writable', writable: subtitleWritable },
+  }],
+  output: { type: 'writable', writable: mediaWritable },
   onEvent(event) {
-    if (event.type === 'progress') console.log(event.input.committed);
+    if (event.type === 'subtitleCommit') console.log(event.commit.frontiers);
   },
 });
-// 在应用的“停止录制”操作中调用：
-recording.stop();
-const { report } = await recording.result;
+// 需要结束时：session.stop(); await session.result;
 ```
 
-句柄包含 `operationId`、只读 `state`、`result`、`stop()`、`cancel()`、`pause()`、`resume()`、`endInput('primary' | 'audio')` 和 `restartInput(inputId, { generation, url? })`。初始化错误通过 `result` 拒绝。停止会关闭接收并排空已接收媒体；取消返回 `ABORTED`。`pause()` 等待处理边界确认，仅支持有限、非 EVENT 的 VOD。Live/EVENT 暂停返回 `RECORDING_FAILED` / `PauseUnsupported`，录制本身继续。恢复暂停仍属于同次操作，不提供录制持久化 checkpoint。
+两端均等待字幕 write 和 close。`embedded` 默认 `true`；设为 `false` 时必须提供 sidecar，
+容器不再内嵌 wvtt。拆分时，为每条字幕选择提供
+`{ type: 'writables', acquire: async ({ inputId, outputIndex }) => writable }`。
+各 writer 必须与媒体及其他活动字幕 writer 独立；前一分卷关闭后才获取下一分卷。
+单个借用 Writable 不支持 split。
 
-每个输入独立接收 ENDLIST 或 `endInput()`；全部输入结束、显式停止或达到 `durationLimit` 后收尾。显式重启只适用于活动会话，generation 必须是严格递增的十进制字符串；旧代际排空后才接收新源。重启不改变选轨，也不复活失败会话。新时间线需媒体时钟、PDT 或启动时配置的代际锚点证明，无法对齐时报错。
+每个输出写入一次 UTF-8 `WEBVTT` 头。cue 使用实际提交的输出时间轴，随范围裁切和分卷重定位，
+跨提交窗口的 cue 可分段输出。时间戳向下取整到毫秒，量化后为空的片段不输出。
+`subtitleCommit` 提供精确有理数时间、receipt、轨道/输入、generation/epoch、分卷、裁切或拒绝
+结果及提交水位。该事件仅用于观察；回调返回值不提供背压或持久化确认，确认由 sidecar sink
+完成。stop 排空已接受工作；cancel 不等待不响应的 sink，迟到写入不会把取消变为成功。
+写入/关闭失败返回 `OUTPUT_WRITE_FAILED`；已经确认写入的 Writable 字节不能回滚。
 
-| 输出 | 运行时 | 结果与格式 |
-| --- | --- | --- |
-| `{ type: 'writable', writable }` | 两端 | 带背压的 fMP4，由 SDK 关闭目标 |
-| `{ type: 'writables', acquire }` | 两端 | 异步 `(output) => WritableStream` 工厂，支持拆分 |
-| `{ type: 'blob', maxBytes, format? }` | Browser | `result.blob`，必须指定正整数容量 |
-| `{ type: 'file', path, format? }` | Node | `result.filePath`，不覆盖已有文件 |
-| `{ type: 'files', acquire, format? }` | Node | 异步 `(output) => path` 工厂，支持拆分 |
+Node 的固定媒体文件输出还支持 `sidecar: { type: 'file', path: './english.vtt' }`。
+启用 `resume: { directory: './job' }` 时，每条选中字幕均须配置固定 sidecar 文件；
+Writable/工厂不能恢复。保留已有的无关文件。首个输出使用指定路径，后续使用
+`<path>.part-000001.vtt`，与媒体的 `.part-000001.mp4` 分卷对应。
+发布逐文件完成，不承诺多个文件的原子重命名。
 
-Blob/文件的 `format` 为 `'mp4'`（默认）或 `'fmp4'`，writable 始终输出 fMP4。工厂收到输出序号和轨道信息。单目标和 Blob 不支持拆分。writable 成功关闭后才发布输出完成事件和公共完成状态；关闭失败返回 `OUTPUT_WRITE_FAILED`。Node 使用同目录临时文件及硬链接发布，要求文件系统支持硬链接；失败清理未完成文件，保留此前完成的文件或已关闭 writable。
+本库的 checkpoint 外层仍为 schema 2；媒体/字幕联合恢复使用 Engine 内层 archive schema 3，
+仅媒体 archive 仍为 schema 2。截去未提交尾部前，校验全部已提交前缀并重新读取字幕资源。
+加密恢复要求 key resolver 提供稳定 `version`。目标路径/配置变更返回 `RESUME_CONFLICT`，
+前缀损坏返回 `RESUME_INVALID`；重放资源或密钥版本缺失/变更可能返回
+`RESUME_REPLAY_REQUIRED`。不持久化原始密钥；完成态可离线恢复。
+完成态持久化前保留任务目录及 partial 文件。字幕重放元数据共用有界恢复日志
+（`limits.queuedMetadataBytes`），耗尽返回 `RESOURCE_LIMIT_EXCEEDED`，不承诺无限恢复历史。
 
-录制复用 `headers`、`signal`、`maxRetry`、`variant`、`audio` 和 `decryption`，Browser 还支持 `browserRequest`。支持明文 TS/fMP4、完整资源 AES-128、TS AVC/AAC-LC SAMPLE-AES，以及 fMP4 AVC/HEVC/AAC-LC cenc/cbcs，沿用现有 sample 保护限制。`capabilities.recording` 描述输出和生命周期能力。全局转码不会应用，显式传入转码、aria2 或 resume 会被拒绝。
+`downloadSubtitles()` 和 `downloadSubtitleOutputs()` 同时支持 `decryption` 和 `maxBytes`
+（收集的 UTF-8 字幕数据默认上限 16 MiB）。后者使用调用方提供的完整 timeline map，
+只读取字幕资源。这两个有限导出接口本身不启用持续录制。
+`capabilities.multiTrack` 的 `subtitleResources`、`subtitleSidecars` 描述新增能力；
+`queryCapability()` 请求中的 `subtitles` 指内嵌字幕，继续保留播放器限制。
 
-`durationLimit: { ticks, timescale }` 按媒体展示时间计量，会排空已接收工作，因此可能超时长。`timeline.range` 选择可解码范围，报告给出实际范围。`timeline.gapPolicy` 默认为 `'preserve'`，可设 `'collapse'`；`timeline.changePolicy` 默认为 `'fail'`，可设 `'split'`。`missingSegments` 默认为 `'fail'`；`'skip'` / `'split'` 仅处理声明的 GAP，不隐藏网络、密钥或解封装失败。`timeline.tailDuration` 显式提供缺失的尾帧时长依据。`timeline.anchors` 包含 `inputId`、十进制字符串 `generation` / `epoch`，以及精确的 `source` / `presentation` 时间。
+## 录制与恢复
 
-`limits` 默认值：`queuedDescriptors: 128`、`queuedMetadataBytes: 4194304`、`historyEntries: 128`、`samples: 65536`、`sampleBytes: 67108864`、`probeSegments: 2`、`maxSkew: { ticks: '30', timescale: 1 }`、`inputTimeoutMs: 30000`。现有 `decryption.limits` 独立限制清单、资源和密钥工作。单个原子窗口超限返回 `RESOURCE_LIMIT_EXCEEDED`，需显式增加对应预算。每输入串行刷新并等待接收背压；清单变化后等待一个 target duration，未变化等待半个。HTTP 重试耗尽则失败；不会静默跳过或重启序号回退、资源改写、缺片及 KEY/MAP 连续性丢失。
+录制句柄提供 `result`、`stop()`、`cancel()`、VOD `pause()` / `resume()`、
+`endInput(id)` 和 `restartInput(id, { generation, url? })`。
+stop 排空已接受工作，cancel 中止；各输入独立结束和重启。Live/EVENT 不支持暂停。
+`limits` 限制描述符、元数据、sample 和历史；`onEvent` 观察 Engine 状态、映射、gap、进度及输出。
 
-事件包括 `state`、`progress`、`mapping`、`gap` 和 `output`。宽整数保留十进制字符串，输入总量为 `null`。`report` 包含累计计数、请求/实际范围、有界近期映射及输出、峰值和 `historyTruncated`。需要完整输出列表时，由调用方保存有界或持久事件日志。错误提供 `reason`、近期 `completedRecordingOutputs` 和 `recordingHistoryTruncated`；它们是诊断信息，不是恢复 checkpoint。事件处理器是同步观察者，其返回的 Promise 不被等待。
+Node 确定文件路径的下载和录制支持：
 
-持续处理管线和 SDK 历史有界；Blob 字节、classic MP4 索引与副本、调用方快照和事件日志属于额外内存成本，`maxBytes` 不是进程内存上限。不支持 LL-HLS partial segments、自动切换清晰度、多音轨、字幕 mux、Packed AAC、GCM、转码、aria2 或持续录制持久恢复。
+```ts
+const resume = { directory: './jobs/video', durability: 'sync-all' as const };
+const result = await node.download({ url, filename: 'video.mp4', resume });
+const recording = node.startRecording({
+  url,
+  output: { type: 'file', path: './recording.mp4' },
+  resume: { directory: './jobs/recording' },
+  missingSegments: 'fail',
+});
+```
 
-## 多轨能力
+`durability` 为 `flush | sync-all`，默认 `sync-all`；flush 不承诺掉电持久性。
+每个任务使用独占目录。schema-1 任务返回 `RESUME_INVALID` 并保留现场，不迁移、不清空。
+Browser、Blob、借用 Writable 和任意文件工厂不支持恢复，Engine 恢复不能与转码或 aria2 组合。
 
-`capabilities.multiTrack` 只描述新增入口：最多 32 个媒体输入（1 主路＋31 条所选外部音频）、32 条 wvtt 字幕，支持 VOD/Live/EVENT、范围、分割输出和 VOD 暂停。其 `decryption.profiles` 增加 Packed AAC-LC 的 clear/资源 AES-128/AAC SAMPLE-AES 支持，不支持 Packed AAC SAMPLE-AES-CTR；TS/fMP4 延续已公开加密矩阵。Blob 显式限制内存，Native 经典 MP4 索引随 sample 数增长。不支持转码、aria2、持久恢复、LL-HLS 和加密字幕。既有 `capabilities.decryption` 和单输入入口不会因此获得 Packed AAC 支持。详见[多轨 API](/api/hls-downloader#固定多轨下载与录制)。
+修改已有输出前校验配置、输入/资源身份、稳定密钥版本、已提交前缀及完成分片。
+配置、身份或版本冲突返回 `RESUME_CONFLICT`，损坏/旧格式返回 `RESUME_INVALID`，
+重放证据缺失返回 `RESUME_REPLAY_REQUIRED`；具体原因保留在 `reason`。
+finalizing/completed 恢复不会获取清单或重放媒体。
+恢复分割的首文件为指定路径，后续为 `<path>.part-000001.mp4` 等。
+
+加密恢复要求 `decryption.keyResolver` 返回稳定 `version`，不持久化原始密钥。
+续期凭证通过 headers/provider 提供，不能修改媒体及密钥资源身份。
+完成记录持久化前保留任务目录及引用的 partial。重放记录受 `limits.queuedMetadataBytes`
+限制，超过预算明确失败。录制窗口淘汰默认 fail，可显式使用
+`missingSegments: 'skip' | 'split'`；资源重写不属于窗口淘汰。
+
+## 解密与能力查询
+
+TS、fMP4、Packed AAC-LC 共用 Engine。支持资源 AES-128、TS AVC/AAC SAMPLE-AES、
+Packed AAC SAMPLE-AES 及 fMP4 AVC/HEVC/AAC cenc/cbcs。
+仍不支持 TS HEVC SAMPLE-AES、Packed AAC CTR、SAMPLE-AES/CTR/GCM WebVTT、LL-HLS partial segments
+及任意密文切片。
+
+`decryption.experimentalGcm: true` 显式开启上游实验性 draft-22 `AES-256-GCM`
+完整资源格式：32 字节密钥、头部 16 字节 IV、尾部 16 字节认证 tag，默认关闭。
+认证成功前不会提交该资源的明文或 sample。密钥长度错误为 `KEY_INVALID`，
+认证失败为 `AUTHENTICATION_FAILED`。密钥请求 method 增加 `AES-256-GCM`。
+不接受 AES-128 密钥、其他 GCM 布局、显式 IV tag 或任意字节范围。
+
+```ts
+const decision = await downloader.queryCapability({
+  inputs: [
+    {
+      id: 'primary',
+      container: 'fmp4',
+      encryption: 'SAMPLE-AES-CTR',
+      codecs: ['avc', 'aac-lc'],
+      scheme: 'cenc',
+    },
+  ],
+  output: 'writable',
+  playbackTarget: 'direct-browser',
+});
+console.log(decision.containerSupported, decision.playbackSupported);
+console.log(decision.rejections, decision.requirements);
+```
+
+查询仅依据声明的容器、编码、加密、输出、播放目标和恢复条件，不请求媒体，也不代替运行时验证。
+`output` 支持 `blob`、`writable`、`file-mp4`、`file-fmp4`；可补充 `mode`、`range`、
+`embeddedAudio`、`subtitles`、`decodeGaps`、`maxBytes`、`resume`、`experimentalGcm`。
+容器支持不等于特定浏览器/播放器可播放。公开错误保留 input、generation、epoch、track、
+sample 等可用结构化上下文，不包含密钥和请求凭证。
+
+## 时间线映射与边车
+
+`report.timelineMap` 是 schema-2 `HlsTimelineMap`，包含各输出/轨道的明确时间区间和
+`complete` 标记，由保留的 Engine 映射、gap 和完成输出生成。
+`historyEntries` 限制历史；截断、时间边界缺失或歧义会标记不完整，不承诺完整媒体索引。
+
+```ts
+const { report } = await downloader.downloadToWritable({ url }, writable);
+const timelineMap = report!.timelineMap!;
+const chapters = exportChapters({
+  timelineMap,
+  chapters: [
+    {
+      title: '开场',
+      range: {
+        start: { ticks: '0', timescale: 1 },
+        end: { ticks: '5', timescale: 1 },
+      },
+    },
+  ],
+});
+const subtitles = await downloader.downloadSubtitleOutputs({
+  url,
+  subtitle: { groupId: 'subs', name: 'English' },
+  timelineMap,
+});
+```
+
+两种导出均以 `SUBTITLE_INVALID` 拒绝不完整映射，按已知 range/gap/输出边界裁剪及拆分，
+再转换为输出时钟。`track: { inputId, trackId }` 可显式选轨。
+字幕边车只读取字幕资源，不重新读取主媒体；两种工具都不会自动写文件。
+`downloadSubtitles()` 保留，通过 Engine 处理获取媒体时钟。

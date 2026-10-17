@@ -1,0 +1,225 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>M4 player acceptance</title>
+    <style>
+      body {
+        background: #181b22;
+        color: #eee;
+        font: 16px system-ui;
+      }
+      video {
+        width: 640px;
+        height: 360px;
+      }
+      pre {
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>M4 player acceptance</h1>
+    <div id="container"><video controls muted playsinline></video></div>
+    <pre id="status">Running…</pre>
+    <script src="/shaka.js"></script>
+    <script>
+      const video = document.querySelector('video'),
+        status = document.querySelector('#status');
+      const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+      function event(name, ms = 15000) {
+        return new Promise((resolve, reject) => {
+          const done = (e) => {
+            clearTimeout(t);
+            video.removeEventListener(name, ok);
+            video.removeEventListener('error', bad);
+            e ? reject(e) : resolve();
+          };
+          const ok = () => done(),
+            bad = () => done(new Error('MediaError ' + video.error?.code));
+          const t = setTimeout(() => done(new Error('timeout ' + name)), ms);
+          video.addEventListener(name, ok, { once: true });
+          video.addEventListener('error', bad, { once: true });
+        });
+      }
+      function reset() {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+      window.runPlayers = async () => {
+        const manifest = await (await fetch('/manifest.json')).json(),
+          results = [];
+        for (const c of manifest.entries) {
+          reset();
+          const r = { name: c.name, transport: 'file', audio: [], text: [] };
+          status.textContent = 'Playing ' + c.name;
+          try {
+            const loaded = event('loadedmetadata');
+            video.src = '/media/' + c.file;
+            await loaded;
+            r.duration = video.duration;
+            for (const t of Array.from(video.textTracks)) {
+              t.mode = 'hidden';
+            }
+            await video.play();
+            await delay(350);
+            r.audio = Array.from(video.audioTracks || [], (t) => ({
+              id: t.id,
+              label: t.label,
+              language: t.language,
+              enabled: t.enabled,
+            }));
+            for (let i = 0; i < (video.audioTracks?.length || 0); i++) {
+              for (let j = 0; j < video.audioTracks.length; j++)
+                video.audioTracks[j].enabled = j === i;
+              await delay(50);
+              r.audio[i].selected = video.audioTracks[i].enabled;
+            }
+            for (const [i, t] of Array.from(video.textTracks).entries()) {
+              video.pause();
+              for (const other of Array.from(video.textTracks))
+                other.mode = other === t ? 'showing' : 'disabled';
+              video.currentTime = 0.65;
+              await video.play();
+              await delay(200);
+              video.pause();
+              r.text.push({
+                label: t.label,
+                language: t.language,
+                cues: Array.from(t.cues || [], (q) => ({
+                  text: q.text,
+                  start: q.startTime,
+                  end: q.endTime,
+                  vertical: q.vertical,
+                  position: q.position,
+                  line: q.line,
+                  align: q.align,
+                })),
+                active: Array.from(t.activeCues || [], (q) => q.text),
+              });
+              if (window.capture) await window.capture(c.name + '-' + i);
+            }
+            await video.play();
+            if (!video.ended) await event('ended');
+            r.ended = video.ended;
+            r.frames = video.getVideoPlaybackQuality?.().totalVideoFrames;
+          } catch (e) {
+            r.error = String(e);
+            r.code = video.error?.code;
+          }
+          results.push(r);
+        }
+        // Direct multi-track MSE is measured independently of file playback.
+        for (const c of manifest.entries.filter(
+          (c) => c.format === 'fmp4' && c.profile.startsWith('wvtt'),
+        )) {
+          reset();
+          const r = { name: c.name, transport: 'mse' };
+          let url;
+          try {
+            const bytes = await (await fetch('/media/' + c.file)).arrayBuffer();
+            const ms = new MediaSource();
+            url = URL.createObjectURL(ms);
+            video.src = url;
+            await new Promise((yes, no) => {
+              ms.addEventListener('sourceopen', yes, { once: true });
+              setTimeout(() => no(Error('sourceopen timeout')), 3000);
+            });
+            const sb = ms.addSourceBuffer('video/mp4; codecs="avc1.64000a,mp4a.40.2"');
+            await new Promise((yes, no) => {
+              sb.onupdateend = yes;
+              sb.onerror = () => no(Error('SourceBuffer error'));
+              sb.appendBuffer(bytes);
+            });
+            ms.endOfStream();
+            await video.play();
+            await event('ended', 5000);
+            r.ended = true;
+            r.textTracks = video.textTracks.length;
+          } catch (e) {
+            r.error = String(e);
+            r.code = video.error?.code;
+          } finally {
+            if (url) URL.revokeObjectURL(url);
+          }
+          results.push(r);
+        }
+        if (window.shaka) {
+          const r = {
+            name: 'wvtt-settings-fmp4',
+            transport: 'shaka-mixed-mdat',
+            version: shaka.Player.version,
+          };
+          try {
+            const b = new Uint8Array(
+                await (await fetch('/media/wvtt-settings-fmp4.mp4')).arrayBuffer(),
+              ),
+              p = new shaka.text.Mp4VttParser();
+            p.parseInit(b);
+            r.cues = p
+              .parseMedia(
+                b,
+                { periodStart: 0, segmentStart: 0, segmentEnd: 3, vttOffset: 0 },
+                null,
+                [],
+              )
+              .map((q) => ({ text: q.payload, start: q.startTime, end: q.endTime }));
+          } catch (e) {
+            r.error = String(e);
+            r.code = e.code;
+          }
+          results.push(r);
+          reset();
+          const side = {
+            name: 'external-vtt',
+            transport: 'shaka-sidecar',
+            version: shaka.Player.version,
+          };
+          let player;
+          try {
+            shaka.polyfill.installAll();
+            player = new shaka.Player();
+            await player.attach(video);
+            await player.load('/media/avc-mp4.mp4');
+            const track = await player.addTextTrackAsync(
+              '/external.vtt',
+              'en',
+              'subtitles',
+              'text/vtt',
+            );
+            player.selectTextTrack(track);
+
+            await video.play();
+            await delay(650);
+            video.pause();
+            side.textTracks = player.getTextTracks();
+            side.visible = player.getTextTracks().some((t) => t.active);
+            side.active = Array.from(video.textTracks).flatMap((t) =>
+              Array.from(t.activeCues || [], (c) => c.text),
+            );
+            if (window.capture) await window.capture('shaka-sidecar');
+            await video.play();
+            if (!video.ended) await event('ended');
+            side.ended = true;
+          } catch (e) {
+            side.error = String(e);
+            side.code = e.code;
+          } finally {
+            await player?.destroy();
+          }
+          results.push(side);
+        }
+        const report = { runtime: navigator.userAgent, at: new Date().toISOString(), results };
+        status.textContent = JSON.stringify(report, null, 2);
+        await fetch('/results?runtime=' + new URLSearchParams(location.search).get('runtime'), {
+          method: 'POST',
+          body: JSON.stringify(report),
+        });
+        return report;
+      };
+      if (new URLSearchParams(location.search).get('auto') === '1')
+        window.runPlayers().catch((e) => (status.textContent = String(e)));
+    </script>
+  </body>
+</html>

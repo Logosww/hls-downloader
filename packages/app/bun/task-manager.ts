@@ -8,7 +8,7 @@ import type {
   HlsDownloaderTranscodeOptions,
   HlsMultiTimelineOptions,
   HlsTimelineOptions,
-  HlsTimelineReport,
+  HlsTimelineMap,
   HlsCompletedOutput,
   HlsDownloaderSubtitleOutputsOptions,
   HlsChapterOptions,
@@ -42,7 +42,7 @@ export type DownloadTaskResponse = {
   audio?: AudioSelection;
   transcode?: HlsDownloaderTranscodeOptions;
   timeline?: HlsMultiTimelineOptions;
-  timelineReport?: HlsTimelineReport;
+  timelineMap?: HlsTimelineMap;
   outputs?: TaskFile[];
   errorCode?: string;
   totalSegments?: number;
@@ -91,7 +91,7 @@ export type DownloaderLike = {
     filePath: string;
     totalSegments: number;
     operationId?: string;
-    timelineReport?: HlsTimelineReport;
+    report?: import('@hls-downloader/shared').HlsEngineReport;
   }>;
   downloadToWritable(
     options: {
@@ -105,7 +105,11 @@ export type DownloaderLike = {
       signal: AbortSignal;
     },
     writable: WritableStream<Uint8Array>,
-  ): Promise<{ totalSegments: number; operationId?: string; timelineReport?: HlsTimelineReport }>;
+  ): Promise<{
+    totalSegments: number;
+    operationId?: string;
+    report?: import('@hls-downloader/shared').HlsEngineReport;
+  }>;
   downloadOutputs?: import('@hls-downloader/core').HlsDownloader<
     import('@hls-downloader/adapters/node').HlsDownloaderNodeAdapter
   >['downloadOutputs'];
@@ -255,19 +259,19 @@ export class TaskManager {
       headers: task.headers,
       variant: task.variant,
       audio: task.audio,
-      timelineReport: task.timelineReport!,
+      timelineMap: task.timelineMap!,
       operationId: `${id}:subtitles:${randomUUID()}`,
     });
   }
-  chapters(id: string, options: Omit<HlsChapterOptions, 'timelineReport'>) {
+  chapters(id: string, options: Omit<HlsChapterOptions, 'timelineMap'>) {
     return exportChapters({
       ...options,
-      timelineReport: this.#completedTimelineTask(id).timelineReport!,
+      timelineMap: this.#completedTimelineTask(id).timelineMap!,
     });
   }
   #completedTimelineTask(id: string): DownloadTask {
     const task = this.#tasks.get(id);
-    if (!task || task.status !== 'completed' || !task.timelineReport)
+    if (!task || task.status !== 'completed' || !task.timelineMap)
       throw new Error('A completed timeline download is required');
     return task;
   }
@@ -389,7 +393,7 @@ export class TaskManager {
       filename: task.filename,
       transcode: task.transcode,
       timeline: task.timeline,
-      timelineReport: task.timelineReport,
+      timelineMap: task.timelineMap,
       outputs: task.outputs?.map((output) => ({ ...output })),
       errorCode: task.errorCode,
       variant: task.variant,
@@ -485,12 +489,13 @@ export class TaskManager {
         signal: task.controller.signal,
       });
       const outputs = result.outputs.map((output) => ({
-        ...result.timelineReport.outputs.find((item) => item.index === output.index)!,
+        ...result.report?.outputs.find((item) => item.index === output.index)!,
+        index: output.index,
         filePath: output.filePath,
       }));
       await this.#retainOutputs(task, outputs);
       if (task.revision !== revision || task.status !== 'downloading') return;
-      task.timelineReport = result.timelineReport;
+      task.timelineMap = result.report?.timelineMap;
       task.totalSegments = result.totalSegments;
       task.status = 'completed';
       this.#scheduleExpiry(task);
@@ -512,7 +517,7 @@ export class TaskManager {
       return;
     }
     task.filePath = result.filePath;
-    task.timelineReport = result.timelineReport;
+    task.timelineMap = result.report?.timelineMap;
     task.totalSegments = result.totalSegments;
     task.status = 'completed';
     this.#emit(task, 'completed');
@@ -555,13 +560,13 @@ export class TaskManager {
         },
       }),
     );
-    if (task.timeline && result.timelineReport && task.filePath) {
+    if (task.timeline && result.report?.timelineMap && task.filePath) {
       await this.#retainOutputs(task, [
-        { ...result.timelineReport.outputs[0]!, filePath: task.filePath },
+        { ...result.report?.timelineMap?.outputs[0]!, filePath: task.filePath },
       ]);
     }
     if (task.revision !== revision || task.status !== 'downloading') return;
-    task.timelineReport = result.timelineReport;
+    task.timelineMap = result.report?.timelineMap;
     task.totalSegments = result.totalSegments;
     task.status = 'completed';
     this.#emit(task, 'completed');

@@ -1,0 +1,286 @@
+---
+title: 'Engine 1.0'
+description: 'Unified media, recovery and capability contracts'
+---
+
+## Unified Engine output
+
+All HLS download, stream, timeline and recording methods use `hls-engine 1.0.2`.
+Existing method names remain available. FFmpeg and WebCodecs remain the separate
+transcoding paths. Finite methods require ENDLIST on every selected input;
+`startRecording()` and `startMultiTrackRecording()` also support Live/EVENT refresh.
+
+Remux and recording results expose `report: HlsEngineReport`. It contains input progress, tracks,
+subtitle receipts, completed outputs, requested/actual ranges, bounded mappings
+and history truncation flags. Protocol counters, generations, sequences and ticks
+are decimal strings; use `BigInt`, not `Number`, when exactness matters. The old
+`timelineReport` and full resource/sample index contract have been removed.
+
+`download()` selects the default external audio rendition unless `audio` selects
+another. `downloadMultiTrack()` requires `embeddedAudio: 'keep' | 'exclude'` and
+accepts `audioTracks`, `subtitleTracks` and `playbackTarget`. Unselected renditions
+are not fetched. `parseMediaPlaylist(text, url)` parses lossless metadata without
+fetching media; `parseHls()` continues exposing variant and rendition selection.
+
+Browser `download({ url, maxBytes? })` defaults to a 256 MiB collection limit.
+Recording with `{ type: 'blob', maxBytes }` always requires an explicit capacity.
+This limits collected bytes, not total process memory or classic MP4 index costs.
+`downloadToWritable()` and `downloadToWritables()` await every write and close;
+callback `downloadToStream()` does not await callback promises.
+
+`downloadOutputs()` returns `{ operationId, totalSegments, outputs, report }`.
+Browser outputs are fMP4 Blob URLs; Node outputs are classic MP4 files named
+`basename.001.mp4`, `basename.002.mp4`, etc. Revoke Blob URLs when finished.
+`downloadToWritables()` acquires each sink from the supplied factory. Split uses
+`timeline.changePolicy: 'split'`; a single borrowed sink cannot split.
+Failures retain already published files or successfully closed writable outputs
+in `error.completedOutputs`. READY/result completion follows destination close.
+
+## Selected VOD transcoding
+
+`download({ url, audio?, decryption?, timeline?, transcode: { preset } })` supports
+`h264`, `hevc` and `vp9` with default or explicitly selected single external audio.
+Engine prepares clear fMP4 using the selected inputs and decodable range; FFmpeg
+(Node) or WebCodecs (Browser) then encodes it. Range boundaries can expand to
+random-access boundaries; this is not frame-exact trimming. Unselected renditions
+are not fetched. The result retains `totalSegments` and its file/Blob URL, but
+omits `report`: an intermediate remux report would not describe encoded output.
+
+Browser checks all selected tracks against actual encoder/decoder availability;
+unsupported tracks fail with `UNSUPPORTED_OUTPUT` rather than silently losing
+audio. `maxBytes` (default 256 MiB) separately bounds the intermediate media and
+encoded output, not aggregate memory. Node requires the `ffmpeg` executable on
+PATH, preserves an existing destination, and removes staging after success,
+failure or cancellation. Completion follows encoder shutdown and publication.
+
+Multi-track container transcoding, subtitle burning, recording, recovery, split
+and stream transcoding remain unsupported. `queryCapability()` describes Engine
+remux/recording combinations, not encoder availability; `transcodePresets` lists
+candidate presets, whose actual availability is checked during conversion.
+
+## Supported combinations and remaining limits
+
+| Input/profile | Finite file/Blob, callback, Writable | Live/EVENT Writable | Node fixed-file recovery |
+| --- | --- | --- | --- |
+| Clear / AES-128 TS and fMP4, AVC/HEVC + AAC-LC | Supported, including selected audio and ranges | Supported | Supported; encrypted recovery requires stable key versions |
+| TS SAMPLE-AES AVC/AAC-LC | Supported | Supported | Supported |
+| fMP4 cenc/cbcs AVC/HEVC/AAC-LC | Supported | Supported | Supported |
+| Packed AAC-LC clear / AES-128 / SAMPLE-AES | Supported; ID3 anchor required | Supported | Supported |
+| draft-22 GCM resource encryption | Explicit opt-in only | Explicit opt-in only | Opt-in and stable key versions |
+| Clear / AES-128 WebVTT | Finite export, embedded plain-text wvtt and continuous sidecar | Embedded wvtt and sidecar Writable | Fixed sidecar files for every selected subtitle; stable key versions for AES-128 |
+
+Container support does not imply playback in every player. The 1.0.1 AAC classic-MP4
+gap fix continues to pass on 1.0.2; other empty-edit restrictions and conservative
+capability decisions remain in place.
+
+The following results were measured on macOS arm64 on 2026-10-10. Each file profile
+was tested as classic MP4 and fMP4: AVC/dual AAC, plain wvtt, cue settings, AAC gaps,
+and decrypted HEVC cbcs.
+
+| Player | File playback and audio | Subtitles and limitations |
+| --- | --- | --- |
+| Safari 27.0.1 / AVFoundation | All 10 files ended; Safari switches EN/JA audio; 14 AVPlayer runs produced actual video frames | File wvtt exposes both subtitle choices and cue text/layout attributes; MSE exposes no subtitle tracks |
+| Chrome 155 | All 10 files decoded frames and ended; no audio selection API exposed | File wvtt exposes no text tracks; both multi-track MSE samples fail |
+| IINA 1.4.4 / mpv 0.38.0 | All 10 files reached EOF; both audio selections confirmed | Embedded wvtt is not recognized; external WebVTT visibly renders |
+| VLC 3.0.23 | All 10 files decoded/displayed frames; both audio selections confirmed | Both wvtt tracks selectable; simple captions captured; cue-settings layout is not considered faithful |
+| Shaka 5.2.13 (Chrome / Safari) | MP4 with external WebVTT played to completion | External cue activated; mixed-mdat wvtt parsing fails (3000) |
+
+These results do not qualify other systems/versions, arbitrary subtitle styling,
+or audio-device output. Background Safari frame counters are not full-frame evidence.
+Track selection state and independently decoded PCM are checked separately; neither
+is an acoustic recording. One successful file does not relax `playbackTarget` gates.
+Recording starts at `window-start`; latest-complete/PDT starts and additional audio
+codecs are deferred. AES-128 WebVTT and continuous sidecars are now bridged through
+Engine 1.0.2; see the sidecar contract below. Embedded subtitle player restrictions remain.
+
+## Continuous WebVTT sidecars
+
+`downloadMultiTrack()` and `startMultiTrackRecording()` accept plain-text WebVTT
+and AES-128 WebVTT segments/MAPs, including key rotation and original sequence IVs.
+Subtitle resources share the operation's key session, cancellation and resource
+budgets with media. SAMPLE-AES, CTR and GCM WebVTT remain unsupported. Styling
+blocks and rich cue markup are outside the continuous plain-text contract;
+standard cue settings are preserved.
+
+```ts
+const session = downloader.startMultiTrackRecording({
+  url,
+  embeddedAudio: 'keep',
+  subtitleTracks: [{
+    id: 'english',
+    selector: { groupId: 'subs', name: 'English' },
+    embedded: false,
+    sidecar: { type: 'writable', writable: subtitleWritable },
+  }],
+  output: { type: 'writable', writable: mediaWritable },
+  onEvent(event) {
+    if (event.type === 'subtitleCommit') console.log(event.commit.frontiers);
+  },
+});
+// Later: session.stop(); await session.result;
+```
+
+Both runtimes await sidecar writes and closes. `embedded` defaults to `true`;
+`false` requires a sidecar and avoids adding a wvtt track to the container.
+For split outputs, use `{ type: 'writables', acquire: async ({ inputId,
+outputIndex }) => writable }` on each subtitle selection. Each writer must be
+distinct from the media writer and other active subtitle writers. The preceding
+output closes before the next is acquired. A borrowed single Writable cannot split.
+
+Each output starts with one UTF-8 `WEBVTT` header. Cues use the actual committed
+output clock, including range clipping and split rebasing; long cues may be emitted
+as several portions. Timestamps are floored to milliseconds and portions that
+become empty are omitted. `subtitleCommit` exposes exact rational times, receipt,
+track/input, generation/epoch, output identity, clipping/rejection disposition and
+commit frontiers. It is an observation event: callback return values do not provide
+backpressure or durable acknowledgement. The sidecar sink does. Stop drains accepted
+work; cancel rejects without waiting for an uncooperative sink, and late writes
+cannot turn cancellation into success. Write/close failures reject with
+`OUTPUT_WRITE_FAILED`; already acknowledged Writable bytes cannot be rolled back.
+
+Node also accepts `sidecar: { type: 'file', path: './english.vtt' }` with a fixed
+media file output. With `resume: { directory: './job' }`, every selected subtitle
+track must have a fixed file sidecar. Writable/factory sidecars cannot resume.
+Existing unrelated files are preserved. The requested path is output zero;
+subsequent outputs use `<path>.part-000001.vtt`, alongside the media's corresponding
+`.part-000001.mp4` outputs. Publication is per file, not an atomic multi-file rename.
+
+The library checkpoint envelope remains schema 2; joint media/subtitle checkpoints
+contain Engine archive schema 3 (media-only archives remain schema 2). Recovery
+validates all committed prefixes and fresh subtitle resources before truncating
+uncommitted tails. Encrypted recovery requires a key resolver returning stable
+`version` values. Changed destinations/configuration reject with `RESUME_CONFLICT`;
+corrupt prefixes reject with `RESUME_INVALID`; unavailable or changed replay
+resources/key versions can require `RESUME_REPLAY_REQUIRED`. No raw keys are
+persisted. A completed task restores offline. Keep its directory and partial files
+until completion is durable. Subtitle replay metadata shares the bounded recovery
+journal (`limits.queuedMetadataBytes`); exhaustion rejects with
+`RESOURCE_LIMIT_EXCEEDED`, so this is not an unbounded recovery history.
+
+`downloadSubtitles()` and `downloadSubtitleOutputs()` also accept `decryption`
+and `maxBytes` (default 16 MiB for collected UTF-8 subtitle data). The latter uses
+the supplied complete timeline map and reads only subtitle resources. Neither
+finite export enables continuous recording by itself. `capabilities.multiTrack`
+reports `subtitleResources` and `subtitleSidecars`; the `subtitles` field in a
+`queryCapability()` request describes embedded subtitles and retains its player restrictions.
+
+## Recording and recovery
+
+A recording handle exposes `result`, `stop()`, `cancel()`, VOD `pause()` / `resume()`,
+`endInput(id)` and `restartInput(id, { generation, url? })`. Stop drains accepted
+work; cancellation aborts it. Input EOF and generation controls are independent.
+Live/EVENT pause is rejected. `limits` bounds descriptors, metadata, samples and
+history; `onEvent` observes Engine state, mappings, gaps, progress and outputs.
+
+Node deterministic file downloads and recordings accept:
+
+```ts
+const resume = { directory: './jobs/video', durability: 'sync-all' as const };
+const result = await node.download({ url, filename: 'video.mp4', resume });
+const recording = node.startRecording({
+  url,
+  output: { type: 'file', path: './recording.mp4' },
+  resume: { directory: './jobs/recording' },
+  missingSegments: 'fail',
+});
+```
+
+`durability` is `flush | sync-all`, defaulting to `sync-all`. Flush does not promise
+power-loss durability. Use an exclusive task directory. Schema-1 tasks are rejected
+with `RESUME_INVALID` and preserved; there is no migration or automatic reset.
+Browser, Blob, borrowed Writable and arbitrary file factories cannot resume.
+Transcoding and aria2 cannot be combined with Engine recovery.
+
+Before modifying existing output, recovery validates configuration, input/resource
+identity, stable key versions, the committed prefix and completed split files.
+`RESUME_CONFLICT` identifies configuration, identity or version conflicts;
+`RESUME_INVALID` identifies corruption or an old schema; `RESUME_REPLAY_REQUIRED`
+identifies missing replay evidence. Inspect `reason` for the specific failure.
+Finalizing/completed tasks restore without fetching manifests or replaying media.
+Recovery split names use the requested path first, then
+`<path>.part-000001.mp4`, `<path>.part-000002.mp4`, etc.
+
+Encrypted recovery requires `decryption.keyResolver` to return a stable `version`.
+No raw key bytes are persisted. Renew transport credentials through headers or the
+provider without changing media/key resource identities. Keep the task directory
+and referenced partials until completion is persisted. Replay storage is bounded
+by `limits.queuedMetadataBytes`; exceeding it fails explicitly. For recording
+window eviction, choose `missingSegments: 'skip' | 'split'` explicitly or retain
+the default `fail`. A resource rewrite is not window eviction.
+
+## Encryption and capability queries
+
+TS, fMP4 and Packed AAC-LC share the Engine pipeline. Supported combinations include
+resource AES-128, TS AVC/AAC SAMPLE-AES, Packed AAC SAMPLE-AES, and fMP4 AVC/HEVC/AAC
+cenc/cbcs. TS HEVC SAMPLE-AES, Packed AAC CTR, SAMPLE-AES/CTR/GCM WebVTT, LL-HLS partial
+segments and arbitrary encrypted byte slices remain unsupported.
+
+`decryption.experimentalGcm: true` opts into the upstream experimental draft-22
+`AES-256-GCM` whole-resource profile: a 32-byte key, a 16-byte leading IV and a
+16-byte trailing authentication tag. It is disabled by default. No resource
+plaintext or samples are committed until authentication succeeds. Invalid key
+lengths use `KEY_INVALID`; authentication failures use `AUTHENTICATION_FAILED`.
+The key request method union includes `AES-256-GCM`. Do not substitute an AES-128
+key, another GCM layout, explicit IV tags or arbitrary byte ranges.
+
+```ts
+const decision = await downloader.queryCapability({
+  inputs: [
+    {
+      id: 'primary',
+      container: 'fmp4',
+      encryption: 'SAMPLE-AES-CTR',
+      codecs: ['avc', 'aac-lc'],
+      scheme: 'cenc',
+    },
+  ],
+  output: 'writable',
+  playbackTarget: 'direct-browser',
+});
+console.log(decision.containerSupported, decision.playbackSupported);
+console.log(decision.rejections, decision.requirements);
+```
+
+Queries use declared container, codecs, encryption, output, playback target and
+recovery conditions; they do not fetch media or replace runtime validation.
+`output` accepts `blob`, `writable`, `file-mp4` and `file-fmp4`. Additional fields
+include `mode`, `range`, `embeddedAudio`, `subtitles`, `decodeGaps`, `maxBytes`,
+`resume` and `experimentalGcm`. A supported container does not guarantee playback
+in a particular browser/player. Errors preserve resource/sample context (input,
+generation, epoch, track and sample where available), without key or credential data.
+
+## Timeline maps and sidecars
+
+`report.timelineMap` is a schema-2 `HlsTimelineMap` with explicit intervals per
+output/track and a `complete` flag. It is derived from retained Engine mappings,
+gaps and completed outputs. `historyEntries` limits history; truncation, missing
+boundaries or ambiguity marks the map incomplete. No full media index is promised.
+
+```ts
+const { report } = await downloader.downloadToWritable({ url }, writable);
+const timelineMap = report!.timelineMap!;
+const chapters = exportChapters({
+  timelineMap,
+  chapters: [
+    {
+      title: 'Opening',
+      range: {
+        start: { ticks: '0', timescale: 1 },
+        end: { ticks: '5', timescale: 1 },
+      },
+    },
+  ],
+});
+const subtitles = await downloader.downloadSubtitleOutputs({
+  url,
+  subtitle: { groupId: 'subs', name: 'English' },
+  timelineMap,
+});
+```
+
+Both exports reject incomplete maps with `SUBTITLE_INVALID`. They clip/split at
+known range, gap and output boundaries and convert to the output clock. Use
+`track: { inputId, trackId }` to choose a mapping explicitly. Subtitle sidecar
+export reads subtitle resources, not the primary media again. Neither helper
+writes files automatically. `downloadSubtitles()` remains available and obtains
+its media clock through Engine processing.

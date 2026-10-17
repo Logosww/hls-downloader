@@ -1,6 +1,7 @@
 //! Versioned, sensitive-data-free keyed host contract shared by N-API and WASM.
-use hls_transmux::*;
-use hls_transmux::{
+use hls_engine::legacy::Error;
+use hls_engine::*;
+use hls_engine::{
     crypto::{key::*, resource::*},
     playlist::*,
 };
@@ -15,14 +16,16 @@ use std::{
     },
 };
 
-#[path = "multitrack.rs"]
-pub mod multitrack;
 #[path = "continuous.rs"]
 pub mod continuous;
+#[path = "multitrack.rs"]
+pub mod multitrack;
+#[path = "subtitle.rs"]
+pub mod subtitle;
 #[path = "timeline.rs"]
 pub mod timeline;
 
-pub type ReadFuture = Pin<Box<dyn Future<Output = hls_transmux::Result<Vec<u8>>> + Send>>;
+pub type ReadFuture = Pin<Box<dyn Future<Output = hls_engine::legacy::Result<Vec<u8>>> + Send>>;
 pub trait Host: Send + Sync {
     fn read(&self, request: String) -> ReadFuture;
     fn resolve(&self, request: String) -> KeyFuture<Reply>;
@@ -64,17 +67,13 @@ pub struct Format {
 #[serde(rename_all = "camelCase")]
 pub struct Request {
     pub wire_version: u32,
-    pub primary: Snapshot,
-    pub audio: Option<Snapshot>,
-    pub mode: String,
-    pub timeline: Option<timeline::Selection>,
-    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-    pub output: Option<String>,
     pub operation_id: String,
     pub scope: String,
     pub limits: Limits,
     pub key_formats: Vec<Format>,
     pub encrypted_ranges: String,
+    #[serde(default)]
+    pub experimental_gcm: bool,
 }
 fn location(l: &SourceLocation) -> String {
     match l {
@@ -95,61 +94,6 @@ pub fn parse(s: &Snapshot, id: &str) -> std::result::Result<PlaylistSnapshot, Va
 }
 pub fn error(code: &str, reason: &str) -> Value {
     json!({"error":{"code":code,"reason":reason}})
-}
-pub fn failure(e: KeyedSessionError) -> Value {
-    let code = match e.failure() {
-        KeyedFailure::ProviderUnavailable => "KEY_UNAVAILABLE",
-        KeyedFailure::ProviderFailure => {
-            if e.resource_error()
-                .and_then(|r| r.key_error())
-                .and_then(|k| k.provider_failure())
-                .is_some_and(|p| p.kind() == ProviderFailureKind::InvalidResponse)
-            {
-                "KEY_INVALID"
-            } else {
-                "KEY_RESOLUTION_FAILED"
-            }
-        }
-        KeyedFailure::InvalidKey => "KEY_INVALID",
-        KeyedFailure::KeyExpired => "KEY_EXPIRED",
-        KeyedFailure::InvalidIv | KeyedFailure::InvalidEncryptionMetadata => "ENCRYPTION_INVALID",
-        KeyedFailure::Decrypt => "DECRYPT_FAILED",
-        KeyedFailure::MediaValidation => "MEDIA_INVALID",
-        KeyedFailure::Read => "SEGMENT_FETCH_FAILED",
-        KeyedFailure::BudgetExceeded => "RESOURCE_LIMIT_EXCEEDED",
-        KeyedFailure::Output => "OUTPUT_WRITE_FAILED",
-        KeyedFailure::Cancelled => "ABORTED",
-        KeyedFailure::InvalidInputs => "MANIFEST_INVALID",
-        KeyedFailure::UnsupportedCombination => match e.playlist_rejection() {
-            Some(
-                PlaylistRejection::OpenInput
-                | PlaylistRejection::Event
-                | PlaylistRejection::Discontinuity
-                | PlaylistRejection::Gap
-                | PlaylistRejection::IFrameOnly
-                | PlaylistRejection::UnvalidatedTag,
-            ) => "TRANSMUX_FAILED",
-            Some(
-                PlaylistRejection::Empty
-                | PlaylistRejection::MissingTargetDuration
-                | PlaylistRejection::DurationExceedsTarget,
-            ) => "MANIFEST_INVALID",
-            _ => "UNSUPPORTED_ENCRYPTION",
-        },
-        _ => "TRANSMUX_FAILED",
-    };
-    let code = e.sample_error().map(timeline::sample_code).unwrap_or(code);
-    let slot = e
-        .sample_error()
-        .map(|e| e.resource().slot())
-        .or_else(|| e.resource_context().map(|r| r.slot()).or(e.slot()));
-    json!({"error":{"code":code,"trackId":e.sample_error().and_then(|s|s.track_id()),"sampleIndex":e.sample_error().and_then(|s|s.sample_index()).map(|s|s.to_string()),"scheme":e.sample_error().and_then(|s|s.scheme()),"reason":format!("{:?}", e.failure()),"phase":format!("{:?}",e.phase()).to_lowercase(),"inputRole":e.input_id().map(|i|i.as_str()),"inputId":slot.map(|s|s.input_id().as_str()),"originalSequence":slot.map(|s|s.sequence().to_string()),"epoch":slot.map(|s|s.epoch().to_string()),"resourceKind":e.resource_context().map(|r|if r.kind()==KeyResourceKind::Map {"map"} else {"media"})}})
-}
-fn counters(p: &KeyedResourceProgress) -> Value {
-    json!({"downloadedResources":p.downloaded_resources().to_string(),"downloadedBytes":p.downloaded_bytes().to_string(),"decryptedResources":p.decrypted_resources().to_string(),"decryptedBytes":p.decrypted_bytes().to_string(),"readyResources":p.ready_resources().to_string(),"clearBytes":p.clear_bytes().to_string(),"cacheReuses":p.cache_reuses().to_string()})
-}
-pub fn progress(e: KeyedSessionEvent) -> String {
-    json!({"phase":format!("{:?}",e.phase()).to_lowercase(),"bytesWritten":e.bytes_written().to_string(),"inputs":e.inputs().iter().map(|p|json!({"inputId":p.input_id().as_str(),"generation":p.generation().to_string(),"discovered":p.discovered_segments().to_string(),"committed":p.committed_segments().to_string(),"media":counters(p.media()),"maps":counters(p.maps())})).collect::<Vec<_>>()}).to_string()
 }
 fn key_request(r: &KeyRequest) -> String {
     let s = r.resource().slot();
@@ -172,10 +116,16 @@ impl KeyProvider for Provider {
             match reply.status.as_str() {
                 "unavailable" => KeyResolution::Unavailable,
                 "available" => {
-                    let Ok(secret) = SecretKey::new(reply.key) else {
+                    let secret = if *r.reference().method() == EncryptionMethod::Aes256Gcm {
+                        SecretKey::aes256(reply.key)
+                    } else {
+                        SecretKey::new(reply.key)
+                    };
+                    let Ok(secret) = secret else {
                         return provider_failure(ProviderFailureKind::InvalidResponse);
                     };
                     let mut key = match r.reference().method() {
+                        EncryptionMethod::Aes256Gcm => AvailableKey::aes256_gcm(secret),
                         EncryptionMethod::Aes128 => AvailableKey::aes128(secret),
                         EncryptionMethod::SampleAes => AvailableKey::sample_aes(secret),
                         EncryptionMethod::SampleAesCtr => AvailableKey::sample_aes_ctr(secret),
@@ -248,14 +198,14 @@ impl Source for SourceHost {
     fn read_text<'a>(
         &'a self,
         _: &'a SourceLocation,
-    ) -> Pin<Box<dyn Future<Output = hls_transmux::Result<TextResource>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = hls_engine::legacy::Result<TextResource>> + Send + 'a>> {
         Box::pin(async { Err(Error::invalid("snapshot only")) })
     }
     fn read_bytes<'a>(
         &'a self,
         l: &'a SourceLocation,
         r: Option<&'a ByteRange>,
-    ) -> Pin<Box<dyn Future<Output = hls_transmux::Result<Vec<u8>>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = hls_engine::legacy::Result<Vec<u8>>> + Send + 'a>> {
         let id = format!("read:{}", self.next.fetch_add(1, Ordering::Relaxed));
         self.ids.lock().unwrap().push(id.clone());
         let lease = Lease {
@@ -276,69 +226,6 @@ impl Drop for SourceHost {
         self.stop_session()
     }
 }
-pub async fn prepare(
-    r: &Request,
-    host: Arc<dyn Host>,
-    options: KeyedPrepareOptions,
-) -> std::result::Result<KeyedPreparedTransmux, Value> {
-    if r.wire_version != 3 {
-        return Err(error("BRIDGE_VERSION_MISMATCH", "wireVersion"));
-    }
-    let source = Arc::new(SourceHost {
-        host: host.clone(),
-        cap: r.limits.resource_bytes,
-        ids: Mutex::new(Vec::new()),
-        next: Arc::new(AtomicU32::new(1)),
-    });
-    let mut inputs = KeyedInputs::new(KeyedInput::new(
-        parse(&r.primary, "primary")?,
-        source.clone(),
-    ));
-    if let Some(a) = &r.audio {
-        inputs = inputs.with_audio(KeyedInput::new(parse(a, "audio")?, source));
-    }
-    let keys = KeySession::new(
-        r.operation_id.clone(),
-        r.scope.clone(),
-        Arc::new(Provider(host.clone())),
-        Arc::new(Clock(host)),
-        KeySessionOptions::default()
-            .with_limits(
-                r.limits.key_requests,
-                r.limits.cached_keys,
-                r.limits.key_waiters,
-            )
-            .with_formats(
-                r.key_formats
-                    .iter()
-                    .map(|f| KeyFormatSupport::new(&f.format, f.versions.clone()))
-                    .collect(),
-            ),
-    )
-    .map_err(|_| error("KEY_INVALID", "options"))?;
-    let resources = ResourceOptions::default()
-        .with_sample_limit(r.limits.samples)
-        .with_limits(
-            r.limits.resource_bytes,
-            r.limits.waiting_bytes,
-            r.limits.resources,
-        )
-        .with_encrypted_ranges(if r.encrypted_ranges == "complete-resources" {
-            EncryptedRangePolicy::CompleteResources
-        } else {
-            EncryptedRangePolicy::Reject
-        });
-    prepare_hls_with_keys(
-        inputs,
-        keys,
-        options
-            .with_resources(resources)
-            .with_parallel_reads(r.limits.resources)
-            .with_write_mfra(false),
-    )
-    .await
-    .map_err(failure)
-}
 fn keys(k: &KeyContext) -> Value {
     json!(k.candidates().iter().map(|k|json!({"method":k.method().as_str(),"uri":location(k.location().location()),"keyFormat":k.format(),"keyFormatVersions":k.versions(),"iv":k.explicit_iv().map(|iv|iv.iter().map(|b|format!("{b:02x}")).collect::<String>()),"declaration":{"revision":k.declaration().revision().to_string(),"ordinal":k.declaration().ordinal().to_string()}})).collect::<Vec<_>>())
 }
@@ -351,3 +238,10 @@ pub fn metadata(text: String, url: String) -> String {
         Err(e)=>e.to_string(), Ok(s)=>json!({"version":1,"url":location(s.location().location()),"inputId":s.context().input_id().as_str(),"generation":s.context().generation().to_string(),"revision":s.context().revision().to_string(),"hlsVersion":s.version().map(|v|v.to_string()),"targetDuration":s.target_duration().map(|v|v.to_string()),"playlistType":s.playlist_type().map(|v|format!("{v:?}")),"independentSegments":s.independent_segments(),"iframeOnly":s.iframe_only(),"retainedTags":s.retained_tags().iter().map(|t|t.text()).collect::<Vec<_>>(),"mediaSequence":s.media_sequence().to_string(),"discontinuitySequence":s.discontinuity_sequence().to_string(),"endList":s.end_list(),"segments":s.segments().iter().map(|s|json!({"originalSequence":s.slot().sequence().to_string(),"epoch":s.slot().epoch().to_string(),"uri":location(s.location().location()),"range":range(s.range()),"duration":{"ticks":s.duration().ticks().to_string(),"timescale":s.duration().timescale()},"keys":keys(s.keys()),"map":s.map().map(|m|json!({"uri":location(m.location().location()),"range":range(m.range()),"keys":keys(m.keys())})),"gap":s.gap(),"discontinuity":s.discontinuity(),"programDateTime":s.program_date_time()})).collect::<Vec<_>>()}).to_string()
     }
 }
+
+#[path = "capability.rs"]
+pub mod capability;
+
+#[cfg(not(target_arch = "wasm32"))]
+#[path = "recovery.rs"]
+pub mod recovery;

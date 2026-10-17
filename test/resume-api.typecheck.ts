@@ -16,3 +16,42 @@ browser.downloadToWritable(
   { url: 'https://example.test/media.m3u8', resume },
   new WritableStream(),
 );
+
+node.startRecording({
+  url: 'https://example.test/live.m3u8',
+  output: { type: 'file', path: 'capture.mp4' },
+  resume: { directory: './job', durability: 'sync-all' },
+});
+node.downloadMultiTrack({
+  url: 'x',
+  embeddedAudio: 'keep',
+  output: { type: 'file', path: 'x.mp4' },
+  resume: { directory: 'job', durability: 'flush' },
+});
+browser.startRecording({
+  url: 'x',
+  output: { type: 'blob', maxBytes: 1024 },
+  // @ts-expect-error Only deterministic Node file paths support recovery.
+  resume: { directory: 'job' },
+});
+node.startRecording({
+  url: 'x',
+  output: { type: 'files', acquire: async () => 'x.mp4' },
+  // @ts-expect-error Only deterministic Node file paths support recovery.
+  resume: { directory: 'job' },
+});
+node.downloadMultiTrack({
+  url: 'x',
+  embeddedAudio: 'keep',
+  output: { type: 'writables', acquire: async () => new WritableStream() },
+  // @ts-expect-error Only deterministic Node file paths support recovery.
+  resume: { directory: 'job' },
+});
+node.queryCapability({
+  inputs: [
+    { id: 'primary', container: 'packed-aac', encryption: 'AES-256-GCM', codecs: ['aac-lc'] },
+  ],
+  output: 'file-fmp4',
+  experimentalGcm: true,
+  resume: true,
+});

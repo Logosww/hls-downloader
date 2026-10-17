@@ -1,6 +1,7 @@
 import { HlsDownloaderError, HlsDownloaderErrorCode } from '@hls-downloader/shared';
 export type SubtitleTimeline = {
   origin: { ticks: string; timescale: number };
+  outputStart?: { ticks: string; timescale: number };
   tracks: { wrapAnchor?: string | null }[];
 };
 const invalid = () =>
@@ -59,8 +60,10 @@ export function mergeWebVtt(
     if (delta > period / 2n) delta -= period;
     const anchor = reference + delta;
     const convert = (ms: bigint) =>
-      ((anchor * scale - origin * 90000n) * 1000n + (ms - local) * 90000n * scale) /
-      (90000n * scale);
+      (((anchor * scale - origin * 90000n) * 1000n + (ms - local) * 90000n * scale) *
+        BigInt(timeline.outputStart?.timescale ?? 1) +
+        BigInt(timeline.outputStart?.ticks ?? '0') * 1000n * 90000n * scale) /
+      (90000n * scale * BigInt(timeline.outputStart?.timescale ?? 1));
     for (const block of blocks) {
       if (/^NOTE(?:[ \t\n]|$)/.test(block)) continue;
       if (/^(STYLE|REGION)(?:\n|$)/.test(block)) {

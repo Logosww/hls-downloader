@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-13",
+  "scope": "Script authoring verification only. No new multi-hour, static six-platform or immutable candidate acceptance claimed.",
+  "runs": [
+    {
+      "name": "local-smoke",
+      "path": "test-results/m5/local-2026-10-13T09-08-53.352Z-c5d8e84b/summary.json",
+      "sha256": "72c4a40c26d2c7b75c21815371b72d4e7efbb70bf74367e6e73cb1e1bdf1c2c0",
+      "status": "passed",
+      "results": {
+        "event": {
+          "path": "/Users/wangzhili/Desktop/Frontend/hls-downloader/test-results/m5/local-2026-10-13T09-08-53.352Z-c5d8e84b/event/summary.json",
+          "sha256": "8751debaf39f5a5b6243b7b6718b9483d85a8626c2ff8b06f286fcc54dba9075",
+          "qualification": "smoke only; not multi-hour acceptance"
+        },
+        "recovery": {
+          "path": "/Users/wangzhili/Desktop/Frontend/hls-downloader/test-results/m5/local-2026-10-13T09-08-53.352Z-c5d8e84b/recovery/summary.json",
+          "sha256": "6dea386266cb313b84c2c7bc9c0614cfe5861117d52e8bb11fbab39d40cf4a99",
+          "qualification": "smoke only"
+        },
+        "stress": {
+          "path": "/Users/wangzhili/Desktop/Frontend/hls-downloader/test-results/m5/local-2026-10-13T09-08-53.352Z-c5d8e84b/stress/summary.json",
+          "sha256": "344a3e25ecbd3b6412476a5c36eb78712a15755024628ff6297898f1a46b1ed8",
+          "qualification": "smoke only; not multi-hour acceptance"
+        },
+        "classic": {
+          "path": "/Users/wangzhili/Desktop/Frontend/hls-downloader/test-results/m5/local-2026-10-13T09-08-53.352Z-c5d8e84b/classic/summary.json",
+          "sha256": "906af4d8c5216cd7237fb0d6a4ec25c711d0bc27bec01c6ff64d45c3ce0ef861",
+          "qualification": "index scaling measurement; operational limits still require documentation review"
+        }
+      }
+    },
+    {
+      "name": "recovery-final-smoke",
+      "path": "test-results/m5/recovery-2026-10-13T09-14-41.736Z-34ac492e/summary.json",
+      "sha256": "f24ec8d4472b1408426fe09c3e621f80811e630078ac76a06f4a93f628235eae",
+      "status": "passed",
+      "results": {
+        "recovery": {
+          "path": "/Users/wangzhili/Desktop/Frontend/hls-downloader/test-results/m5/recovery-2026-10-13T09-14-41.736Z-34ac492e/recovery/summary.json",
+          "sha256": "388de9243d1f6ae0f83af5d13b63ea0a23510cda8c25689c48b409228acd8dfa",
+          "qualification": "smoke only"
+        }
+      }
+    },
+    {
+      "name": "platform-final-dynamic-smoke",
+      "path": "test-results/m5/platform-2026-10-13T09-17-28.117Z-537e6aca/summary.json",
+      "sha256": "ea87ba8f17cc7bb25f71fda8f3c9cbeb472c06b839f3800a2959e769b757814d",
+      "status": "passed",
+      "results": {
+        "platform": {
+          "path": "/Users/wangzhili/Desktop/Frontend/hls-downloader/test-results/m5/platform-2026-10-13T09-17-28.117Z-537e6aca/platform/summary.json",
+          "sha256": "f69ed8e8316d80055285d56501cf22049d9513f46120159eb88641c34f016fb6",
+          "qualification": "dynamic local smoke only; not static platform acceptance"
+        }
+      }
+    },
+    {
+      "name": "dirty-candidate-rejected",
+      "path": "test-results/m5/candidate-2026-10-13T09-11-47.308Z-2eae1f4a/summary.json",
+      "sha256": "4c9b305f6098f656d8f72dc43796355788d5ccdef02f017cbe7d1d659ccd2ae4",
+      "status": "failed"
+    }
+  ],
+  "regression": {
+    "passed": 13,
+    "files": [
+      "m5-gates.unit.test.ts",
+      "m5-realtime.unit.test.ts",
+      "m5-rolling.integration.test.ts"
+    ]
+  },
+  "checks": [
+    "TypeScript strict noEmit",
+    "oxlint",
+    "oxfmt",
+    "git diff --check"
+  ]
+}

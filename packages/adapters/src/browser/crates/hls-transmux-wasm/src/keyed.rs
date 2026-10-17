@@ -1,6 +1,6 @@
 use super::*;
-use hls_transmux::crypto::key::KeyFuture;
-use hls_transmux::*;
+use hls_engine::crypto::key::KeyFuture;
+
 #[path = "../../../../rust/keyed.rs"]
 mod wire;
 #[wasm_bindgen]
@@ -31,7 +31,7 @@ impl wire::Host for Host {
         Box::pin(async move {
             match receiver.await {
                 Ok(Ok(JsValueResult::Bytes(b))) => Ok(b),
-                _ => Err(hls_transmux::Error::Http("read bridge failed".into())),
+                _ => Err(hls_engine::legacy::Error::Http("read bridge failed".into())),
             }
         })
     }
@@ -73,69 +73,6 @@ impl wire::Host for Host {
 pub fn parse_media_playlist_browser(text: String, url: String) -> String {
     wire::metadata(text, url)
 }
-#[wasm_bindgen]
-pub async fn keyed_browser(
-    request: String,
-    read: Function,
-    write: Function,
-    resolve: Function,
-    abort: Function,
-    progress: Function,
-    cancel: js_sys::Promise,
-) -> std::result::Result<JsValue, JsValue> {
-    let r: wire::Request =
-        serde_json::from_str(&request).map_err(|_| JsValue::from_str("invalid keyed request"))?;
-    let read = CallbackRegistration::new(read);
-    let write = CallbackRegistration::new(write);
-    let resolve = CallbackRegistration::new(resolve);
-    let abort = CallbackRegistration::new(abort);
-    let progress = CallbackRegistration::new(progress);
-    let host = Arc::new(Host {
-        read: read.0,
-        resolve: resolve.0,
-        abort: abort.0,
-        start: monotonic_ms(),
-    });
-    let progress_id = progress.0;
-    let run = async {
-        let options = KeyedPrepareOptions::default().with_on_event(Arc::new(move |e| {
-            let _ = call(progress_id, &JsValue::from_str(&wire::progress(e)));
-        }));
-        let p = match wire::prepare(&r, host, options).await {
-            Ok(p) => p,
-            Err(e) => return e,
-        };
-        if r.mode == "bytes" {
-            return match p.into_mp4_bytes().await {
-                Ok((bytes, report)) => {
-                    let result =
-                        invoke_local(write.0, vec![Uint8Array::from(bytes.as_slice()).into()])
-                            .await;
-                    match result {
-                        Ok(Ok(_)) => {
-                            serde_json::json!({"totalSegments":report.media().segment_count})
-                        }
-                        _ => wire::error("OUTPUT_WRITE_FAILED", "write"),
-                    }
-                }
-                Err(e) => wire::failure(e),
-            };
-        }
-        match p
-            .write_to(&mut DemandWriter {
-                id: write.0,
-                pending: None,
-            })
-            .await
-        {
-            Ok(report) => serde_json::json!({"totalSegments":report.media().segment_count}),
-            Err(e) => wire::failure(e),
-        }
-    };
-    let result = tokio::select! {biased; _=wasm_bindgen_futures::JsFuture::from(cancel)=>wire::error("ABORTED","cancelled"),result=run=>result};
-    Ok(JsValue::from_str(&result.to_string()))
-}
-
 struct TimelineOutputHost {
     control: u32,
     write: u32,
@@ -167,43 +104,6 @@ impl wire::timeline::OutputHost for TimelineOutputHost {
         })
     }
 }
-#[wasm_bindgen]
-pub async fn timeline_browser(
-    request: String,
-    read: Function,
-    write: Function,
-    resolve: Function,
-    abort: Function,
-    control: Function,
-    cancel: js_sys::Promise,
-) -> std::result::Result<JsValue, JsValue> {
-    let r: wire::Request = match serde_json::from_str(&request) {
-        Ok(r) => r,
-        Err(_) => {
-            return Ok(JsValue::from_str(
-                &wire::error("RANGE_INVALID", "InvalidOptions").to_string(),
-            ));
-        }
-    };
-    let read = CallbackRegistration::new(read);
-    let write = CallbackRegistration::new(write);
-    let resolve = CallbackRegistration::new(resolve);
-    let abort = CallbackRegistration::new(abort);
-    let control = CallbackRegistration::new(control);
-    let host = Arc::new(Host {
-        read: read.0,
-        resolve: resolve.0,
-        abort: abort.0,
-        start: monotonic_ms(),
-    });
-    let output = Arc::new(TimelineOutputHost {
-        control: control.0,
-        write: write.0,
-    });
-    let result = tokio::select! {biased; _=wasm_bindgen_futures::JsFuture::from(cancel)=>wire::error("ABORTED","cancelled"),r=wire::timeline::run(&r,host,output,None)=>r};
-    Ok(JsValue::from_str(&result.to_string()))
-}
-
 #[wasm_bindgen]
 pub struct BrowserRecording {
     bridge: std::rc::Rc<wire::continuous::Bridge>,
@@ -255,4 +155,9 @@ impl BrowserRecording {
             .await
             .unwrap_or_else(|_| wire::error("RECORDING_FAILED", "executor").to_string())
     }
+}
+
+#[wasm_bindgen]
+pub fn query_capability_browser(request: String) -> String {
+    wire::capability::query(&request)
 }

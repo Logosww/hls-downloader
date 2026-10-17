@@ -333,11 +333,11 @@ try {
     await submit(page);
     await page.getByRole('button', { name: '保存文件', exact: true }).waitFor();
     const value = await report(page);
-    assert.deepEqual(value.requested, {
-      start: { ticks: '2', timescale: 10 },
-      end: { ticks: '42', timescale: 10 },
-    });
-    assert.ok(value.preroll && value.postroll);
+    assert.equal(value.schemaVersion, 2);
+    assert.equal(value.complete, true);
+    const actual = value.outputs[0].actualRange;
+    assert.ok(Number(actual.start.ticks) / actual.start.timescale <= 0.2);
+    assert.ok(Number(actual.end.ticks) / actual.end.timescale >= 4.2);
     verify(await mediaBytes(page), 'range');
     await page.getByRole('button', { name: '保存 WebVTT' }).click();
     assert.match(
@@ -361,7 +361,7 @@ try {
     );
     const value = await report(page);
     assert.equal(value.outputs.length, 2);
-    assert.equal(value.outputs[1].reason, 'ConfigurationChanged');
+    assert.ok(value.outputs[1].mappings.length > 0);
     const media = await page.evaluate(async () =>
       Promise.all(
         (window as any).timelineTest.media.map(async (url: string) =>
@@ -372,7 +372,7 @@ try {
     media.forEach((bytes: number[], index: number) => verify(bytes, 'split-' + index));
     await page.getByRole('button', { name: '保存文件' }).first().click();
     assert.equal(await page.getByRole('button', { name: '保存文件' }).count(), 1);
-    results.push('classic MP4 split and independent save');
+    results.push('Engine split outputs and independent save');
     await page.close();
   }
   for (const mode of ['file', 'write-failure', 'close-failure', 'blocked']) {

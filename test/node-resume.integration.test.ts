@@ -10,12 +10,13 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createCipheriv } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { HlsDownloader } from '../packages/core/src/index';
 import { NodeAdapter } from '../packages/adapters/src/node/index';
 import { HlsDownloaderEvent } from '../packages/shared/src/index';
+import { timelineCases, timelineRoutes } from './fixtures/timeline';
 import { sendBytes, sendRange, sendText, startFixtureServer } from './fixtures/http-server';
 
 const directories: string[] = [];
@@ -81,7 +82,7 @@ function longTs() {
   };
 }
 function state(directory: string) {
-  return JSON.parse(readFileSync(join(directory, 'state.json'), 'utf8'));
+  return JSON.parse(readFileSync(join(directory, 'engine-state.json'), 'utf8'));
 }
 async function fixture(kind: 'ts' | 'fmp4' | 'byterange' = 'ts') {
   let fail = false;
@@ -135,388 +136,399 @@ function probe(file: string) {
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((s) => s.close()));
   directories.splice(0).forEach((p) => rmSync(p, { recursive: true, force: true }));
-  outputs.splice(0).forEach((p) => rmSync(p, { force: true }));
+  outputs.splice(0).forEach((p) => {
+    rmSync(p, { force: true });
+    rmSync(p + '.hls-partial', { force: true });
+  });
 });
 
-describe('Node persistent recovery (requires the real native module)', () => {
-  for (const kind of ['ts', 'fmp4', 'byterange'] as const) {
-    it(`reuses verified ${kind} resources after failure and cleans media after publication`, async () => {
-      const server = await fixture(kind);
-      const options = { ...job(), url: server.url, headers: { Authorization: 'test-secret' } };
-      const errors: unknown[] = [];
-      const downloader = new HlsDownloader({
-        adapter: NodeAdapter,
-        onEvent(event, payload) {
-          if (event === HlsDownloaderEvent.ERROR) errors.push(payload.error);
-        },
-      });
-      expect(downloader.capabilities.resumableDownload).toBe(true);
+describe('Node Engine schema-2 recovery', () => {
+  for (const kind of ['ts', 'fmp4', 'byterange'] as const)
+    it(`replays ${kind} after interrupted resource acquisition`, async () => {
+      const server = await fixture(kind),
+        options = { ...job(), url: server.url, headers: { Authorization: 'test-secret' } };
+      const d = new HlsDownloader({ adapter: NodeAdapter });
       server.fail(true);
-      await expect(downloader.download(options)).rejects.toMatchObject({
-        code: 'SEGMENT_FETCH_FAILED',
-      });
-      expect(errors).toHaveLength(1);
-      const cached = readdirSync(join(options.resume.directory, 'cache'));
-      expect(cached.some((n) => n.endsWith('.bin'))).toBe(true);
-      expect(readFileSync(join(options.resume.directory, 'state.json'), 'utf8')).not.toContain(
-        'test-secret',
-      );
-      const cachedPath =
-        kind === 'ts' ? '/segment-00.ts' : kind === 'fmp4' ? '/segment-00.m4s' : '/media.ts';
-      const firstCount = server.requests.filter(
-        (r) =>
-          r.path === cachedPath && (kind !== 'byterange' || r.headers.range === 'bytes=0-31771'),
-      ).length;
+      await expect(d.download(options)).rejects.toMatchObject({ code: 'SEGMENT_FETCH_FAILED' });
+      const saved = state(options.resume.directory);
+      expect(saved.schema).toBe(2);
+      expect(saved.checkpoint.schema_version).toBe(2);
+      expect(JSON.stringify(saved)).not.toContain('test-secret');
       server.fail(false);
-      const result = await downloader.download(options);
-      expect(result.totalSegments).toBe(2);
-      expect(
-        server.requests.filter(
-          (r) =>
-            r.path === cachedPath && (kind !== 'byterange' || r.headers.range === 'bytes=0-31771'),
-        ).length,
-      ).toBe(firstCount);
-      expect(readdirSync(join(options.resume.directory, 'cache'))).toEqual([]);
-      expect(existsSync(join(options.resume.directory, 'output.partial.mp4'))).toBe(false);
-      const resumed = probe(result.filePath);
-      const freshOptions = job();
-      const fresh = await downloader.download({
-        url: options.url,
-        filename: freshOptions.filename,
-      });
-      expect(resumed).toEqual(probe(fresh.filePath));
-      const requests = server.requests.length;
-      const repeated = await downloader.download(options);
-      expect(repeated.filePath).toBe(result.filePath);
-      expect(repeated.operationId).not.toBe(result.operationId);
-      expect(server.requests).toHaveLength(requests);
+      const result = await d.download(options);
+      expect(result.report!.inputs[0]!.committed).toBe('2');
+      expect(probe(result.filePath).duration).toBeGreaterThan(1);
+      expect(state(options.resume.directory).journal).toEqual([]);
+      expect(existsSync(result.filePath + '.hls-partial')).toBe(false);
+      const count = server.requests.length;
+      expect((await d.download(options)).report!.inputs[0]!.committed).toBe('2');
+      expect(server.requests.length).toBe(count);
     });
-  }
-
-  it('recovers implicit byte ranges', async () => {
-    const server = await fixture('byterange');
-    server.manifest(media('byterange/media.m3u8').toString().replace('30644@31772', '30644'));
-    const options = { ...job(), url: server.url };
-    const downloader = new HlsDownloader({ adapter: NodeAdapter });
+  it.each(['schema1', 'corrupt', 'missing-replay', 'configuration', 'prefix', 'destination'])(
+    'preserves existing bytes on %s failure',
+    async (reason) => {
+      const server = await fixture(),
+        options = { ...job(), url: server.url },
+        d = new HlsDownloader({ adapter: NodeAdapter });
+      server.fail(true);
+      await expect(d.download(options)).rejects.toBeDefined();
+      const statePath = join(options.resume.directory, 'engine-state.json');
+      const partial = resolve(options.filename + '.mp4.hls-partial');
+      if (reason === 'schema1') {
+        rmSync(statePath);
+        writeFileSync(join(options.resume.directory, 'state.json'), '{}');
+      }
+      if (reason === 'corrupt') writeFileSync(statePath, 'broken');
+      if (reason === 'missing-replay') {
+        const s = state(options.resume.directory);
+        s.journal = [];
+        writeFileSync(statePath, JSON.stringify(s));
+      }
+      if (reason === 'prefix') {
+        server.fail(false);
+        const result = await d.download(options);
+        const b = readFileSync(result.filePath);
+        b[0] ^= 1;
+        writeFileSync(result.filePath, b);
+      }
+      if (reason === 'destination') writeFileSync(resolve(options.filename + '.mp4'), 'unrelated');
+      const protectedPath = reason === 'prefix' ? resolve(options.filename + '.mp4') : partial;
+      const before = readFileSync(protectedPath);
+      server.fail(false);
+      const result = await d
+        .download({
+          ...options,
+          ...(reason === 'configuration' ? { timeline: { gapPolicy: 'collapse' as const } } : {}),
+        })
+        .catch((e) => e);
+      expect(result.code).toBe(
+        reason === 'configuration' || reason === 'destination'
+          ? 'RESUME_CONFLICT'
+          : reason === 'missing-replay'
+            ? 'RESUME_REPLAY_REQUIRED'
+            : 'RESUME_INVALID',
+      );
+      expect(readFileSync(protectedPath)).toEqual(before);
+      if (reason === 'destination')
+        expect(readFileSync(resolve(options.filename + '.mp4'), 'utf8')).toBe('unrelated');
+    },
+  );
+  it('truncates an uncommitted tail only after successful replay validation', async () => {
+    const server = await fixture(),
+      options = { ...job(), url: server.url },
+      d = new HlsDownloader({ adapter: NodeAdapter });
     server.fail(true);
-    await expect(downloader.download(options)).rejects.toMatchObject({
-      code: 'SEGMENT_FETCH_FAILED',
-    });
+    await expect(d.download(options)).rejects.toBeDefined();
+    const partial = resolve(options.filename + '.mp4.hls-partial');
+    writeFileSync(partial, Buffer.concat([readFileSync(partial), Buffer.from('uncommitted')]));
     server.fail(false);
-    const result = await downloader.download(options);
-    expect(server.requests.filter((r) => r.headers.range === 'bytes=0-31771')).toHaveLength(1);
-    expect(server.requests.filter((r) => r.headers.range === 'bytes=31772-62415')).toHaveLength(2);
-    expect(probe(result.filePath).duration).toBeGreaterThan(1.8);
+    const result = await d.download(options);
+    expect(probe(result.filePath).duration).toBeGreaterThan(1);
   });
-
-  it('keeps MAP and media ranges at the same URL as separate cache resources', async () => {
-    const init = media('fmp4/init.mp4'),
-      first = media('fmp4/segment-00.m4s'),
-      second = media('fmp4/segment-01.m4s');
-    const bundle = Buffer.concat([init, first, second]);
-    const lastRange = `bytes=${init.length + first.length}-${bundle.length - 1}`;
-    const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:1\n#EXT-X-MAP:URI="all.mp4",BYTERANGE="${init.length}@0"\n#EXTINF:1,\n#EXT-X-BYTERANGE:${first.length}@${init.length}\nall.mp4\n#EXTINF:1,\n#EXT-X-BYTERANGE:${second.length}\nall.mp4\n#EXT-X-ENDLIST\n`;
-    let fail = true;
-    const server = await startFixtureServer({
-      '/media.m3u8': (_, res) => sendText(res, playlist),
-      '/all.mp4': (req, res) =>
-        fail && req.headers.range === lastRange
-          ? res.writeHead(503).end()
-          : sendRange(req, res, bundle),
-    });
-    servers.push(server);
-    const options = { ...job(), url: `${server.origin}/media.m3u8` };
-    const downloader = new HlsDownloader({ adapter: NodeAdapter });
-    await expect(downloader.download(options)).rejects.toMatchObject({
-      code: 'SEGMENT_FETCH_FAILED',
-    });
-    fail = false;
-    const result = await downloader.download(options);
-    expect(
-      server.requests.filter((r) => r.headers.range === `bytes=0-${init.length - 1}`),
-    ).toHaveLength(1);
-    expect(
-      server.requests.filter(
-        (r) => r.headers.range === `bytes=${init.length}-${init.length + first.length - 1}`,
-      ),
-    ).toHaveLength(1);
-    expect(probe(result.filePath).duration).toBeGreaterThan(1.8);
-  });
-
-  it('redownloads a corrupt cache entry and rejects changed identities without destroying state', async () => {
-    const server = await fixture();
-    server.fail(true);
-    const options = { ...job(), url: server.url };
-    const downloader = new HlsDownloader({ adapter: NodeAdapter });
-    await expect(downloader.download(options)).rejects.toThrow();
-    const saved = readFileSync(join(options.resume.directory, 'state.json'));
-    for (const changed of [
-      { url: `${server.url}?token=changed` },
-      { headers: { Authorization: 'new' } },
-      { filename: 'different' },
-    ]) {
-      await expect(downloader.download({ ...options, ...changed })).rejects.toMatchObject({
-        code: 'RESUME_INVALID',
-      });
-      expect(readFileSync(join(options.resume.directory, 'state.json'))).toEqual(saved);
-    }
-    const cacheDir = join(options.resume.directory, 'cache');
-    writeFileSync(
-      join(
-        cacheDir,
-        readdirSync(cacheDir).find((n) => n.endsWith('.bin'))!,
-      ),
-      'corrupt',
-    );
-    server.fail(false);
-    await downloader.download(options);
-    expect(server.attempts.get('/segment-00.ts')).toBe(2);
-  });
-
-  it('refetches manifests and rejects changed content even in the same downloader', async () => {
-    const server = await fixture();
-    server.fail(true);
-    const options = { ...job(), url: server.url };
-    const downloader = new HlsDownloader({ adapter: NodeAdapter });
-    await expect(downloader.download(options)).rejects.toThrow();
-    server.manifest(
-      media('ts/media.m3u8').toString().replace('#EXTINF:1.000000', '#EXTINF:1.100000'),
-    );
-    server.fail(false);
-    await expect(downloader.download(options)).rejects.toMatchObject({ code: 'RESUME_INVALID' });
-  });
-
-  it('cancels a checkpointed download, locks concurrent users, and resumes without fetching committed segments', async () => {
-    const { playlist, segments } = longTs();
-    let release!: () => void;
-    const waiting = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let entered!: () => void;
-    const downloading = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    let blocked = true;
-    const server = await startFixtureServer({
-      '/media.m3u8': (_, res) => sendText(res, playlist),
-      ...Object.fromEntries(
-        Array.from({ length: 6 }, (_, i) => [
-          `/${i}.ts`,
-          async (_: unknown, res: any) => {
-            if (i === 3 && blocked) {
-              entered();
-              await waiting;
-            }
-            await sendBytes(res, segments[i]!);
-          },
-        ]),
-      ),
-    });
-    servers.push(server);
-    const options = { ...job(), url: `${server.origin}/media.m3u8` };
+  it('holds a kernel lock until cancellation and permits a fresh owner', async () => {
+    const server = await fixture(),
+      options = { ...job(), url: server.url };
     const controller = new AbortController();
-    const downloader = new HlsDownloader({ adapter: NodeAdapter });
-    const first = downloader.download({ ...options, signal: controller.signal });
-    const settled = first.catch((error) => error);
+    let entered!: () => void;
+    const gate = new Promise<void>((r) => (entered = r));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input, init) => {
+      if (String(input).endsWith('/segment-00.ts')) {
+        entered();
+        await new Promise((_, reject) =>
+          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), {
+            once: true,
+          }),
+        );
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const task = new HlsDownloader({ adapter: NodeAdapter }).download({
+        ...options,
+        signal: controller.signal,
+      });
+      const rejected = expect(task).rejects.toMatchObject({ code: 'ABORTED' });
+      await gate;
+      await expect(
+        new HlsDownloader({ adapter: NodeAdapter }).download(options),
+      ).rejects.toMatchObject({ code: 'RESUME_CONFLICT' });
+      controller.abort();
+      await rejected;
+    } finally {
+      globalThis.fetch = originalFetch;
+      controller.abort();
+    }
+    expect(
+      (await new HlsDownloader({ adapter: NodeAdapter }).download(options)).report!.inputs[0]!
+        .committed,
+    ).toBe('2');
+  });
+  it('propagates checkpoint persistence failure independently of observers', async () => {
+    const server = await fixture(),
+      options = { ...job(), url: server.url };
+    const originalFetch = globalThis.fetch;
+    let replaced = false;
+    globalThis.fetch = (async (input, init) => {
+      if (!replaced && String(input).endsWith('/segment-00.ts')) {
+        replaced = true;
+        const path = join(options.resume.directory, 'engine-state.json');
+        rmSync(path);
+        mkdirSync(path);
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+    try {
+      await expect(
+        new HlsDownloader({ adapter: NodeAdapter, onEvent() {} }).download(options),
+      ).rejects.toMatchObject({ code: 'RESUME_IO_FAILED' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+it('recovers a committed task after SIGKILL releases the directory lock', async () => {
+  const media = longTs();
+  let entered!: () => void, release!: () => void;
+  const ready = new Promise<void>((r) => (entered = r)),
+    gate = new Promise<void>((r) => (release = r));
+  let blocked = true;
+  const server = await startFixtureServer({
+    '/media.m3u8': (_, res) => sendText(res, media.playlist),
+    ...(Object.fromEntries(
+      media.segments.map((data, i) => [
+        '/' + i + '.ts',
+        async (_, res) => {
+          if (i === 3 && blocked) {
+            entered();
+            await gate;
+          }
+          sendBytes(res, data);
+        },
+      ]),
+    ) as any),
+  });
+  servers.push(server);
+  const options = { ...job(), url: server.origin + '/media.m3u8' };
+  const core = resolve(import.meta.dirname, '../packages/core/dist/index.mjs');
+  const adapter = resolve(import.meta.dirname, '../packages/adapters/dist/node.mjs');
+  const script = `const {HlsDownloader}=await import(${JSON.stringify(core)});const {NodeAdapter}=await import(${JSON.stringify(adapter)});await new HlsDownloader({adapter:NodeAdapter}).download(${JSON.stringify(options)});`;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const exited = once(child, 'exit');
+  try {
     await Promise.race([
-      downloading,
-      first.then(() => {
-        throw new Error('Download unexpectedly finished');
+      ready,
+      exited.then(() => {
+        throw Error('child exited before committed checkpoint');
       }),
     ]);
-    expect(state(options.resume.directory).checkpoint.completed_segments).toBeGreaterThan(0);
-    await expect(downloader.download(options)).rejects.toMatchObject({ code: 'RESUME_CONFLICT' });
-    const independent = downloader.download({ ...job(), url: options.url });
-    controller.abort();
-    expect(await settled).toMatchObject({ code: 'ABORTED', name: 'AbortError' });
+    child.kill('SIGKILL');
+    await exited;
     blocked = false;
     release();
-    expect(probe((await independent).filePath).duration).toBeGreaterThan(5);
-    const count = server.attempts.get('/0.ts');
-    const result = await downloader.download(options);
-    expect(server.attempts.get('/0.ts')).toBe(count);
+    const partial = resolve(options.filename + '.mp4.hls-partial');
+    expect(readFileSync(partial).length).toBeGreaterThan(1000);
+    const result = await new HlsDownloader({ adapter: NodeAdapter }).download(options);
+    expect(result.report!.inputs[0]!.committed).toBe('6');
     expect(probe(result.filePath).duration).toBeGreaterThan(5);
-  });
-
-  it('recovers after a process is killed and the OS releases its directory lock', async () => {
-    const { playlist, segments } = longTs();
-    let blocked = true;
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const server = await startFixtureServer({
-      '/media.m3u8': (_, res) => sendText(res, playlist),
-      ...Object.fromEntries(
-        Array.from({ length: 6 }, (_, i) => [
-          `/${i}.ts`,
-          async (_: unknown, res: any) => {
-            if (i === 3 && blocked) await gate;
-            await sendBytes(res, segments[i]!);
-          },
-        ]),
-      ),
-    });
-    servers.push(server);
-    const options = { ...job(), url: `${server.origin}/media.m3u8` };
-    const native = resolve(import.meta.dirname, '../packages/adapters/src/node/native.js');
-    const script = `const native = require(${JSON.stringify(native)});
-      (async () => {
-        const session = await native.openResumeTask(${JSON.stringify(options.resume.directory)}, ${JSON.stringify(JSON.stringify({ url: options.url, headers: [], variant: null }))}, ${JSON.stringify(resolve(`${options.filename}.mp4`))});
-        const token = await native.createCancelToken();
-        await native.runResumeTask(session.id, ${JSON.stringify(options.url)}, null, 1, 1, token,
-          (err, progress) => { if (!err && progress[1] > 0) process.stdout.write('checkpoint\\n'); });
-      })().catch(error => { process.stderr.write(String(error)); process.exitCode = 1; });`;
-    const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'pipe'] });
-    const exited = once(child, 'exit');
-    try {
-      await Promise.race([
-        once(child.stdout!, 'data'),
-        exited.then(() => {
-          throw new Error('Recovery child exited before checkpoint');
-        }),
-      ]);
-      child.kill('SIGKILL');
-      await exited;
-      expect(state(options.resume.directory).checkpoint.completed_segments).toBeGreaterThan(0);
-      blocked = false;
-      release();
-      const before = server.attempts.get('/0.ts');
-      const result = await new HlsDownloader({ adapter: NodeAdapter }).download(options);
-      expect(server.attempts.get('/0.ts')).toBe(before);
-      expect(probe(result.filePath).duration).toBeGreaterThan(5);
-    } finally {
-      child.kill('SIGKILL');
-      blocked = false;
-      release();
-    }
-  });
-
-  it('stops on checkpoint I/O failure, retains the last durable state, and recovers after repair', async () => {
-    const { playlist, segments } = longTs();
-    let entered!: () => void, release!: () => void;
-    const reached = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let blocked = true;
-    const server = await startFixtureServer({
-      '/media.m3u8': (_, res) => sendText(res, playlist),
-      ...Object.fromEntries(
-        segments.map((bytes, i) => [
-          `/${i}.ts`,
-          async (_: unknown, res: any) => {
-            if (i === 3 && blocked) {
-              entered();
-              await gate;
-            }
-            await sendBytes(res, bytes);
-          },
-        ]),
-      ),
-    });
-    servers.push(server);
-    const options = { ...job(), url: `${server.origin}/media.m3u8` };
-    const events: HlsDownloaderEvent[] = [];
-    const downloader = new HlsDownloader({
-      adapter: NodeAdapter,
-      onEvent(event) {
-        events.push(event);
-      },
-    });
-    const pending = downloader.download(options);
-    const settled = pending.catch((error) => error);
-    try {
-      await Promise.race([reached, pending]);
-      const path = join(options.resume.directory, 'state.json');
-      const saved = readFileSync(path);
-      expect(JSON.parse(saved.toString()).checkpoint.completed_segments).toBeGreaterThan(0);
-      rmSync(path);
-      mkdirSync(path);
-      blocked = false;
-      release();
-      expect(await settled).toMatchObject({ code: 'RESUME_IO_FAILED' });
-      expect(events.filter((e) => e === HlsDownloaderEvent.ERROR)).toHaveLength(1);
-      expect(events).not.toContain(HlsDownloaderEvent.READY_FOR_DOWNLOAD);
-      rmSync(path, { recursive: true });
-      writeFileSync(path, saved);
-      const result = await downloader.download(options);
-      expect(probe(result.filePath).duration).toBeGreaterThan(5);
-    } finally {
-      blocked = false;
-      release();
-    }
-  });
-
-  it('cancels during manifest resolution before the first checkpoint and can retry', async () => {
-    let entered!: () => void, release!: () => void;
-    const reached = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let blocked = true;
-    const server = await startFixtureServer({
-      '/media.m3u8': async (_, res) => {
-        if (blocked) {
-          entered();
-          await gate;
-        }
-        sendText(res, media('ts/media.m3u8').toString());
-      },
-      '/segment-00.ts': (_, res) => sendBytes(res, media('ts/segment-00.ts')),
-      '/segment-01.ts': (_, res) => sendBytes(res, media('ts/segment-01.ts')),
-    });
-    servers.push(server);
-    const options = { ...job(), url: `${server.origin}/media.m3u8` };
-    const controller = new AbortController();
-    const downloader = new HlsDownloader({ adapter: NodeAdapter });
-    const pending = downloader.download({ ...options, signal: controller.signal });
-    const settled = pending.catch((error) => error);
-    try {
-      await Promise.race([reached, pending]);
-      controller.abort();
-      expect(await settled).toMatchObject({ code: 'ABORTED', name: 'AbortError' });
-      expect(state(options.resume.directory).checkpoint).toBeNull();
-      blocked = false;
-      release();
-      const result = await downloader.download(options);
-      expect(probe(result.filePath).duration).toBeGreaterThan(1.8);
-    } finally {
-      blocked = false;
-      release();
-    }
-  });
-
-  it('rejects unknown directories and unsupported options before downloading', async () => {
-    const options = { ...job(), url: 'http://127.0.0.1:1/unreachable' };
-    const downloader = new HlsDownloader({ adapter: NodeAdapter });
-    writeFileSync(join(options.resume.directory, 'unrelated'), 'keep');
-    await expect(downloader.download(options)).rejects.toMatchObject({ code: 'RESUME_INVALID' });
-    expect(readdirSync(options.resume.directory)).toEqual(['unrelated']);
-    await expect(
-      downloader.download({ ...options, transcode: { preset: 'h264' } }),
-    ).rejects.toMatchObject({ code: 'UNSUPPORTED_OUTPUT' });
-    await expect(
-      downloader.download({ ...options, aria2: { enabled: true } }),
-    ).rejects.toMatchObject({ code: 'UNSUPPORTED_OUTPUT' });
-    await expect(downloader.downloadToStream(options, () => {})).rejects.toMatchObject({
-      code: 'UNSUPPORTED_OUTPUT',
-    });
-  });
-
-  it('preserves invalid metadata and releases the directory lock', async () => {
-    const server = await fixture();
-    server.fail(true);
-    const options = { ...job(), url: server.url };
-    const downloader = new HlsDownloader({ adapter: NodeAdapter });
-    await expect(downloader.download(options)).rejects.toThrow();
-    // A corrupt metadata file must be rejected, never treated as a new job.
-    writeFileSync(join(options.resume.directory, 'state.json'), '{');
-    await expect(downloader.download(options)).rejects.toMatchObject({ code: 'RESUME_INVALID' });
-    expect(readFileSync(join(options.resume.directory, 'state.json'), 'utf8')).toBe('{');
-  });
+  } finally {
+    child.kill('SIGKILL');
+    blocked = false;
+    release();
+  }
 });
+it('requires a stable encrypted recovery version and preserves a committed prefix on change', async () => {
+  const source = longTs(),
+    key = Buffer.alloc(32, 7),
+    iv = Buffer.alloc(16, 3);
+  const encrypted = source.segments.map((data) => {
+    const c = createCipheriv('aes-256-gcm', key, iv);
+    return Buffer.concat([iv, c.update(data), c.final(), c.getAuthTag()]);
+  });
+  let fail = true;
+  const server = await startFixtureServer({
+    '/media.m3u8': (_, res) =>
+      sendText(
+        res,
+        source.playlist.replace('#EXTM3U', '#EXTM3U\n#EXT-X-KEY:METHOD=AES-256-GCM,URI="key"'),
+      ),
+    ...(Object.fromEntries(
+      encrypted.map((data, i) => [
+        '/' + i + '.ts',
+        (_, res) => (i === 3 && fail ? res.writeHead(503).end() : sendBytes(res, data)),
+      ]),
+    ) as any),
+  });
+  servers.push(server);
+  const options = {
+    ...job(),
+    url: server.origin + '/media.m3u8',
+    decryption: { experimentalGcm: true, keyResolver: async () => ({ key, version: 'version-a' }) },
+  };
+  const d = new HlsDownloader({ adapter: NodeAdapter });
+  await expect(d.download(options)).rejects.toMatchObject({ code: 'SEGMENT_FETCH_FAILED' });
+  const partial = resolve(options.filename + '.mp4.hls-partial'),
+    before = readFileSync(partial);
+  expect(before.length).toBeGreaterThan(1000);
+  expect(readFileSync(join(options.resume.directory, 'engine-state.json'), 'utf8')).not.toContain(
+    key.toString('hex'),
+  );
+  fail = false;
+  const conflict = await d
+    .download({
+      ...options,
+      decryption: {
+        experimentalGcm: true,
+        keyResolver: async () => ({ key, version: 'version-b' }),
+      },
+    })
+    .catch((e) => e);
+  expect(conflict.code).toBe('RESUME_CONFLICT');
+  expect(readFileSync(partial)).toEqual(before);
+  expect((await d.download(options)).report!.inputs[0]!.committed).toBe('6');
+});
+
+it('requires subtitle replay receipts before modifying a recovered output', async () => {
+  const source = longTs();
+  let fail = true;
+  const server = await startFixtureServer({
+    '/master.m3u8': (_, res) =>
+      sendText(
+        res,
+        '#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="s",NAME="English",URI="cc.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,SUBTITLES="s"\nmedia.m3u8\n',
+      ),
+    '/media.m3u8': (_, res) => sendText(res, source.playlist),
+    '/cc.m3u8': (_, res) =>
+      sendText(res, '#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\ntext.vtt\n#EXT-X-ENDLIST\n'),
+    '/text.vtt': (_, res) =>
+      sendText(
+        res,
+        'WEBVTT\nX-TIMESTAMP-MAP=LOCAL:00:00.000,MPEGTS:126000\n\none\n00:00.100 --> 00:00.900\nHello\n\ntwo\n00:03.100 --> 00:04.000\nLater\n',
+      ),
+    ...(Object.fromEntries(
+      source.segments.map((data, i) => [
+        '/' + i + '.ts',
+        (_, res) => (i === 3 && fail ? res.writeHead(503).end() : sendBytes(res, data)),
+      ]),
+    ) as any),
+  });
+  servers.push(server);
+  const options = job(),
+    path = resolve(options.filename + '.mp4');
+  const config = {
+    url: server.origin + '/master.m3u8',
+    embeddedAudio: 'keep' as const,
+    subtitleTracks: [{ id: 'cc', selector: { groupId: 's', name: 'English' } }],
+    output: { type: 'file' as const, path },
+    resume: options.resume,
+    maxRetry: 0,
+  };
+  const d = new HlsDownloader({ adapter: NodeAdapter });
+  await expect(d.downloadMultiTrack(config)).rejects.toMatchObject({
+    code: 'SEGMENT_FETCH_FAILED',
+  });
+  const checkpoint = state(options.resume.directory);
+  const original = JSON.stringify(checkpoint);
+  expect(checkpoint.journal.some((c: any) => c.action === 'initialText')).toBe(true);
+  checkpoint.journal = checkpoint.journal.filter(
+    (c: any) => !['initialCues', 'cues', 'tryCues', 'initialText', 'text', 'tryText'].includes(c.action),
+  );
+  const statePath = join(options.resume.directory, 'engine-state.json');
+  writeFileSync(statePath, JSON.stringify(checkpoint));
+  const before = readFileSync(path + '.hls-partial');
+  fail = false;
+  await expect(d.downloadMultiTrack(config)).rejects.toMatchObject({
+    code: 'RESUME_REPLAY_REQUIRED',
+  });
+  expect(readFileSync(path + '.hls-partial')).toEqual(before);
+  writeFileSync(statePath, original);
+  expect((await d.downloadMultiTrack(config)).report.subtitleReports.length).toBeGreaterThan(0);
+});
+
+it('restores all published split files offline with fixed Engine part names', async () => {
+  const c = timelineCases.find((c) => c.name === 'config-split');
+  const server = await startFixtureServer(timelineRoutes(c));
+  servers.push(server);
+  const options = job(),
+    path = resolve(options.filename + '.mp4'),
+    part = path + '.part-000001.mp4';
+  outputs.push(part);
+  const config = {
+    url: server.origin + '/master.m3u8',
+    output: { type: 'file' as const, path },
+    resume: options.resume,
+    timeline: { changePolicy: 'split' as const },
+  };
+  const d = new HlsDownloader({ adapter: NodeAdapter });
+  const result = await d.startRecording(config).result;
+  expect(result.report.outputs.map((o) => o.filePath)).toEqual([path, part]);
+  const before = [readFileSync(path), readFileSync(part)];
+  await server.close();
+  servers.pop();
+  for (let i = 0; i < 2; i++) {
+    const r = await d.startRecording(config).result;
+    expect(r.report.outputs.map((o) => o.filePath)).toEqual([path, part]);
+    expect([readFileSync(path), readFileSync(part)]).toEqual(before);
+  }
+  writeFileSync(part, 'conflicting published file');
+  const corrupted = await d.startRecording(config).result.catch((e) => e);
+  expect(corrupted.code).toBe('RESUME_INVALID');
+  expect(corrupted.completedOutputs.map((o: any) => o.filePath)).toEqual([path, part]);
+  expect(readFileSync(path)).toEqual(before[0]);
+  expect(readFileSync(part, 'utf8')).toBe('conflicting published file');
+});
+
+it.each(['fail', 'skip', 'split'] as const)(
+  'restores an evicted recording window using %s',
+  async (policy) => {
+    const source = longTs();
+    let resumed = false;
+    const header = source.playlist
+      .split('#EXTINF')[0]!
+      .replace(/#EXT-X-PLAYLIST-TYPE:[^\n]*\n/g, '');
+    const pairs = [...source.playlist.matchAll(/#EXTINF:[^\n]*\n[^#\n]+/g)].map((m) => m[0]);
+    const window = (start: number, count: number, end: boolean) =>
+      header.replace(/#EXT-X-MEDIA-SEQUENCE:\d+/, '#EXT-X-MEDIA-SEQUENCE:' + start) +
+      pairs.slice(start, start + count).join('\n') +
+      '\n' +
+      (end ? '#EXT-X-ENDLIST\n' : '');
+    const server = await startFixtureServer({
+      '/media.m3u8': (_, res) => sendText(res, resumed ? window(3, 3, true) : window(0, 3, false)),
+      ...(Object.fromEntries(
+        source.segments.map((data, i) => ['/' + i + '.ts', (_, res) => sendBytes(res, data)]),
+      ) as any),
+    });
+    servers.push(server);
+    const options = job(),
+      path = resolve(options.filename + '.mp4');
+    outputs.push(path + '.part-000001.mp4');
+    let session: ReturnType<InstanceType<typeof HlsDownloader>['startRecording']>;
+    const config = {
+      url: server.origin + '/media.m3u8',
+      output: { type: 'file' as const, path },
+      resume: options.resume,
+      missingSegments: policy,
+      maxRetry: 0,
+    };
+    session = new HlsDownloader({ adapter: NodeAdapter }).startRecording({
+      ...config,
+      onEvent(e) {
+        if (e.type === 'progress' && e.input.committed === '2') session.cancel();
+      },
+    });
+    await expect(session.result).rejects.toMatchObject({ code: 'ABORTED' });
+    resumed = true;
+    const restored = new HlsDownloader({ adapter: NodeAdapter }).startRecording(config).result;
+    if (policy === 'fail')
+      await expect(restored).rejects.toMatchObject({ code: 'RESUME_REPLAY_REQUIRED' });
+    else {
+      const r = await restored;
+      expect(BigInt(r.report.gapCount)).toBeGreaterThanOrEqual(1n);
+      expect(r.report.inputs[0]!.committed).toBe('6');
+      expect(r.report.outputs.length).toBe(policy === 'split' ? 2 : 1);
+    }
+  },
+);

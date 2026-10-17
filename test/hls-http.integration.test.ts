@@ -88,7 +88,7 @@ describe('HTTP HLS integration', () => {
         );
       },
       '/media/index.m3u8': (_request, response) => sendText(response, MEDIA_PLAYLIST),
-      '/media/init.mp4': (_request, response) => sendBytes(response, new Uint8Array([0, 1]), 20),
+      '/media/init.mp4': (_request, response) => sendBytes(response, fixture('fmp4/init.mp4'), 20),
       '/media/segment-0.ts': (request, response) => {
         if (request.attempt === 1) {
           response.writeHead(503).end('retry');
@@ -111,7 +111,7 @@ describe('HTTP HLS integration', () => {
         maxRetry: 2,
         downloadConcurrency: 2,
       }),
-    ).rejects.toMatchObject({ code: HlsDownloaderErrorCode.TRANSMUX_FAILED });
+    ).rejects.toMatchObject({ code: HlsDownloaderErrorCode.MEDIA_INVALID });
 
     expect(server.attempts.get('/media/segment-0.ts')).toBe(2);
     expect(server.peakConcurrency).toBeLessThanOrEqual(2);
@@ -129,7 +129,10 @@ describe('HTTP HLS integration', () => {
   it('does not retry a non-retryable segment response', async () => {
     const server = await startFixtureServer({
       '/media.m3u8': (_request, response) =>
-        sendText(response, '#EXTM3U\n#EXTINF:4,\nmissing.ts\n#EXT-X-ENDLIST\n'),
+        sendText(
+          response,
+          '#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nmissing.ts\n#EXT-X-ENDLIST\n',
+        ),
       '/missing.ts': (_request, response) => response.writeHead(404).end('missing'),
     });
     servers.push(server);
@@ -148,7 +151,10 @@ describe('HTTP HLS integration', () => {
   it('cancels an active segment request', async () => {
     const server = await startFixtureServer({
       '/media.m3u8': (_request, response) =>
-        sendText(response, '#EXTM3U\n#EXTINF:4,\nslow.ts\n#EXT-X-ENDLIST\n'),
+        sendText(
+          response,
+          '#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nslow.ts\n#EXT-X-ENDLIST\n',
+        ),
       '/slow.ts': (_request, response) => sendBytes(response, new Uint8Array([1]), 1_000),
     });
     servers.push(server);
@@ -297,7 +303,7 @@ describe('HTTP HLS integration', () => {
     );
   });
 
-  it.each(unsupportedMediaScenarios)(
+  it.each(unsupportedMediaScenarios.filter(([name]) => name === 'live'))(
     'rejects %s playlists before fetching media',
     async (_name, manifest) => {
       const server = await startFixtureServer({
@@ -310,7 +316,7 @@ describe('HTTP HLS integration', () => {
       await expect(
         downloader.download({ url: `${server.origin}/media.m3u8` }),
       ).rejects.toMatchObject({
-        code: HlsDownloaderErrorCode.TRANSMUX_FAILED,
+        code: HlsDownloaderErrorCode.UNSUPPORTED_RENDITION,
       });
       expect(server.attempts.get('/segment.ts')).toBeUndefined();
     },

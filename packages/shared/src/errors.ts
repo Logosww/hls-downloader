@@ -1,5 +1,7 @@
 import type { HlsCompletedOutput } from './timeline';
 export const HlsDownloaderErrorCode = {
+  AUTHENTICATION_FAILED: 'AUTHENTICATION_FAILED',
+  RESUME_REPLAY_REQUIRED: 'RESUME_REPLAY_REQUIRED',
   MULTITRACK_FAILED: 'MULTITRACK_FAILED',
   RECORDING_FAILED: 'RECORDING_FAILED',
   RANGE_INVALID: 'RANGE_INVALID',
@@ -45,6 +47,7 @@ export type HlsDownloaderErrorDetails = {
   inputId?: string;
   originalSequence?: string;
   epoch?: string;
+  generation?: string;
   trackId?: number;
   sampleIndex?: string;
   scheme?: string;
@@ -85,6 +88,7 @@ export class HlsDownloaderError extends Error {
   readonly inputId?: string;
   readonly originalSequence?: string;
   readonly epoch?: string;
+  readonly generation?: string;
   readonly trackId?: number;
   readonly sampleIndex?: string;
   readonly scheme?: string;
@@ -115,6 +119,7 @@ export class HlsDownloaderError extends Error {
     this.inputId = details.inputId;
     this.originalSequence = details.originalSequence;
     this.epoch = details.epoch;
+    this.generation = details.generation;
     this.resourceKind = details.resourceKind;
     this.trackId = details.trackId ?? undefined;
     this.sampleIndex = details.sampleIndex ?? undefined;

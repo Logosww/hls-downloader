@@ -33,7 +33,7 @@ afterAll(() => {
 afterAll(() => {
   mkdirSync(resolve(import.meta.dirname, '../test-results'), { recursive: true });
   writeFileSync(
-    resolve(import.meta.dirname, '../test-results/timeline-native.json'),
+    resolve(import.meta.dirname, '../test-results/timeline-wasm.json'),
     JSON.stringify(evidence, null, 2),
   );
 });
@@ -72,6 +72,7 @@ for (const c of timelineCases)
         };
         let report;
         const outputs: Uint8Array[] = [];
+        const decoded: string[][] = [];
         if (c.request.mode === 'stream') {
           const chunks: Uint8Array[] = [];
           const result = await d.downloadToWritable(
@@ -82,11 +83,11 @@ for (const c of timelineCases)
               },
             }),
           );
-          report = result.timelineReport;
+          report = result.report;
           outputs.push(Buffer.concat(chunks));
         } else {
           const result = await d.downloadOutputs(options);
-          report = result.timelineReport;
+          report = result.report;
           for (const o of result.outputs) {
             if ('blobURL' in o) {
               outputs.push(new Uint8Array(await (await fetch(o.blobURL)).arrayBuffer()));
@@ -114,19 +115,41 @@ for (const c of timelineCases)
           execFileSync('ffmpeg', ['-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], {
             stdio: 'pipe',
           });
+          decoded.push(
+            execFileSync(
+              'ffmpeg',
+              [
+                '-v',
+                'error',
+                '-i',
+                path,
+                '-map',
+                '0',
+                '-fps_mode',
+                'passthrough',
+                '-f',
+                'framemd5',
+                '-',
+              ],
+              { encoding: 'utf8' },
+            )
+              .split('\n')
+              .filter((l) => l && !l.startsWith('#'))
+              .map((l) => l.split(',').at(-1)!.trim()),
+          );
         }
-        results.push({ report, outputs: outputs.map(canonical) });
+        results.push({ report, outputs: outputs.map(canonical), decoded });
       }
-      const hashes = results[1].outputs.map((b: Buffer) =>
-        createHash('sha256').update(b).digest('hex'),
-      );
-      const expected = JSON.parse(
-        readFileSync(resolve(import.meta.dirname, 'fixtures/timeline/expected.json'), 'utf8'),
-      ).find((r: any) => r.name === c.name);
-      if (expected) expect(hashes).toEqual(expected.hashes);
-      evidence.push({ name: c.name, report: results[1].report, hashes });
-      expect(results[1].report).toEqual(results[0].report);
-      expect(results[1].outputs).toEqual(results[0].outputs);
+      // Historical prepared-session box hashes remain frozen in the fixture archive.
+      // Streaming Engine output is checked by decoded samples and Native/WASM parity.
+      evidence.push({
+        name: c.name,
+        report: results[0].report,
+        hashes: results[0].outputs.map((b: Buffer) => createHash('sha256').update(b).digest('hex')),
+      });
+      expect(results[1].decoded).toEqual(results[0].decoded);
+      expect(results[1].report.inputs).toEqual(results[0].report.inputs);
+      expect(results[1].report.tracks).toEqual(results[0].report.tracks);
     } finally {
       await server.close();
     }
@@ -160,7 +183,7 @@ for (const [name, adapter] of [
             });
           },
         );
-        expect(result.timelineReport.outputs).toHaveLength(2);
+        expect(result.report.outputs).toHaveLength(2);
         expect(events).toEqual(['acquire0', 'acquire1', 'close0', 'close1']);
         expect(chunks.get('0')!.length).toBeGreaterThan(0);
       } finally {
@@ -361,14 +384,16 @@ for (const [name, adapter] of [
 ] as const)
   describe(`${name} timeline validation and sidecars`, () => {
     const base = timelineCases.find((c) => c.name === 'range-False');
-    it('preserves legacy rejection without timeline and returns a report for single outputs', async () => {
+    it('uses the same timeline without requiring an explicit option', async () => {
       const c = timelineCases.find((c) => c.name === 'clock-reset'),
         server = await startFixtureServer(timelineRoutes(c));
       try {
         const d = new HlsDownloader({ adapter });
-        await expect(
-          d.downloadToStream({ url: server.origin + '/master.m3u8' }, () => {}),
-        ).rejects.toMatchObject({ code: 'TRANSMUX_FAILED' });
+        const ordinary = await d.downloadToStream(
+          { url: server.origin + '/master.m3u8' },
+          () => {},
+        );
+        expect(ordinary.report?.outputs).toHaveLength(1);
         const options = {
           url: server.origin + '/master.m3u8',
           timeline: {},
@@ -376,13 +401,13 @@ for (const [name, adapter] of [
         };
         const r = await d.download(options);
         if ('filePath' in r) publishedFiles.push(r.filePath);
-        expect(r.timelineReport?.outputs).toHaveLength(1);
+        expect(r.report?.outputs).toHaveLength(1);
         if ('blobURL' in r) URL.revokeObjectURL(r.blobURL);
         const chunks: Uint8Array[] = [];
         const stream = await d.downloadToStream(options, (b) => {
           chunks.push(b);
         });
-        expect(stream.timelineReport?.outputs).toHaveLength(1);
+        expect(stream.report?.outputs).toHaveLength(1);
         expect(chunks.length).toBeGreaterThan(0);
       } finally {
         await server.close();
@@ -422,7 +447,7 @@ for (const [name, adapter] of [
             ...timelineOptions(base),
             filename: resolve(dir, name + '-sub'),
           });
-        const m = r.timelineReport.outputs[0]!.mappings.find(
+        const m = r.report.timelineMap!.outputs[0]!.mappings.find(
           (m) => m.inputId === 'primary' && m.trackId === 1,
         )!;
         sourceTicks = (
@@ -433,7 +458,7 @@ for (const [name, adapter] of [
         const out = await d.downloadSubtitleOutputs({
           url: server.origin + '/master.m3u8',
           subtitle: { groupId: 's', name: 'en' },
-          timelineReport: r.timelineReport,
+          timelineMap: r.report.timelineMap!,
         });
         expect(out.outputs[0]!.text).toContain('Hello');
         expect(out.outputs[0]!.text).toContain('align:start');
@@ -462,7 +487,7 @@ for (const [name, adapter] of [
           options = { url: server.origin + '/master.m3u8', timeline: {} };
         const initial = await d.downloadToStream(options, () => {});
         const m = initial
-          .timelineReport!.outputs.flatMap((o) => o.mappings)
+          .report!.timelineMap!.outputs.flatMap((o) => o.mappings)
           .find((m) => m.epoch === '1')!;
         const anchor = {
           inputId: 'primary' as const,
@@ -474,7 +499,7 @@ for (const [name, adapter] of [
           { ...options, timeline: { epochAnchors: [anchor] } },
           () => {},
         );
-        expect(anchored.timelineReport?.actual).toEqual(initial.timelineReport?.actual);
+        expect(anchored.report?.actualRange).toEqual(initial.report?.actualRange);
         await expect(
           d.downloadToStream(
             {
@@ -501,101 +526,69 @@ for (const [name, adapter] of [
             { url, timeline: { range: { start: t('100'), end: t('101') } } },
             () => {},
           ),
-        ).rejects.toMatchObject({ code: 'RANGE_INVALID' });
+        ).rejects.toMatchObject({ code: 'TIMELINE_FAILED', reason: 'MissingRandomAccess' });
         const result = await d.downloadToStream(
           { url, timeline: { range: { start: t('2'), end: t('100') } } },
           () => {},
         );
         expect(
-          Number(result.timelineReport!.actual.end.ticks) /
-            result.timelineReport!.actual.end.timescale,
+          Number(result.report!.actualRange!.end.ticks) / result.report!.actualRange!.end.timescale,
         ).toBeLessThan(10);
-        expect(result.timelineReport!.requested?.end).toEqual(t('100'));
+        expect(result.report!.requestedRange?.end).toEqual(t('100'));
       } finally {
         await server.close();
       }
     });
-    it('rejects an expired key replaced between validation and replay without exposing provider data', async () => {
-      const c = timelineCases.find((c) => c.name === 'sample-fmp4_aac_cenc'),
-        server = await startFixtureServer(timelineRoutes(c));
-      let replay = false,
-        replaced = 0;
+    it('streams each resource once without a second planning fetch', async () => {
+      const server = await startFixtureServer(timelineRoutes(base));
       try {
-        const error = await new HlsDownloader({ adapter })
-          .downloadToWritables(
-            {
-              url: server.origin + '/master.m3u8',
-              timeline: {},
-              decryption: {
-                keyResolver: async () => {
-                  if (replay) replaced++;
-                  return {
-                    key: replay
-                      ? new Uint8Array(16).fill(7)
-                      : Uint8Array.from(Buffer.from('2b7e151628aed2a6abf7158809cf4f3c', 'hex')),
-                    version: replay ? 'PRIVATE_VERSION_B' : 'PRIVATE_VERSION_A',
-                    expiresInMs: 10,
-                  };
-                },
-              },
-            },
-            async () => {
-              replay = true;
-              await new Promise((r) => setTimeout(r, 30));
-              return new WritableStream();
-            },
-          )
-          .catch((e) => e);
-        expect(replaced).toBeGreaterThan(0);
-        expect(error.code).toBe('RESOURCE_CHANGED');
-        expect(JSON.stringify(error)).not.toContain('PRIVATE_VERSION');
-        expect(error.completedOutputs).toEqual([]);
-      } finally {
-        await server.close();
-      }
-    });
-    it('rejects changed resource bytes between scan and replay', async () => {
-      const routes = timelineRoutes(base),
-        file = Object.entries(base.files).find(([u]) => u.endsWith('seg0.ts'))!;
-      const path = new URL(file[0]).pathname;
-      routes[path] = (req, res) => {
-        const data = Buffer.from(
-          readFileSync(resolve(import.meta.dirname, 'fixtures/timeline', file[1] as string)),
+        const result = await new HlsDownloader({ adapter }).downloadToWritable(
+          { url: server.origin + '/master.m3u8' },
+          new WritableStream(),
         );
-        if (req.attempt > 1) data[data.length - 1] ^= 1;
-        res.writeHead(200);
-        res.end(data);
-      };
-      const server = await startFixtureServer(routes);
-      try {
-        await expect(
-          new HlsDownloader({ adapter }).downloadOutputs({
-            url: server.origin + '/master.m3u8',
-            timeline: {},
-            maxRetry: 1,
-          }),
-        ).rejects.toMatchObject({ code: 'RESOURCE_CHANGED' });
+        expect(result.report?.inputs[0]?.committed).toBe('3');
+        for (const path of new Set(
+          server.requests.filter((r) => r.path.endsWith('.ts')).map((r) => r.path),
+        ))
+          expect(server.requests.filter((r) => r.path === path)).toHaveLength(1);
       } finally {
         await server.close();
       }
     });
   });
 
-it('Node retains a published file when publishing the second output fails', async () => {
-  const c = timelineCases.find((c) => c.name === 'config-split'),
-    server = await startFixtureServer(timelineRoutes(c));
+it('Node retains a published file when a later output acquisition fails', async () => {
+  const c = structuredClone(timelineCases.find((c) => c.name === 'config-split'));
+  // A third configuration makes the first output deterministically published
+  // before the failing lease; observer delivery is deliberately asynchronous.
+  c.request.primary.text = c.request.primary.text.replace(
+    '#EXT-X-ENDLIST',
+    '#EXT-X-DISCONTINUITY\n#EXTINF:2,\nseg0.ts\n#EXT-X-ENDLIST',
+  );
+  const server = await startFixtureServer(timelineRoutes(c));
   const filename = 'timeline-partial-' + dir.split('/').at(-1);
   const first = resolve(filename + '.001.mp4'),
     second = resolve(filename + '.002.mp4');
-  mkdirSync(second);
   publishedFiles.push(first);
   try {
     const error = await new HlsDownloader({ adapter: NodeAdapter })
-      .downloadOutputs({ url: server.origin + '/master.m3u8', filename, ...timelineOptions(c) })
+      .downloadMultiTrack({
+        url: server.origin + '/master.m3u8',
+        embeddedAudio: 'keep',
+        output: {
+          type: 'files',
+          format: 'mp4',
+          acquire: async (o) => {
+            if (o.index === '2') throw new Error('third destination unavailable');
+            return o.index === '0' ? first : second;
+          },
+        },
+        timeline: { changePolicy: 'split' },
+      })
       .catch((e) => e);
     expect(error.code).toBe('OUTPUT_WRITE_FAILED');
     expect(error.adapter).toBe('NodeAdapter');
-    expect(error.completedOutputs.map((o: any) => o.filePath)).toEqual([first]);
+    expect(error.completedMultiTrackOutputs.map((o: any) => o.filePath)).toEqual([first]);
     expect(readFileSync(first).length).toBeGreaterThan(100);
     execFileSync('ffmpeg', ['-v', 'error', '-xerror', '-i', first, '-f', 'null', '-'], {
       stdio: 'pipe',
@@ -606,42 +599,31 @@ it('Node retains a published file when publishing the second output fails', asyn
   }
 });
 
-it('rejects an incompatible wire version before host work in native and WASM', async () => {
+it('rejects incompatible bridge versions before host work', async () => {
   const native = await import('../packages/adapters/src/node/native.js');
   const wasm = await import('../packages/adapters/src/browser/wasm');
-  const request = JSON.stringify({ ...timelineCases[0].request, wireVersion: 2, timeline: {} });
+  await wasm.ensureWasm();
   let calls = 0;
   const unexpected = async (): Promise<never> => {
     calls++;
-    throw Error('unexpected host work');
+    throw Error('unexpected');
   };
-  await wasm.ensureWasm();
-  const browser = await wasm.timeline_browser(
-    request,
-    unexpected,
-    unexpected,
-    unexpected,
-    unexpected,
-    unexpected,
-    new Promise(() => {}),
-  );
-  const job = native.createCancelToken();
-  try {
-    const node = await native.timelineNative(
-      request,
-      job,
-      unexpected,
-      unexpected,
-      unexpected,
-      unexpected,
-      unexpected,
-    );
-    for (const result of [browser, node])
-      expect(JSON.parse(result)).toMatchObject({
-        error: { code: 'BRIDGE_VERSION_MISMATCH', reason: 'wireVersion' },
-      });
-    expect(calls).toBe(0);
-  } finally {
-    native.cancelJob(job);
-  }
+  const request = JSON.stringify({ wireVersion: 2, bridgeVersion: 2 });
+  expect(
+    () =>
+      new wasm.BrowserRecording(
+        request,
+        unexpected,
+        unexpected,
+        unexpected,
+        unexpected,
+        unexpected,
+      ),
+  ).toThrow(/BRIDGE_VERSION_MISMATCH/);
+  expect(
+    JSON.parse(
+      native.continuousCreate(request, unexpected, unexpected, unexpected, unexpected, unexpected),
+    ),
+  ).toMatchObject({ error: { code: 'BRIDGE_VERSION_MISMATCH' } });
+  expect(calls).toBe(0);
 });

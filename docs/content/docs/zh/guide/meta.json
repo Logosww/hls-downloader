@@ -1,5 +1,5 @@
 {
   "title": "指南",
   "defaultOpen": true,
-  "pages": ["getting-started", "adapters", "events"]
+  "pages": ["getting-started", "adapters", "events", "engine"]
 }

@@ -66,11 +66,11 @@
               }),
             );
             if (!closed) throw Error('early completion');
-            report = result.timelineReport;
+            report = result.report;
             outputs.push(new Uint8Array(await new Blob(chunks).arrayBuffer()));
           } else {
             const result = await d.downloadOutputs(options);
-            report = result.timelineReport;
+            report = result.report;
             for (const o of result.outputs) {
               outputs.push(new Uint8Array(await (await fetch(o.blobURL)).arrayBuffer()));
               URL.revokeObjectURL(o.blobURL);

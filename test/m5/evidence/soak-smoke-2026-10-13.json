@@ -1,0 +1,115 @@
+{
+  "scope": "Short lifecycle smoke only; no multi-hour run performed",
+  "runs": [
+    {
+      "run": "live",
+      "status": "passed",
+      "qualification": "smoke only; not multi-hour acceptance",
+      "config": {
+        "durationMs": 12000,
+        "sampleMs": 1000,
+        "stallTimeoutMs": 60000,
+        "writeDelayMs": 10,
+        "warmupMs": 4000,
+        "playlist": "live",
+        "runtimes": ["node", "browser"],
+        "count": 48,
+        "mediaSeconds": 18.947482993197276
+      },
+      "results": {
+        "node": {
+          "elapsedMs": 12981.451042,
+          "committed": 48,
+          "cues": 48,
+          "mediaClosed": true,
+          "subtitleClosed": true
+        },
+        "browser": {
+          "elapsedMs": 13095.300000011921,
+          "committed": 48,
+          "cues": 48,
+          "mediaClosed": true,
+          "subtitleClosed": true
+        }
+      },
+      "raw": "test-results/m5/soak-live-smoke/summary.json"
+    },
+    {
+      "run": "event",
+      "status": "passed",
+      "qualification": "smoke only; not multi-hour acceptance",
+      "config": {
+        "durationMs": 12000,
+        "sampleMs": 1000,
+        "stallTimeoutMs": 60000,
+        "writeDelayMs": 10,
+        "warmupMs": 4000,
+        "playlist": "event",
+        "runtimes": ["node", "browser"],
+        "count": 48,
+        "mediaSeconds": 18.947482993197276
+      },
+      "results": {
+        "node": {
+          "elapsedMs": 12999.946417,
+          "committed": 48,
+          "cues": 48,
+          "mediaClosed": true,
+          "subtitleClosed": true
+        },
+        "browser": {
+          "elapsedMs": 13085,
+          "committed": 48,
+          "cues": 48,
+          "mediaClosed": true,
+          "subtitleClosed": true
+        }
+      },
+      "raw": "test-results/m5/soak-event-smoke/summary.json"
+    },
+    {
+      "run": "interrupt",
+      "status": "interrupted",
+      "qualification": "smoke only; not multi-hour acceptance",
+      "config": {
+        "durationMs": 60000,
+        "sampleMs": 1000,
+        "stallTimeoutMs": 60000,
+        "writeDelayMs": 10,
+        "warmupMs": 20000,
+        "playlist": "live",
+        "runtimes": ["node"],
+        "count": 168,
+        "mediaSeconds": 66.31619047619047
+      },
+      "results": {
+        "node": {
+          "error": "Error: AbortError: Recording cancelled"
+        }
+      },
+      "raw": "test-results/m5/soak-interrupt-smoke/summary.json"
+    },
+    {
+      "run": "stall",
+      "status": "failed",
+      "qualification": "smoke only; not multi-hour acceptance",
+      "config": {
+        "durationMs": 12000,
+        "sampleMs": 1000,
+        "stallTimeoutMs": 5000,
+        "writeDelayMs": 10000,
+        "warmupMs": 4000,
+        "playlist": "live",
+        "runtimes": ["node"],
+        "count": 48,
+        "mediaSeconds": 18.947482993197276
+      },
+      "results": {
+        "node": {
+          "error": "Error: Error: Recording made no progress within stall timeout"
+        }
+      },
+      "raw": "test-results/m5/soak-stall-smoke/summary.json"
+    }
+  ]
+}

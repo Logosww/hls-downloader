@@ -81,8 +81,8 @@ it.each(cases)(
     const task = manager.get(id)!;
     expect(task.status).toBe('completed');
     expect(task.outputs).toHaveLength(c.outputs);
-    expect(task.timelineReport?.outputs).toHaveLength(c.outputs);
-    expect(task.timelineReport?.requested).toEqual(c.selection.range);
+    expect(task.timelineMap?.outputs).toHaveLength(c.outputs);
+    expect(task.timelineMap?.complete).toBe(true);
     const app = createApp(manager);
     for (const output of task.outputs!) {
       const fileResponse = await app.handle(
@@ -95,11 +95,11 @@ it.each(cases)(
       execFileSync('ffmpeg', ['-v', 'error', '-i', path, '-f', 'null', '-']);
     }
     const report = await app.handle(new Request(`http://test/downloads/${id}/report`));
-    expect((await report.json()).data).toEqual(task.timelineReport);
+    expect((await report.json()).data).toEqual(task.timelineMap);
     const chapters = await post(`/downloads/${id}/chapters`, {
-      chapters: [{ range: task.timelineReport!.actual, title: 'Whole presentation' }],
+      chapters: [{ range: task.timelineMap!.outputs[0]!.actualRange, title: 'Whole presentation' }],
     });
-    expect(chapters.status).toBe(200);
+    expect(chapters.status, await chapters.clone().text()).toBe(200);
     const sidecars = (await chapters.json()).data;
     expect(sidecars).toHaveLength(c.outputs);
     expect(sidecars.every((value: { text: string }) => value.text.startsWith('WEBVTT'))).toBe(true);
@@ -124,7 +124,7 @@ it('streams a selected sample-encrypted range and exposes its completed report a
     await Bun.sleep(5);
   const task = manager.get(id)!;
   expect(task.status).toBe('completed');
-  expect(task.timelineReport?.requested).toEqual(c.selection.range);
+  expect(task.timelineMap?.complete).toBe(true);
   expect(task.outputs).toHaveLength(1);
   const file = await app.handle(new Request(`http://test/downloads/${id}/files/0`));
   expect(file.status).toBe(200);
@@ -132,7 +132,7 @@ it('streams a selected sample-encrypted range and exposes its completed report a
   execFileSync('ffmpeg', ['-v', 'error', '-i', manager.getFilePath(id, '0')!, '-f', 'null', '-']);
 }, 20000);
 
-it('serves the first real published file after the second publication fails', async () => {
+it('does not expose unpublished files when acquiring the next output fails', async () => {
   const id = randomUUID();
   const blockedOutput = resolve(`${id}.002.mp4`);
   mkdirSync(blockedOutput);
@@ -151,21 +151,10 @@ it('serves the first real published file after the second publication fails', as
     const task = partialManager.get(id)!;
     expect(task.status).toBe('failed');
     expect(task.errorCode).toBe('OUTPUT_WRITE_FAILED');
-    expect(task.outputs?.map((output) => output.index)).toEqual(['0']);
+    expect(task.outputs ?? []).toEqual([]);
     const app = createApp(partialManager);
-    const first = await app.handle(new Request(`http://test/downloads/${id}/files/0`));
-    expect(first.status).toBe(200);
-    expect((await first.arrayBuffer()).byteLength).toBeGreaterThan(100);
+    expect((await app.handle(new Request(`http://test/downloads/${id}/files/0`))).status).toBe(404);
     expect((await app.handle(new Request(`http://test/downloads/${id}/files/1`))).status).toBe(404);
-    execFileSync('ffmpeg', [
-      '-v',
-      'error',
-      '-i',
-      partialManager.getFilePath(id, '0')!,
-      '-f',
-      'null',
-      '-',
-    ]);
   } finally {
     partialManager.dispose();
     rmSync(blockedOutput, { recursive: true, force: true });

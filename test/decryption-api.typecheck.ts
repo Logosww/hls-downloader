@@ -41,7 +41,7 @@ for (const adapter of [BrowserAdapter, NodeAdapter]) {
     '#EXTM3U',
     'https://example.test/a.m3u8',
   );
-  const resume: false | undefined = d.capabilities.decryption?.resume;
+  const resume: boolean | undefined = d.capabilities.decryption?.resume;
   void playlist;
   void resume;
 }

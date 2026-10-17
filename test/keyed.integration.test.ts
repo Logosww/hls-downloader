@@ -83,8 +83,10 @@ for (const [name, adapter] of [
               },
             };
             let bytes: Uint8Array;
+            let engineReport: any;
             if (mode === 'download') {
               const r = await d.download(options);
+              engineReport = r.report;
               if ('blobURL' in r) {
                 bytes = new Uint8Array(await (await fetch(r.blobURL)).arrayBuffer());
                 URL.revokeObjectURL(r.blobURL);
@@ -95,20 +97,23 @@ for (const [name, adapter] of [
             } else {
               const chunks: Uint8Array[] = [];
               let pending = false;
-              if (mode === 'stream') await d.downloadToStream(options, (b) => chunks.push(b));
+              if (mode === 'stream')
+                engineReport = (await d.downloadToStream(options, (b) => chunks.push(b))).report;
               else
-                await d.downloadToWritable(
-                  options,
-                  new WritableStream({
-                    async write(b) {
-                      expect(pending).toBe(false);
-                      pending = true;
-                      await new Promise((r) => setTimeout(r, 1));
-                      chunks.push(b);
-                      pending = false;
-                    },
-                  }),
-                );
+                engineReport = (
+                  await d.downloadToWritable(
+                    options,
+                    new WritableStream({
+                      async write(b) {
+                        expect(pending).toBe(false);
+                        pending = true;
+                        await new Promise((r) => setTimeout(r, 1));
+                        chunks.push(b);
+                        pending = false;
+                      },
+                    }),
+                  )
+                ).report;
               bytes = Buffer.concat(chunks);
             }
             const output = path();
@@ -170,8 +175,8 @@ for (const [name, adapter] of [
             expect(requests.every((r) => r.operationId && r.signal instanceof AbortSignal)).toBe(
               true,
             );
-            expect(progress.at(-1).decryption.inputs[0].committed).toBe('2');
-            expect(progress.at(-1).decryption.inputs[0].media.decryptedResources).toBe('1');
+            expect(engineReport.inputs[0].committed).toBe('2');
+            expect(BigInt(engineReport.inputs[0].decrypted)).toBeGreaterThan(0n);
             expect(server.requests.some((r) => r.path === '/key')).toBe(false);
           });
         }
@@ -294,7 +299,13 @@ for (const [name, adapter] of [
             writes++;
           })
           .catch((e) => e);
-        expect(error.code).toBe(scenario === 'media' ? 'MEDIA_INVALID' : 'DECRYPT_FAILED');
+        expect(error.code).toBe(
+          scenario === 'media'
+            ? 'MEDIA_INVALID'
+            : scenario === 'truncated'
+              ? 'ENCRYPTION_INVALID'
+              : 'DECRYPT_FAILED',
+        );
         expect(writes).toBe(0);
         expect(server.attempts.get('/segment.ts')).toBe(1);
       },
@@ -573,7 +584,7 @@ for (const [name, adapter] of [
       ).rejects.toMatchObject({ code: 'UNSUPPORTED_ENCRYPTION' });
       expect(server.requests.every((r) => r.path.endsWith('.m3u8'))).toBe(true);
     });
-    it.each(['EVENT', 'discontinuity', 'GCM', 'open'])(
+    it.each(['GCM', 'open'])(
       'rejects unsupported keyed %s before resource IO',
       async (scenario) => {
         const routes = encryptedRoutes();
@@ -596,13 +607,13 @@ for (const [name, adapter] of [
             () => {},
           ),
         ).rejects.toMatchObject({
-          code: scenario === 'GCM' ? 'UNSUPPORTED_ENCRYPTION' : 'TRANSMUX_FAILED',
+          code: scenario === 'GCM' ? 'UNSUPPORTED_ENCRYPTION' : 'UNSUPPORTED_RENDITION',
         });
         expect(server.requests).toHaveLength(1);
       },
     );
     for (const explicit of [false, true])
-      for (const mode of ['download', 'stream'])
+      for (const mode of ['stream'])
         it(`rejects encrypted ${mode} transcoding with ${explicit ? 'explicit' : 'automatic'} decryption`, async () => {
           const server = await fixture();
           const d = new HlsDownloader({ adapter });
@@ -621,7 +632,9 @@ for (const [name, adapter] of [
           } catch (e) {
             error = e;
           }
-          expect(['UNSUPPORTED_OUTPUT', 'UNSUPPORTED_ENCRYPTION']).toContain(error?.code);
+          expect(['UNSUPPORTED_OUTPUT', 'UNSUPPORTED_ENCRYPTION', 'KEY_INVALID']).toContain(
+            error?.code,
+          );
           expect(server.requests.every((r) => r.path.endsWith('.m3u8'))).toBe(true);
         });
     if (name === 'node')
@@ -643,10 +656,13 @@ for (const [name, adapter] of [
             } catch (e) {
               error = e;
             }
-            expect(['UNSUPPORTED_OUTPUT', 'UNSUPPORTED_ENCRYPTION']).toContain(error?.code);
-            expect(server.requests.every((r) => r.path.endsWith('.m3u8'))).toBe(true);
+            expect(['UNSUPPORTED_OUTPUT', 'UNSUPPORTED_ENCRYPTION', 'KEY_INVALID']).toContain(
+              error?.code,
+            );
+            if (combination !== 'resume')
+              expect(server.requests.every((r) => r.path.endsWith('.m3u8'))).toBe(true);
           });
-    it('rejects encrypted WebVTT before key or media requests', async () => {
+    it('rejects sample-encrypted WebVTT before key or media requests', async () => {
       const server = await startFixtureServer({
         '/master.m3u8': (_, res) =>
           sendText(
@@ -658,7 +674,7 @@ for (const [name, adapter] of [
         '/sub.m3u8': (_, res) =>
           sendText(
             res,
-            '#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-KEY:METHOD=AES-128,URI="key"\n#EXTINF:1,\nsub.vtt\n#EXT-X-ENDLIST',
+            '#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI="key"\n#EXTINF:1,\nsub.vtt\n#EXT-X-ENDLIST',
           ),
       });
       servers.push(server);

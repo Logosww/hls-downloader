@@ -1,0 +1,25 @@
+<!doctype html><html><body><script type="module">
+import { HlsDownloader } from '/packages/core/src/index.ts';
+import { BrowserAdapter } from '/packages/adapters/src/browser/index.ts';
+window.runEngine = async () => {
+  const downloader=new HlsDownloader({adapter:BrowserAdapter});
+  const results=[];
+  const reject=async(options,code)=>{
+    const e=await downloader.download(options).catch(e=>e);
+    if(e.code!==code)throw Error(`Expected ${code}, received ${e.code}`);
+  };
+  for(const kind of ['ts','fmp4','packed']){
+    const url=`/gcm/${kind}/media.m3u8`;
+    await reject({url},'UNSUPPORTED_ENCRYPTION');
+    await reject({url,decryption:{experimentalGcm:true,keyResolver:async()=>({key:new Uint8Array(16)})}},'KEY_INVALID');
+    const r=await downloader.download({url,decryption:{experimentalGcm:true}});
+    const bytes=new Uint8Array(await (await fetch(r.blobURL)).arrayBuffer());URL.revokeObjectURL(r.blobURL);
+    if(r.report.inputs[0].committed==='0')throw Error('No committed media');
+    let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);
+    results.push({kind,data:btoa(binary),report:r.report});
+  }
+  await reject({url:'/tampered/media.m3u8',decryption:{experimentalGcm:true}},'AUTHENTICATION_FAILED');
+  await reject({url:'/gcm/ts/media.m3u8',maxBytes:32,decryption:{experimentalGcm:true}},'RESOURCE_LIMIT_EXCEEDED');
+  return results;
+};
+</script></body></html>

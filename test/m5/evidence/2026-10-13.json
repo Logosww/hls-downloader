@@ -1,0 +1,295 @@
+{
+  "scope": "Local macOS arm64 accelerated recording screening, not release qualification",
+  "summaries": [
+    {
+      "rawFile": "test-results/m5/resources-node-writable-2048.json",
+      "sha256": "adb0ed37bb28de113202c1248f1aa6ddbc720c2b020530e48f9bc28c503ff94f",
+      "date": "2026-10-13T03:15:18.796Z",
+      "host": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "release": "27.0.0"
+      },
+      "passed": true,
+      "runtime": "node",
+      "version": "v26.11.1",
+      "format": "writable",
+      "segments": 2048,
+      "mediaSeconds": 808.4259410430839,
+      "wallMs": 260858,
+      "sampleCount": 262,
+      "screen": {
+        "rss": {
+          "growthBytes": 19958400,
+          "limitBytes": 67108864,
+          "passed": true
+        },
+        "heapUsed": {
+          "growthBytes": 14869128,
+          "limitBytes": 33554432,
+          "passed": true
+        },
+        "external": {
+          "growthBytes": 1232907,
+          "limitBytes": 33554432,
+          "passed": true
+        }
+      },
+      "peaks": {
+        "rss": 120340872,
+        "heapUsed": 41065224,
+        "external": 10656697
+      },
+      "committed": [
+        {
+          "accepted": "2048",
+          "committed": "2048",
+          "committedSlot": {
+            "epoch": "0",
+            "generation": "0",
+            "inputId": "primary",
+            "sequence": "2047"
+          },
+          "decrypted": "2048",
+          "discovered": "2048",
+          "downloaded": "2048",
+          "inputId": "primary",
+          "total": null
+        }
+      ],
+      "subtitleCommits": 2048,
+      "classicIndexSamples": "0",
+      "cleanup": {
+        "before": {
+          "descriptors": 17,
+          "active": ["Immediate"]
+        },
+        "after": {
+          "descriptors": 17,
+          "active": ["Immediate"]
+        },
+        "concurrentCancellations": 8
+      },
+      "decodedFile": null
+    },
+    {
+      "rawFile": "test-results/m5/resources-browser-writable-2048.json",
+      "sha256": "2942aecfbd3b807594ca1c92bb953360751081cc000cd02a0332c72a160683fb",
+      "date": "2026-10-13T03:15:25.589Z",
+      "host": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "release": "27.0.0"
+      },
+      "passed": true,
+      "runtime": "browser",
+      "version": "155.0.8059.40",
+      "format": "writable",
+      "segments": 2048,
+      "mediaSeconds": 808.4259410430839,
+      "wallMs": 262385,
+      "sampleCount": 262,
+      "screen": {
+        "heapUsed": {
+          "growthBytes": 1131208,
+          "limitBytes": 33554432,
+          "passed": true
+        },
+        "wasmBytes": {
+          "growthBytes": 0,
+          "limitBytes": 33554432,
+          "passed": true
+        }
+      },
+      "peaks": {
+        "heapUsed": 14916916,
+        "wasmBytes": 1507328
+      },
+      "committed": [
+        {
+          "accepted": "2048",
+          "committed": "2048",
+          "committedSlot": {
+            "epoch": "0",
+            "generation": "0",
+            "inputId": "primary",
+            "sequence": "2047"
+          },
+          "decrypted": "2048",
+          "discovered": "2048",
+          "downloaded": "2048",
+          "inputId": "primary",
+          "total": null
+        }
+      ],
+      "subtitleCommits": 2048,
+      "classicIndexSamples": "0",
+      "cleanup": {
+        "before": {
+          "usedSize": 9613308,
+          "totalSize": 10502144,
+          "embedderHeapUsedSize": 3488328,
+          "backingStorageSize": 6360247
+        },
+        "after": {
+          "usedSize": 9949088,
+          "totalSize": 10502144,
+          "embedderHeapUsedSize": 3629544,
+          "backingStorageSize": 6360260
+        },
+        "concurrentCancellations": 8
+      },
+      "decodedFile": null
+    },
+    {
+      "rawFile": "test-results/m5/resources-node-mp4-256.json",
+      "sha256": "3c56163005534ddd09bb94f8cac4c72d3869256fcb7788797e00087c58f2831b",
+      "date": "2026-10-13T03:06:07.447Z",
+      "host": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "release": "27.0.0"
+      },
+      "passed": true,
+      "runtime": "node",
+      "version": "v26.11.1",
+      "format": "mp4",
+      "segments": 256,
+      "mediaSeconds": 101.05324263038548,
+      "wallMs": 30860,
+      "sampleCount": 32,
+      "screen": {
+        "rss": {
+          "growthBytes": 27168008,
+          "limitBytes": 67108864,
+          "passed": true
+        },
+        "heapUsed": {
+          "growthBytes": 11919624,
+          "limitBytes": 33554432,
+          "passed": true
+        },
+        "external": {
+          "growthBytes": 486509,
+          "limitBytes": 33554432,
+          "passed": true
+        }
+      },
+      "peaks": {
+        "rss": 91432656,
+        "heapUsed": 37628664,
+        "external": 9480366
+      },
+      "committed": [
+        {
+          "accepted": "256",
+          "committed": "256",
+          "committedSlot": {
+            "epoch": "0",
+            "generation": "0",
+            "inputId": "primary",
+            "sequence": "255"
+          },
+          "decrypted": "256",
+          "discovered": "256",
+          "downloaded": "256",
+          "inputId": "primary",
+          "total": null
+        }
+      ],
+      "subtitleCommits": 256,
+      "classicIndexSamples": "4352",
+      "cleanup": {
+        "before": {
+          "descriptors": 17,
+          "active": ["Immediate"]
+        },
+        "after": {
+          "descriptors": 17,
+          "active": ["Immediate"]
+        },
+        "concurrentCancellations": 8
+      },
+      "decodedFile": {
+        "bytes": 809848,
+        "duration": "101.053243",
+        "codec": "aac"
+      }
+    },
+    {
+      "rawFile": "test-results/m5/resources-node-mp4-512.json",
+      "sha256": "b497a3d899cf28a6c82f6ef3effa0c511e24ebd52711adbb655030cf0a1696c7",
+      "date": "2026-10-13T03:12:39.456Z",
+      "host": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "release": "27.0.0"
+      },
+      "passed": true,
+      "runtime": "node",
+      "version": "v26.11.1",
+      "format": "mp4",
+      "segments": 512,
+      "mediaSeconds": 202.10648526077097,
+      "wallMs": 63604,
+      "sampleCount": 65,
+      "screen": {
+        "rss": {
+          "growthBytes": 5964592,
+          "limitBytes": 67108864,
+          "passed": true
+        },
+        "heapUsed": {
+          "growthBytes": 10113632,
+          "limitBytes": 33554432,
+          "passed": true
+        },
+        "external": {
+          "growthBytes": 465950,
+          "limitBytes": 33554432,
+          "passed": true
+        }
+      },
+      "peaks": {
+        "rss": 121972288,
+        "heapUsed": 37821968,
+        "external": 9556013
+      },
+      "committed": [
+        {
+          "accepted": "512",
+          "committed": "512",
+          "committedSlot": {
+            "epoch": "0",
+            "generation": "0",
+            "inputId": "primary",
+            "sequence": "511"
+          },
+          "decrypted": "512",
+          "discovered": "512",
+          "downloaded": "512",
+          "inputId": "primary",
+          "total": null
+        }
+      ],
+      "subtitleCommits": 512,
+      "classicIndexSamples": "8704",
+      "cleanup": {
+        "before": {
+          "descriptors": 17,
+          "active": ["Immediate"]
+        },
+        "after": {
+          "descriptors": 17,
+          "active": ["Immediate"]
+        },
+        "concurrentCancellations": 8
+      },
+      "decodedFile": {
+        "bytes": 1619088,
+        "duration": "202.106485",
+        "codec": "aac"
+      }
+    }
+  ]
+}

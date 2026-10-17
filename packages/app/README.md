@@ -1,6 +1,6 @@
 # Web / Bun 应用
 
-两个应用已适配 SDK 3.9.0 的有限 VOD 时间轴与 sample 解密。默认完整下载保留原流程；时间轴功能须显式启用。
+两个应用已适配本库 3.9.0 的有限 VOD 时间轴与 sample 解密。默认完整下载保留原流程；时间轴功能须显式启用。
 
 ## Web
 
@@ -8,7 +8,7 @@
 
 - 起止时间填写非负秒数，最多 9 位小数，范围为 `[start,end)`；同时留空表示整个媒体。实际范围会扩展到可解码边界，结果列表展示请求和实际范围，并可保存完整 JSON 报告。
 - 缺口默认保留，可选择压缩；配置变化默认失败，可选择拆分独立文件。普通下载产生 classic MP4 Blob，每个输出单独保存。大文件直存输出 fMP4，拆分时先选择文件夹，再按 `basename.001.mp4`、`basename.002.mp4` 写入。
-- 高级 JSON 只接受 `epochAnchors`、`limits`、`tailDuration`，直接遵循 SDK 契约。例如 `{"limits":{"samples":500000,"resources":2000}}`。时间使用 `{"ticks":"90000","timescale":90000}`；锚点指定 `inputId`、`epoch`、`source`、`presentation`。
+- 高级 JSON 只接受 `epochAnchors`、`limits`、`tailDuration`，直接遵循本库契约。例如 `{"limits":{"samples":500000,"resources":2000}}`。时间使用 `{"ticks":"90000","timescale":90000}`；锚点指定 `inputId`、`epoch`、`source`、`presentation`。
 - 可选择当前质量对应的 WebVTT 字幕组；章节每行填写 `0.2 --> 30 | 标题`。完成媒体后依据同一报告导出各输出的 WebVTT，独立保存。字幕同步证据不足或导出失败时，媒体仍可保存。
 - 第二输出失败或取消后，已关闭的文件保留并继续显示；未完成的新建文件清理，已有目标文件由浏览器 writable 的 abort 保持原内容。移除任务释放应用持有的 Blob URL，不删除已保存文件。
 
@@ -16,7 +16,7 @@
 
 ## Bun HTTP API
 
-`POST /download` 新增可选 `timeline`，接受 SDK 的范围、gap、锚点、预算、尾帧和 `changePolicy`。例如：
+`POST /download` 新增可选 `timeline`，接受本库的范围、gap、锚点、预算、尾帧和 `changePolicy`。例如：
 
 ```json
 {
@@ -37,7 +37,7 @@
 
 | 接口                              | 行为                                                                                                                              |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /downloads/:id`              | 原任务字段，加 `timeline`、`timelineReport`、有序 `outputs: [{index,filename}]`、`errorCode`、取消时的 `settling`                 |
+| `GET /downloads/:id`              | 原任务字段，加 `timeline`、`timelineMap`、有序 `outputs: [{index,filename}]`、`errorCode`、取消时的 `settling`                    |
 | `GET /downloads/:id/report`       | 取得成功完成的时间轴报告；未完成或无报告为 409，到期为 410                                                                        |
 | `GET /downloads/:id/files/:index` | 下载指定已完成文件，index 是报告中的字符串；即使后续失败或取消仍可访问；不存在为 404，到期为 410                                  |
 | `GET /downloads/:id/file`         | 原单文件入口；多个输出时为 409，提示选择输出                                                                                      |
@@ -48,9 +48,7 @@
 
 ## 解密与边界
 
-两个应用通过清单自动使用 identity HTTP key provider，无需时间轴配置。继续传递已有请求头，支持 TS SAMPLE-AES（AVC/AAC-LC）及 fMP4 cbcs/cenc（AVC/HEVC/AAC-LC），以及一条关联外置音轨。非 identity 的自定义 key resolver 仍由 SDK 调用方接入，应用没有新增密钥输入控件。CBC/CTR 无认证，不能保证识别全部错误密钥。
-
-本轮没有增加 Live/EVENT、恢复、转码与时间轴组合、字幕资源解密、字幕内嵌或多音轨。后续路线图状态保持不变。
+两个应用通过清单自动使用 identity HTTP key provider，无需时间轴配置。继续传递已有请求头，支持 TS SAMPLE-AES（AVC/AAC-LC）及 fMP4 cbcs/cenc（AVC/HEVC/AAC-LC），以及一条关联外置音轨。非 identity 的自定义 key resolver 仍由本库调用方接入，应用没有新增密钥输入控件。CBC/CTR 无认证，不能保证识别全部错误密钥。
 
 ## 验证
 

@@ -3,7 +3,7 @@ import type { HlsMediaTime } from './timeline';
 import type {
   HlsRecordingOptions,
   HlsRecordingOutput,
-  HlsRecordingReport,
+  HlsEngineMediaReport,
   HlsRecordingEvent,
   HlsRecordingResult,
   HlsRecordingSession,
@@ -16,7 +16,18 @@ export type HlsAudioTrackSelection = {
   selector: AudioSelection;
   metadata?: HlsTrackMetadata;
 };
+export type HlsSubtitleSidecarRequest = { inputId: string; outputIndex: string };
+export type HlsSubtitleSidecar =
+  | { type: 'writable'; writable: WritableStream<Uint8Array> }
+  | {
+      type: 'writables';
+      acquire: (request: HlsSubtitleSidecarRequest) => Promise<WritableStream<Uint8Array>>;
+    }
+  | { type: 'file'; path: string };
 export type HlsSubtitleTrackSelection = {
+  /** Defaults to true. A sidecar is required when embedding is disabled. */
+  embedded?: boolean;
+  sidecar?: HlsSubtitleSidecar;
   id: string;
   selector: { groupId: string; name: string };
   /** Source clock to which X-TIMESTAMP-MAP refers. Defaults to primary. */
@@ -65,20 +76,40 @@ export type HlsMultiTrackInfo = {
 export type HlsSubtitleCueReport = {
   trackId: number;
   identifier: string;
-  disposition: 'Written' | 'Clipped' | 'RejectedLate';
+  disposition: 'Written' | 'Clipped' | 'RejectedLate' | 'RejectedRange';
   outputIndex: string;
   start: HlsMediaTime;
   end: HlsMediaTime;
 };
 /** Media accounting is shared; tracks and subtitle receipts are separate from legacy reports. */
-export type HlsMultiTrackReport = HlsRecordingReport & {
+export type HlsEngineReport = HlsEngineMediaReport & {
+  timelineMap?: import('./timeline').HlsTimelineMap;
   configurationId: number[];
   tracks: HlsMultiTrackInfo[];
   subtitleReports: HlsSubtitleCueReport[];
   trackHistoryTruncated: boolean;
   subtitleHistoryTruncated: boolean;
 };
+export type HlsSubtitleCommit = {
+  cues: (HlsSubtitleCueReport & {
+    receipt: string;
+    inputId: string;
+    generation: string;
+    epoch: string;
+    payload: string;
+    settings: string;
+  })[];
+  frontiers: {
+    inputId: string;
+    trackId: number;
+    generation: string;
+    epoch: string;
+    outputIndex: string;
+    end: HlsMediaTime;
+  }[];
+};
 export type HlsMultiTrackEvent =
+  | { type: 'subtitleCommit'; commit: HlsSubtitleCommit }
   | HlsRecordingEvent
   | {
       type: 'subtitles';
@@ -116,6 +147,8 @@ export type HlsMultiTrackCapabilities = Readonly<{
   maxMediaInputs: 32;
   maxSubtitleTracks: 32;
   subtitles: 'wvtt-plain-text';
+  subtitleResources: readonly ['clear', 'AES-128'];
+  subtitleSidecars: Readonly<{ outputs: readonly HlsSubtitleSidecar['type'][]; resume: boolean }>;
   decryption: Readonly<{
     methods: readonly string[];
     profiles: readonly Readonly<{
@@ -129,5 +162,7 @@ export type HlsMultiTrackCapabilities = Readonly<{
   pause: 'vod';
   split: true;
   ranges: true;
-  resume: false;
+  resume: boolean;
 }>;
+
+export type HlsMultiTrackReport = HlsEngineReport;

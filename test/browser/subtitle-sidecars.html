@@ -1,0 +1,116 @@
+<!doctype html><meta charset="utf-8" /><title>M4 subtitle sidecar acceptance</title>
+<script type="module">
+  import { HlsDownloader } from '../../packages/core/src/index.ts';
+  import { BrowserAdapter } from '../../packages/adapters/src/browser/index.ts';
+  window.runSubtitleSidecars = async () => {
+    const results = [];
+    for (const embedded of [false, true]) {
+      const chunks = [],
+        media = [];
+      let closed = false;
+      const commits = [];
+      const result = await new HlsDownloader({ adapter: BrowserAdapter }).downloadMultiTrack({
+        url: location.origin + '/master.m3u8',
+        embeddedAudio: 'keep',
+        subtitleTracks: [
+          {
+            id: 'cc',
+            selector: { groupId: 's', name: 'English' },
+            embedded,
+            sidecar: {
+              type: 'writable',
+              writable: new WritableStream({
+                async write(b) {
+                  await new Promise((r) => setTimeout(r, 5));
+                  chunks.push(b);
+                },
+                close() {
+                  closed = true;
+                },
+              }),
+            },
+          },
+        ],
+        onEvent(e) {
+          if (e.type === 'subtitleCommit') commits.push(e.commit);
+        },
+        output: {
+          type: 'writable',
+          writable: new WritableStream({
+            write(b) {
+              media.push(b);
+            },
+          }),
+        },
+      });
+      const text = await new Blob(chunks).text();
+      const video = document.createElement('video');
+      video.muted = true;
+      document.body.append(video);
+      video.src = URL.createObjectURL(new Blob(media, { type: 'video/mp4' }));
+      await video.play();
+      await new Promise((r, j) => {
+        video.onended = r;
+        video.onerror = () => j(Error('video error'));
+        setTimeout(() => j(Error('video timeout')), 10000);
+      });
+      results.push({
+        embedded,
+        text,
+        closed,
+        commits,
+        tracks: result.report.tracks,
+        frames: video.getVideoPlaybackQuality().totalVideoFrames,
+        ended: video.ended,
+      });
+      URL.revokeObjectURL(video.src);
+      video.remove();
+    }
+    const dl = new HlsDownloader({ adapter: BrowserAdapter });
+    results.push({
+      exported: await dl.downloadSubtitles({
+        url: location.origin + '/master.m3u8',
+        subtitle: { groupId: 's', name: 'English' },
+      }),
+    });
+    let release, entered;
+    const gate = new Promise((r) => (release = r)),
+      started = new Promise((r) => (entered = r));
+    let closed = false;
+    const session = dl.startMultiTrackRecording({
+      url: location.origin + '/master.m3u8',
+      embeddedAudio: 'keep',
+      subtitleTracks: [
+        {
+          id: 'cc',
+          selector: { groupId: 's', name: 'English' },
+          sidecar: {
+            type: 'writable',
+            writable: new WritableStream({
+              write() {
+                entered();
+                return gate;
+              },
+              close() {
+                closed = true;
+              },
+            }),
+          },
+        },
+      ],
+      output: { type: 'writable', writable: new WritableStream() },
+    });
+    await started;
+    session.cancel();
+    let code;
+    try {
+      await session.result;
+    } catch (e) {
+      code = e.code;
+    }
+    release();
+    await new Promise((r) => setTimeout(r, 20));
+    results.push({ cancel: code, closed });
+    return results;
+  };
+</script>

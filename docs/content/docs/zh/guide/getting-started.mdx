@@ -26,7 +26,7 @@ pnpm add @hls-downloader/adapters
 
 <Callout type="info" title="默认下载路径（Transmux）">
   **普通 `download()` 会保留源编码并 transmux 为 MP4。** BrowserAdapter 使用
-  [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly；NodeAdapter 使用原生 Rust
+  [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly；NodeAdapter 使用原生 Rust
   路径。仅在需要重编码时，于 `download()` 传入 `transcode`（或设置
   `globalOptions.transcode`）。各适配器引擎差异见[适配器](/zh/guide/adapters)。
 </Callout>

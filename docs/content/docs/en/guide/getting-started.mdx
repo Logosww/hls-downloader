@@ -26,8 +26,8 @@ The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-do
 
 <Callout type="info" title="Default download path (transmux)">
   **Ordinary `download()` keeps source codecs and transmuxes to MP4.** BrowserAdapter uses
-  [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly; NodeAdapter uses its native
-  Rust path. Pass `transcode` on `download()` (or set `globalOptions.transcode`) only when you need
+  [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly; NodeAdapter uses its native Rust
+  path. Pass `transcode` on `download()` (or set `globalOptions.transcode`) only when you need
   re-encoding. See [Adapters](/guide/adapters) for adapter-specific engines.
 </Callout>
 
@@ -53,7 +53,7 @@ const downloader = new HlsDownloader({
   },
 });
 
-// init() loads the transmux engine (BrowserAdapter: hls-transmux WASM; NodeAdapter: no-op, FFmpeg loads on demand)
+// init() loads the transmux engine (BrowserAdapter: hls-engine WASM; NodeAdapter: no-op, FFmpeg loads on demand)
 await downloader.init();
 
 // Parse playlist only — no segments, no transmux/transcode engine load

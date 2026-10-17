@@ -59,8 +59,8 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
           node.download({url:'https://example.test/a.m3u8',decryption:{keyResolver:resolver}});
           const typedPlaylist: Promise<import('@logosw/hls-downloader/shared').HlsMediaPlaylist> = node.parseMediaPlaylist('#EXTM3U','https://example.test/a.m3u8');
           node.downloadOutputs({url:'https://example.test/a.m3u8',timeline:{changePolicy:'split'}}).then(r => {
-            exportChapters({timelineReport:r.timelineReport,chapters:[]});
-            node.downloadSubtitleOutputs({url:'https://example.test/a.m3u8',subtitle:{groupId:'s',name:'en'},timelineReport:r.timelineReport});
+            exportChapters({timelineMap:r.report.timelineMap!,chapters:[]});
+            node.downloadSubtitleOutputs({url:'https://example.test/a.m3u8',subtitle:{groupId:'s',name:'en'},timelineMap:r.report.timelineMap!});
           });
           const recording = node.startRecording({url:'https://example.test/live.m3u8',output:{type:'file',path:'capture.mp4'}});
           recording.result.then(r => { const path: string = r.filePath; const count: string = r.report.bytesWritten; });
@@ -150,7 +150,7 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
             const recorded = await recording.result;
             assert.equal(recorded.report.endReason,'Eof'); assert.equal(recordingClosed,true);
             writeFileSync(name+'-recording.mp4',Buffer.concat(recordingChunks));
-            assert.equal(d.capabilities.decryption.resume, false);
+            assert.equal(d.capabilities.decryption.resume, name === 'node');
             const text = await (await fetch(process.argv[2] + '/video/media.m3u8')).text();
             const metadata = await d.parseMediaPlaylist(text, process.argv[2] + '/video/media.m3u8');
             assert.equal(metadata.mediaSequence, '9007199254740993');
@@ -177,8 +177,8 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
                 timeline:{changePolicy:'split'},decryption:{keyResolver:async () => ({key:Uint8Array.from(Buffer.from('2b7e151628aed2a6abf7158809cf4f3c','hex'))})}};
               const result = await d.downloadOutputs(options);
               assert.equal(result.outputs.length, expected);
-              assert.equal(result.timelineReport.schemaVersion, 1);
-              assert.equal(exportChapters({timelineReport:result.timelineReport,chapters:[{title:'Test',range:result.timelineReport.actual}]}).length, expected);
+              assert.equal(result.report.timelineMap.schemaVersion, 2);
+              assert.equal(exportChapters({timelineMap:result.report.timelineMap,chapters:[{title:'Test',range:result.report.timelineMap.outputs[0].actualRange}]}).length, expected);
               for (const o of result.outputs) {
                 const bytes = 'blobURL' in o ? new Uint8Array(await (await fetch(o.blobURL)).arrayBuffer()) : readFileSync(o.filePath);
                 if ('blobURL' in o) URL.revokeObjectURL(o.blobURL);
@@ -187,7 +187,7 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
               let closed = 0;
               const streamed = await d.downloadToWritables(options,async () => new WritableStream({close(){closed++;}}));
               assert.equal(closed,expected);
-              assert.equal(streamed.timelineReport.outputs.length,expected);
+              assert.equal(streamed.report.outputs.length,expected);
             }
           }
         `,

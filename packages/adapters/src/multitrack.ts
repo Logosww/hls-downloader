@@ -1,4 +1,5 @@
 import {
+  createTimelineRecorder,
   HlsDownloaderError,
   HlsDownloaderErrorCode as Code,
   selectBestVariant,
@@ -8,6 +9,7 @@ import {
 } from '@hls-downloader/shared';
 import { executeKeyed, decryptionProfile, type KeyedEngine } from './keyed';
 import { parseManifest, selectAudio, type SelectedMedia, type RequestOptions } from './renditions';
+import { createSidecars } from './sidecars';
 import { readBoundedResource } from './bounded';
 import { assertActive, cancellable } from './browser/request';
 import { camelCaseReport } from './timeline';
@@ -18,7 +20,7 @@ import {
   type RecordingBridge,
   type RecordingBridgeFactory,
 } from './recording';
-import { parseEmbeddedWebVtt, type EmbeddedCue } from './multitrack-subtitles';
+import { parseEmbeddedWebVtt } from './multitrack-subtitles';
 import type {
   HlsMultiTrackOptions,
   HlsMultiTrackHost,
@@ -28,6 +30,18 @@ import type {
   Rendition,
 } from '@hls-downloader/shared';
 
+function subtitleFingerprint(segment: HlsMediaPlaylist['segments'][number]): string {
+  // Declaration ordinals are local to a playlist snapshot. Sliding windows
+  // renumber unchanged keys, including a MAP's captured key context.
+  const stableKeys = (keys: typeof segment.keys) =>
+    keys.map(({ declaration: _declaration, ...key }) => key);
+  return JSON.stringify({
+    ...segment,
+    keys: stableKeys(segment.keys),
+    map: segment.map && { ...segment.map, keys: stableKeys(segment.map.keys) },
+  });
+}
+
 export function multiTrackCapabilities(browser: boolean): HlsMultiTrackCapabilities {
   return Object.freeze({
     inputs: Object.freeze(['vod', 'live', 'event'] as const),
@@ -35,23 +49,18 @@ export function multiTrackCapabilities(browser: boolean): HlsMultiTrackCapabilit
     maxMediaInputs: 32,
     maxSubtitleTracks: 32,
     subtitles: 'wvtt-plain-text',
+    subtitleResources: Object.freeze(['clear', 'AES-128'] as const),
+    subtitleSidecars: Object.freeze({
+      outputs: Object.freeze(
+        browser
+          ? (['writable', 'writables'] as const)
+          : (['writable', 'writables', 'file'] as const),
+      ),
+      resume: !browser,
+    }),
     decryption: Object.freeze({
       methods: decryptionProfile.methods,
-      profiles: Object.freeze([
-        ...decryptionProfile.profiles,
-        Object.freeze({
-          method: 'AES-128',
-          container: 'packed-aac',
-          scheme: 'cbc',
-          codecs: Object.freeze(['aac-lc']),
-        }),
-        Object.freeze({
-          method: 'SAMPLE-AES',
-          container: 'packed-aac',
-          scheme: 'sample-cbc',
-          codecs: Object.freeze(['aac-lc']),
-        }),
-      ]),
+      profiles: decryptionProfile.profiles,
     }),
     outputs: Object.freeze(
       browser
@@ -61,7 +70,7 @@ export function multiTrackCapabilities(browser: boolean): HlsMultiTrackCapabilit
     pause: 'vod',
     split: true,
     ranges: true,
-    resume: false,
+    resume: !browser,
   });
 }
 const emptyReport = (): HlsMultiTrackReport => ({
@@ -91,18 +100,55 @@ export async function runMultiTrack(
   host: HlsMultiTrackHost,
   factory: RecordingBridgeFactory,
   finite: boolean,
+  automaticAudio = false,
 ): Promise<{ report: HlsMultiTrackReport }> {
   const opts = options as HlsMultiTrackOptions & RequestOptions;
+  const timelineRecorder = createTimelineRecorder(
+    options.limits?.historyEntries ?? 128,
+    options.timeline?.gapPolicy === 'collapse',
+  );
+  const completed: import('@hls-downloader/shared').HlsEngineOutputReport[] = [];
+  const outputPaths = new Map<string, string>();
+  const describeOutput = (output: import('@hls-downloader/shared').HlsEngineOutputReport) => {
+    const filePath =
+      outputPaths.get(output.index) ??
+      (opts.resume && options.output.type === 'file'
+        ? options.output.path +
+          (output.index === '0' ? '' : `.part-${output.index.padStart(6, '0')}.mp4`)
+        : undefined);
+    return { ...output, ...(filePath ? { filePath } : {}) };
+  };
+  const originalHost = host;
+  host = {
+    ...host,
+    control: async (r) => {
+      if (r.action === 'event') timelineRecorder.event(r.event as any);
+      if (r.action === 'event' && r.event.type === 'output') {
+        r.event.output = describeOutput(r.event.output);
+        if (completed.length >= (options.limits?.historyEntries ?? 128))
+          outputPaths.delete(completed.shift()!.index);
+        completed.push(r.event.output);
+      }
+      const result = await originalHost.control(r);
+      if (r.action === 'acquire' && result && ['file', 'files'].includes(options.output.type))
+        outputPaths.set(r.output.index, result);
+      return result;
+    },
+  };
   const out = options.output;
+  if (opts.resume && out.type !== 'file')
+    throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Recovery requires a native file path');
   validateSelection(options);
-  if (opts.transcode !== undefined || opts.resume !== undefined || opts.aria2 !== undefined)
+  const sidecars = createSidecars(options, !!factory.inspectRecovery);
+  if (opts.transcode !== undefined || opts.aria2 !== undefined)
     throw new HlsDownloaderError(
       Code.UNSUPPORTED_OUTPUT,
-      'Recording does not support transcode, resume or aria2',
+      'Engine output does not support transcode or aria2',
     );
   if (
     (options.missingSegments === 'split' || options.timeline?.changePolicy === 'split') &&
-    !['files', 'writables'].includes(out.type)
+    !['files', 'writables'].includes(out.type) &&
+    !(opts.resume && out.type === 'file')
   )
     throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Split requires an output factory');
   if (out.type === 'blob' && (!Number.isSafeInteger(out.maxBytes) || out.maxBytes <= 0))
@@ -142,6 +188,7 @@ export async function runMultiTrack(
     url: string;
     controller: AbortController;
     generation: string;
+    revision: bigint;
     lastSequence?: bigint;
     seen: Map<string, string>;
     cueKeys: Set<string>;
@@ -208,6 +255,15 @@ export async function runMultiTrack(
       assertActive(options.signal);
       await cancellable(outputReady, signal);
       const current = snapshot ?? (await fetchSnapshot(lane.url, signal));
+      if (
+        current.metadata.segments.some((segment) =>
+          [...segment.keys, ...(segment.map?.keys ?? [])].some((key) => key.method !== 'AES-128'),
+        )
+      )
+        throw new HlsDownloaderError(
+          Code.UNSUPPORTED_ENCRYPTION,
+          'WebVTT supports only clear or AES-128 resources',
+        );
       const mediaLane = lanes.get(lane.timelineInputId)!;
       const generation = mediaLane.generation;
       if (lane.generation !== generation) {
@@ -216,21 +272,12 @@ export async function runMultiTrack(
         lane.cueKeys.clear();
         lane.references.clear();
         lane.lastSequence = undefined;
+        lane.revision = 0n;
       }
-      const cues: EmbeddedCue[] = [],
-        currentKeys = new Set<string>();
+      const indices: number[] = [];
       const seen = new Map<string, string>();
-      let bytes = 0;
-      const sampleLimit = options.limits?.samples ?? 65536;
-      const byteLimit = options.limits?.sampleBytes ?? 64 * 1024 * 1024;
       const epochs = new Set(mediaLane.snapshot?.metadata.segments.map((s) => s.epoch));
-      for (const segment of current.metadata.segments) {
-        if (segment.keys.length || segment.map?.keys.length)
-          throw new HlsDownloaderError(
-            Code.UNSUPPORTED_ENCRYPTION,
-            'Encrypted subtitles are unsupported',
-            { inputId: lane.id },
-          );
+      for (const [index, segment] of current.metadata.segments.entries()) {
         if (!epochs.has(segment.epoch))
           throw new HlsDownloaderError(
             Code.SUBTITLE_INVALID,
@@ -238,7 +285,7 @@ export async function runMultiTrack(
             { inputId: lane.id, epoch: segment.epoch, reason: 'MissingSubtitleMapping' },
           );
         const identity = segment.epoch + ':' + segment.originalSequence;
-        const fingerprint = JSON.stringify(segment);
+        const fingerprint = subtitleFingerprint(segment);
         seen.set(identity, fingerprint);
         const old = lane.seen.get(identity);
         if (old !== undefined && old !== fingerprint)
@@ -257,57 +304,16 @@ export async function runMultiTrack(
             });
           continue;
         }
-        const readText = async (r: typeof segment | NonNullable<typeof segment.map>) => {
-          const resource = await readBoundedResource(
-            { url: r.uri, offset: r.range?.offset, length: r.range?.length },
-            Math.min(opts.decryption?.limits?.resourceBytes ?? 16 * 1024 * 1024, byteLimit),
-            opts.headers,
-            opts.maxRetry ?? adapter.segmentRetryAttempts,
-            signal,
-            Code.SEGMENT_FETCH_FAILED,
-            opts.browserRequest,
-          );
-          try {
-            return new TextDecoder('utf-8', { fatal: true }).decode(resource.bytes);
-          } catch {
-            throw new HlsDownloaderError(Code.SUBTITLE_INVALID, 'Invalid UTF-8 subtitles', {
-              inputId: lane.id,
-            });
-          }
-        };
-        const header = segment.map ? await readText(segment.map) : undefined;
-        const anchor = options.timeline?.anchors?.find(
-          (a) =>
-            a.inputId === lane.timelineInputId &&
-            a.generation === generation &&
-            a.epoch === segment.epoch,
-        );
-        const parsed = parseEmbeddedWebVtt(await readText(segment), {
-          generation,
-          epoch: segment.epoch,
-          header,
-          reference:
-            lane.references.get(segment.epoch) ??
-            (anchor
-              ? (BigInt(anchor.source.ticks) * 90000n) / BigInt(anchor.source.timescale)
-              : undefined),
-        });
-        lane.references.set(segment.epoch, parsed.reference);
-        for (const cue of parsed.cues) {
-          const key = JSON.stringify(cue);
-          const duplicate = currentKeys.has(key) || lane.cueKeys.has(key);
-          currentKeys.add(key);
-          if (duplicate) continue;
-          bytes += new TextEncoder().encode(key).length + 256;
-          if (cues.length >= sampleLimit || bytes > byteLimit)
-            throw new HlsDownloaderError(
-              Code.RESOURCE_LIMIT_EXCEEDED,
-              'Subtitle snapshot exceeds admission budget',
-              { inputId: lane.id, reason: 'BudgetExceeded' },
-            );
-          cues.push(cue);
-        }
+        indices.push(index);
       }
+      const command = {
+        revision: lane.revision.toString(),
+        inputId: lane.id,
+        generation,
+        url: current.url,
+        text: current.text,
+        segments: indices,
+      };
       const finish = async (acceptance?: {
         trackId: number;
         accepted: number;
@@ -321,7 +327,7 @@ export async function runMultiTrack(
             event: { type: 'subtitles', inputId: lane.id, ...acceptance },
           });
         lane.seen = seen;
-        if (currentKeys.size) lane.cueKeys = currentKeys;
+        if (indices.length) lane.revision++;
         const last = current.metadata.segments.at(-1)?.originalSequence;
         if (last !== undefined) lane.lastSequence = BigInt(last);
         for (const epoch of lane.references.keys())
@@ -331,23 +337,25 @@ export async function runMultiTrack(
           lane.ended = true;
         }
       };
-      if (!cues.length) {
+      if (!indices.length) {
         await finish();
         return;
       }
+      const priorKeys = lane.cueKeys,
+        priorReferences = new Map(lane.references);
       const acceptance = await cancellable(
-        send({ action: initialAdmission ? 'initialCues' : 'tryCues', inputId: lane.id, cues }),
+        send({ ...command, action: initialAdmission ? 'initialText' : 'tryText' }),
         signal,
       );
       if (!acceptance.wouldBlock) {
         await finish(acceptance);
         return;
       }
+      lane.cueKeys = priorKeys;
+      lane.references = priorReferences;
       // One bounded pending text batch across all tracks. Media must continue to
       // make space: waiting here before admitting media would deadlock the budget.
-      const pending = cancellable(send({ action: 'cues', inputId: lane.id, cues }), signal).then(
-        finish,
-      );
+      const pending = cancellable(send({ ...command, action: 'text' }), signal).then(finish);
       pendingText = pending;
       track(pending);
       void pending
@@ -372,6 +380,16 @@ export async function runMultiTrack(
         const current = snapshot ?? (await fetchSnapshot(lane.url, signal));
         snapshot = undefined;
         assertActive(signal);
+        if (
+          current.metadata.segments.some((s) =>
+            [...s.keys, ...(s.map?.keys ?? [])].some(
+              (k) =>
+                !['AES-128', 'SAMPLE-AES', 'SAMPLE-AES-CTR'].includes(k.method) &&
+                !(k.method === 'AES-256-GCM' && opts.decryption?.experimentalGcm),
+            ),
+          )
+        )
+          throw new HlsDownloaderError(Code.UNSUPPORTED_ENCRYPTION, 'GCM requires experimentalGcm');
         lane.snapshot = current;
         for (const textLane of textLanes.values())
           if (textLane.timelineInputId === id && !textLane.ended) await prepareText(textLane);
@@ -489,138 +507,187 @@ export async function runMultiTrack(
   });
   try {
     assertActive(options.signal);
-    let url = options.url;
-    const audioSelections: { id: string; url: string; metadata: HlsTrackMetadata }[] = [];
-    const subtitleSelections: {
-      id: string;
-      url: string;
-      timelineInputId: string;
-      metadata: HlsTrackMetadata;
-    }[] = [];
-    let primary!: Snapshot;
-    const visited = new Set<string>();
-    for (let depth = 0; depth <= 8; depth++) {
-      assertActive(initial.signal);
-      if (visited.has(url))
-        throw new HlsDownloaderError(Code.MANIFEST_INVALID, 'Master playlist cycle');
-      visited.add(url);
-      const resource = await readBoundedResource(
-        { url },
-        opts.decryption?.limits?.manifestBytes ?? 4 * 1024 * 1024,
-        opts.headers,
-        opts.maxRetry ?? adapter.segmentRetryAttempts,
-        initial.signal,
-        Code.MANIFEST_FETCH_FAILED,
-        opts.browserRequest,
-      );
-      const text = new TextDecoder().decode(resource.bytes);
-      if (/^\s*#EXT-X-STREAM-INF:/m.test(text)) {
-        const parsed = parseManifest(text, resource.url);
-        if (parsed.type !== 'playlist')
-          throw new HlsDownloaderError(Code.MANIFEST_INVALID, 'Invalid master');
-        const variant = selectBestVariant(parsed.data, opts.variant);
-        if (!variant) throw new HlsDownloaderError(Code.NO_VARIANT, 'No variant available');
-        if (variant.videoGroup)
-          throw new HlsDownloaderError(Code.UNSUPPORTED_RENDITION, 'Alternate video unavailable');
-        if (!audioSelections.length && !subtitleSelections.length) {
-          const renditions = parsed.renditions ?? [];
-          for (const selection of options.audioTracks ?? []) {
-            const rendition = selectAudio(renditions, variant.audioGroup, selection.selector);
-            if (!rendition?.uri)
-              throw new HlsDownloaderError(
-                Code.UNSUPPORTED_RENDITION,
-                'Use embeddedAudio for primary audio',
-              );
-            audioSelections.push({
-              id: selection.id,
-              url: rendition.uri,
-              metadata: trackMetadata(rendition, selection.metadata),
-            });
-          }
-          for (const selection of options.subtitleTracks ?? []) {
-            const rendition = renditions.find(
-              (r) =>
-                r.type === 'subtitles' &&
-                r.groupId === variant.subtitlesGroup &&
-                r.groupId === selection.selector.groupId &&
-                r.name === selection.selector.name,
-            );
-            if (!rendition?.uri)
-              throw new HlsDownloaderError(
-                Code.RENDITION_NOT_FOUND,
-                'Selected subtitle rendition unavailable',
-              );
-            subtitleSelections.push({
-              id: selection.id,
-              url: rendition.uri,
-              timelineInputId: selection.timelineInputId ?? 'primary',
-              metadata: trackMetadata(rendition, selection.metadata),
-            });
-          }
-        }
-        url = variant.uri;
-        continue;
-      }
-      primary = {
-        url: resource.url,
-        text,
-        metadata: await cancellable(
-          adapter.parseMediaPlaylist!(text, resource.url),
+    const restoration =
+      opts.resume && factory.inspectRecovery
+        ? await factory.inspectRecovery(opts.resume.directory)
+        : undefined;
+    const prepare = async () => {
+      let url = options.url;
+      const audioSelections: { id: string; url: string; metadata: HlsTrackMetadata }[] = [];
+      const subtitleSelections: {
+        id: string;
+        url: string;
+        timelineInputId: string;
+        metadata: HlsTrackMetadata;
+      }[] = [];
+      let primary!: Snapshot;
+      const visited = new Set<string>();
+      for (let depth = 0; depth <= 8; depth++) {
+        assertActive(initial.signal);
+        if (visited.has(url))
+          throw new HlsDownloaderError(Code.MANIFEST_INVALID, 'Master playlist cycle');
+        visited.add(url);
+        const resource = await readBoundedResource(
+          { url },
+          opts.decryption?.limits?.manifestBytes ?? 4 * 1024 * 1024,
+          opts.headers,
+          opts.maxRetry ?? adapter.segmentRetryAttempts,
           initial.signal,
-        ),
-      };
-      break;
+          Code.MANIFEST_FETCH_FAILED,
+          opts.browserRequest,
+        );
+        const text = new TextDecoder().decode(resource.bytes);
+        if (/^\s*#EXT-X-STREAM-INF:/m.test(text)) {
+          const parsed = parseManifest(text, resource.url);
+          if (parsed.type !== 'playlist')
+            throw new HlsDownloaderError(Code.MANIFEST_INVALID, 'Invalid master');
+          const variant = selectBestVariant(parsed.data, opts.variant);
+          if (!variant) throw new HlsDownloaderError(Code.NO_VARIANT, 'No variant available');
+          if (variant.videoGroup)
+            throw new HlsDownloaderError(Code.UNSUPPORTED_RENDITION, 'Alternate video unavailable');
+          if (!audioSelections.length && !subtitleSelections.length) {
+            const renditions = parsed.renditions ?? [];
+            if (automaticAudio && !options.audioTracks?.length) {
+              const rendition = selectAudio(renditions, variant.audioGroup);
+              if (rendition?.uri)
+                audioSelections.push({
+                  id: 'audio',
+                  url: rendition.uri,
+                  metadata: trackMetadata(rendition),
+                });
+            }
+            for (const selection of options.audioTracks ?? []) {
+              const rendition = selectAudio(renditions, variant.audioGroup, selection.selector);
+              if (!rendition?.uri)
+                throw new HlsDownloaderError(
+                  Code.UNSUPPORTED_RENDITION,
+                  'Use embeddedAudio for primary audio',
+                );
+              audioSelections.push({
+                id: selection.id,
+                url: rendition.uri,
+                metadata: trackMetadata(rendition, selection.metadata),
+              });
+            }
+            for (const selection of options.subtitleTracks ?? []) {
+              const rendition = renditions.find(
+                (r) =>
+                  r.type === 'subtitles' &&
+                  r.groupId === variant.subtitlesGroup &&
+                  r.groupId === selection.selector.groupId &&
+                  r.name === selection.selector.name,
+              );
+              if (!rendition?.uri)
+                throw new HlsDownloaderError(
+                  Code.RENDITION_NOT_FOUND,
+                  'Selected subtitle rendition unavailable',
+                );
+              subtitleSelections.push({
+                id: selection.id,
+                url: rendition.uri,
+                timelineInputId: selection.timelineInputId ?? 'primary',
+                metadata: trackMetadata(rendition, selection.metadata),
+              });
+            }
+          }
+          if (opts.__rejectAudio && audioSelections.length)
+            throw new HlsDownloaderError(
+              Code.UNSUPPORTED_OUTPUT,
+              'Audio selection cannot be transcoded',
+            );
+          url = variant.uri;
+          continue;
+        }
+        if (/^#EXT-X-MEDIA:/m.test(text) && !/^#EXTINF:/m.test(text))
+          throw new HlsDownloaderError(Code.NO_VARIANT, 'No variant available');
+        primary = {
+          url: resource.url,
+          text,
+          metadata: await cancellable(
+            adapter.parseMediaPlaylist!(text, resource.url),
+            initial.signal,
+          ),
+        };
+        break;
+      }
+      if (!primary) throw new HlsDownloaderError(Code.MANIFEST_INVALID, 'Master recursion limit');
+      if ((options.audioTracks?.length || options.subtitleTracks?.length) && visited.size === 1)
+        throw new HlsDownloaderError(Code.RENDITION_NOT_FOUND, 'Track selection requires a master');
+      const selected = [...audioSelections, ...subtitleSelections];
+      if (
+        new Set(selected.map((t) => t.url)).size !== selected.length ||
+        selected.some((t) => t.url === primary.url)
+      )
+        throw new HlsDownloaderError(Code.UNSUPPORTED_RENDITION, 'Duplicate selected resource');
+      for (const list of [
+        [
+          ...(options.embeddedAudio === 'keep' ? [options.primaryAudio ?? {}] : []),
+          ...audioSelections.map((t) => t.metadata),
+        ],
+        subtitleSelections.map((t) => t.metadata),
+      ])
+        if (list.filter((t) => t.default).length > 1)
+          throw new HlsDownloaderError(Code.UNSUPPORTED_RENDITION, 'Multiple default tracks');
+      const snapshots: [string, Snapshot][] = [['primary', primary]];
+      for (const audio of audioSelections)
+        snapshots.push([audio.id, await fetchSnapshot(audio.url, initial.signal)]);
+      const subtitleSnapshots: [string, Snapshot][] = [];
+      for (const subtitle of subtitleSelections)
+        subtitleSnapshots.push([subtitle.id, await fetchSnapshot(subtitle.url, initial.signal)]);
+
+      const manifestBytes = [...snapshots, ...subtitleSnapshots].reduce(
+        (sum, [, s]) => sum + new TextEncoder().encode(s.text).length,
+        0,
+      );
+      if (manifestBytes > (options.limits?.queuedMetadataBytes ?? 4 * 1024 * 1024))
+        throw new HlsDownloaderError(
+          Code.RESOURCE_LIMIT_EXCEEDED,
+          'Selected manifests exceed aggregate metadata budget',
+        );
+      if (finite && [...snapshots, ...subtitleSnapshots].some(([, s]) => !s.metadata.endList))
+        throw new HlsDownloaderError(
+          Code.UNSUPPORTED_RENDITION,
+          'Multi-track download requires ENDLIST on every selected input',
+        );
+      const vod =
+        finite ||
+        [...snapshots, ...subtitleSnapshots].every(
+          ([, s]) => s.metadata.endList && s.metadata.playlistType !== 'Event',
+        );
+      return { snapshots, subtitleSnapshots, audioSelections, subtitleSelections, vod, primary };
+    };
+    const bootstrap: Awaited<ReturnType<typeof prepare>> =
+      restoration?.request?.bootstrap ?? (await prepare());
+    const { snapshots, subtitleSnapshots, audioSelections, subtitleSelections, vod, primary } =
+      bootstrap;
+    const recoverySnapshots: object[] = [];
+    if (restoration?.request && !restoration.terminal && !vod) {
+      for (const [id, snapshot] of snapshots) {
+        const previous = restoration.journal?.findLast(
+          (c) => c.action === 'accept' && c.inputId === id,
+        );
+        if (previous && !/^#EXT-X-ENDLIST/m.test(previous.text)) {
+          const current = await fetchSnapshot(previous.url ?? snapshot.url, initial.signal);
+          recoverySnapshots.push({
+            action: 'accept',
+            inputId: id,
+            generation: previous.generation,
+            revision: (BigInt(previous.revision) + 1n).toString(),
+            url: current.url,
+            text: current.text,
+          });
+        }
+      }
     }
-    if (!primary) throw new HlsDownloaderError(Code.MANIFEST_INVALID, 'Master recursion limit');
-    if ((options.audioTracks?.length || options.subtitleTracks?.length) && visited.size === 1)
-      throw new HlsDownloaderError(Code.RENDITION_NOT_FOUND, 'Track selection requires a master');
-    const selected = [...audioSelections, ...subtitleSelections];
-    if (
-      new Set(selected.map((t) => t.url)).size !== selected.length ||
-      selected.some((t) => t.url === primary.url)
-    )
-      throw new HlsDownloaderError(Code.UNSUPPORTED_RENDITION, 'Duplicate selected resource');
-    for (const list of [
-      [
-        ...(options.embeddedAudio === 'keep' ? [options.primaryAudio ?? {}] : []),
-        ...audioSelections.map((t) => t.metadata),
-      ],
-      subtitleSelections.map((t) => t.metadata),
-    ])
-      if (list.filter((t) => t.default).length > 1)
-        throw new HlsDownloaderError(Code.UNSUPPORTED_RENDITION, 'Multiple default tracks');
-    const snapshots: [string, Snapshot][] = [['primary', primary]];
-    for (const audio of audioSelections)
-      snapshots.push([audio.id, await fetchSnapshot(audio.url, initial.signal)]);
-    const subtitleSnapshots: [string, Snapshot][] = [];
-    for (const subtitle of subtitleSelections)
-      subtitleSnapshots.push([subtitle.id, await fetchSnapshot(subtitle.url, initial.signal)]);
     if (stopped) return { report: emptyReport() };
-    const manifestBytes = [...snapshots, ...subtitleSnapshots].reduce(
-      (sum, [, s]) => sum + new TextEncoder().encode(s.text).length,
-      0,
-    );
-    if (manifestBytes > (options.limits?.queuedMetadataBytes ?? 4 * 1024 * 1024))
-      throw new HlsDownloaderError(
-        Code.RESOURCE_LIMIT_EXCEEDED,
-        'Selected manifests exceed aggregate metadata budget',
-      );
-    if (finite && [...snapshots, ...subtitleSnapshots].some(([, s]) => !s.metadata.endList))
-      throw new HlsDownloaderError(
-        Code.UNSUPPORTED_RENDITION,
-        'Multi-track download requires ENDLIST on every selected input',
-      );
-    const vod =
-      finite ||
-      [...snapshots, ...subtitleSnapshots].every(
-        ([, s]) => s.metadata.endList && s.metadata.playlistType !== 'Event',
-      );
     const media: SelectedMedia = {
       primary: { ...primary, segments: [] },
       subtitles: [],
       totalSegments: 0,
     };
     const engine: KeyedEngine = async (request, read, write, resolve, abortRead) => {
+      let replayReady!: () => void;
+      const replayComplete = new Promise<void>((r) => (replayReady = r));
       const wire = JSON.parse(request);
       const recording = {
         vod,
@@ -636,16 +703,44 @@ export async function runMultiTrack(
         JSON.stringify({
           ...wire,
           timeline: undefined,
-          bridgeVersion: 2,
+          bridgeVersion: 3,
+          bootstrap,
+          recoverySnapshots,
+          identity: {
+            url: options.url,
+            output: out,
+            variant: options.variant,
+            embeddedAudio:
+              automaticAudio && audioSelections.length ? 'exclude' : options.embeddedAudio,
+            playbackTarget: options.playbackTarget,
+            primaryAudio: options.primaryAudio,
+            audioTracks: options.audioTracks,
+            subtitleTracks: options.subtitleTracks?.map((t) => ({
+              ...t,
+              sidecar: sidecars.wire(t.id),
+            })),
+            timeline: options.timeline,
+            durationLimit: options.durationLimit,
+            missingSegments: options.missingSegments,
+            experimentalGcm: options.decryption?.experimentalGcm ?? false,
+            encryptedRanges: options.decryption?.encryptedRanges ?? 'reject',
+          },
           recording,
+          recovery: opts.resume && {
+            ...opts.resume,
+            path: out.type === 'file' ? out.path : undefined,
+          },
           multitrack: {
-            embeddedAudio: options.embeddedAudio,
+            embeddedAudio:
+              automaticAudio && audioSelections.length ? 'exclude' : options.embeddedAudio,
             primaryAudio: options.primaryAudio ?? {},
             audioTracks: audioSelections.map(({ id, metadata }) => ({ id, metadata })),
             subtitleTracks: subtitleSelections.map(({ id, metadata, timelineInputId }) => ({
               id,
               metadata,
               timelineInputId,
+              embedded: options.subtitleTracks?.find((t) => t.id === id)?.embedded,
+              sidecar: sidecars.wire(id),
             })),
             playbackTarget: options.playbackTarget,
           },
@@ -657,6 +752,50 @@ export async function runMultiTrack(
         async (text) => {
           try {
             const r = camelCaseReport(JSON.parse(text));
+            if (r.action === 'recoveryReady') {
+              replayReady();
+              return '';
+            }
+            if (r.action === 'subtitleCommit' || r.action === 'subtitleFinish') {
+              await sidecars.control(r);
+              if (r.action === 'subtitleCommit')
+                await host.control({
+                  action: 'event',
+                  event: { type: 'subtitleCommit', commit: r.commit },
+                });
+              return '';
+            }
+            if (r.action === 'parseSubtitle') {
+              const lane = textLanes.get(r.inputId)!;
+              const anchor = options.timeline?.anchors?.find(
+                (a) =>
+                  a.inputId === lane.timelineInputId &&
+                  a.generation === r.generation &&
+                  a.epoch === r.epoch,
+              );
+              const parsed = parseEmbeddedWebVtt(r.text, {
+                generation: r.generation,
+                epoch: r.epoch,
+                header: r.header ?? undefined,
+                reference:
+                  lane.references.get(r.epoch) ??
+                  (anchor
+                    ? (BigInt(anchor.source.ticks) * 90000n) / BigInt(anchor.source.timescale)
+                    : undefined),
+              });
+              lane.references.set(r.epoch, parsed.reference);
+              // HLS repeats a spanning cue in consecutive resources. Preserve
+              // duplicate occurrences inside one resource while removing only
+              // repetitions already present in the preceding resource.
+              const previous = lane.cueKeys;
+              lane.cueKeys = new Set(parsed.cues.map((c) => JSON.stringify(c)));
+              return JSON.stringify({
+                cues: parsed.cues.filter((c) => !previous.has(JSON.stringify(c))),
+                keys: [...lane.cueKeys],
+                reference: parsed.reference.toString(),
+                epoch: r.epoch,
+              });
+            }
             if (r.action === 'wait') {
               await recordingDelay(Number(r.ms), lifetime.signal);
               return '';
@@ -715,16 +854,59 @@ export async function runMultiTrack(
           ...selection,
           controller: new AbortController(),
           generation: '0',
+          revision: 0n,
           seen: new Map(),
           cueKeys: new Set(),
           references: new Map(),
           ended: false,
         });
+      if (restoration?.journal) {
+        for (const command of restoration.journal) {
+          const lane = lanes.get(command.inputId);
+          if (lane && command.action === 'accept') {
+            lane.generation = command.generation;
+            lane.revision = BigInt(command.revision) + 1n;
+            lane.url = command.url;
+            lane.ended = /^#EXT-X-ENDLIST/m.test(command.text);
+          }
+          if (['initialText', 'tryText', 'text'].includes(command.action)) {
+            const textLane = textLanes.get(command.inputId)!;
+            const metadata = await adapter.parseMediaPlaylist!(command.text, command.url);
+            textLane.generation = command.generation;
+            textLane.revision = BigInt(command.revision ?? '0') + 1n;
+            for (const index of command.segments) {
+              const segment = metadata.segments[index];
+              textLane.seen.set(
+                segment.epoch + ':' + segment.originalSequence,
+                subtitleFingerprint(segment),
+              );
+              textLane.lastSequence = BigInt(segment.originalSequence);
+            }
+            for (const group of command.groups ?? []) {
+              textLane.cueKeys = new Set(group.keys ?? []);
+              if (group.reference !== undefined)
+                textLane.references.set(group.epoch, BigInt(group.reference));
+            }
+          }
+          if (command.action === 'endSubtitles') {
+            const textLane = textLanes.get(command.inputId);
+            if (textLane) textLane.ended = true;
+          }
+        }
+      }
+      for (const command of recoverySnapshots as any[]) {
+        const lane = lanes.get(command.inputId)!;
+        lane.generation = command.generation;
+        lane.revision = BigInt(command.revision) + 1n;
+        lane.url = command.url;
+        lane.ended = /^#EXT-X-ENDLIST/m.test(command.text);
+      }
       // Initial subtitle batches are admitted atomically before media execution.
       // A full initial budget fails immediately, rather than waiting for an engine not yet running.
       try {
-        for (const [id, snapshot] of subtitleSnapshots)
-          await prepareText(textLanes.get(id)!, snapshot, true);
+        if (!restoration?.request)
+          for (const [id, snapshot] of subtitleSnapshots)
+            await prepareText(textLanes.get(id)!, snapshot, true);
       } catch (error) {
         await bridge.command('{"action":"cancel"}').catch(() => {});
         await bridge.run().catch(() => {});
@@ -742,15 +924,18 @@ export async function runMultiTrack(
       const running = bridge.run();
       void running.catch(() => {});
       resolveBridge(bridge);
-      if (options.signal?.aborted || lifetime.signal.aborted) await send({ action: 'cancel' });
-      else if (stopped) await send({ action: 'stop' });
-      else
-        for (const [id, snapshot] of snapshots) {
-          const lane = lanes.get(id)!;
-          lane.task = poll(id, snapshot);
-          track(lane.task);
-        }
       try {
+        if (restoration?.request && !restoration.terminal)
+          await Promise.race([replayComplete, running]);
+        if (options.signal?.aborted || lifetime.signal.aborted) await send({ action: 'cancel' });
+        else if (stopped) await send({ action: 'stop' });
+        else if (!restoration?.terminal)
+          for (const [id, snapshot] of snapshots) {
+            const lane = lanes.get(id)!;
+            if (lane.ended) continue;
+            lane.task = poll(id, restoration?.request ? undefined : snapshot);
+            track(lane.task);
+          }
         const result = await running;
         if (firstFailure) throw firstFailure;
         return result;
@@ -762,7 +947,7 @@ export async function runMultiTrack(
         bridge.dispose();
       }
     };
-    return (await executeKeyed(
+    const execution = (await executeKeyed(
       adapter,
       { ...opts, timeline: undefined, signal: options.signal! },
       media,
@@ -774,14 +959,30 @@ export async function runMultiTrack(
         return pending;
       },
     )) as unknown as { report: HlsMultiTrackReport };
+    execution.report.outputs = execution.report.outputs.map(describeOutput);
+    execution.report.timelineMap = timelineRecorder.finish(execution.report);
+    return execution;
   } catch (e) {
+    sidecars.abort(e);
     rejectBridge(e);
     if (stopped && !bridge && !options.signal?.aborted) return { report: emptyReport() };
-    throw firstFailure ?? e;
+    const cause = firstFailure ?? e;
+    if (cause instanceof HlsDownloaderError) {
+      const published = cause.completedRecordingOutputs?.map(describeOutput) ?? completed;
+      throw new HlsDownloaderError(cause.code, cause.message, {
+        ...cause,
+        adapter: adapter.name,
+        completedOutputs: published,
+        completedRecordingOutputs: published,
+        completedMultiTrackOutputs: published,
+      });
+    }
+    throw cause;
   } finally {
     finished = true;
     stopPolling();
     lifetime.abort();
+    sidecars.abort(new HlsDownloaderError(Code.ABORTED, 'Operation ended'));
     options.signal?.removeEventListener('abort', abort);
   }
 }

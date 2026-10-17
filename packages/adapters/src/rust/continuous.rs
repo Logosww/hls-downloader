@@ -1,5 +1,5 @@
 //! Continuous bridge: bounded ordered events and independently callable controls.
-use super::multitrack::{Selection, Session};
+use super::multitrack::{Selection, report};
 use super::timeline::{OutputFuture, OutputHost};
 use super::*;
 use std::{
@@ -47,6 +47,11 @@ pub struct Request {
     keyed: super::Request,
     recording: Options,
     multitrack: Option<Selection>,
+    #[cfg(not(target_arch = "wasm32"))]
+    recovery: Option<super::recovery::Config>,
+    #[cfg(not(target_arch = "wasm32"))]
+    #[serde(default)]
+    recovery_snapshots: Vec<Value>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -62,29 +67,47 @@ struct Options {
     #[serde(default)]
     timeline: Timeline,
 }
-pub fn failure(e: ContinuousError) -> Value {
-    let code = if let Some(e) = e.sample_error() {
+pub fn failure(e: EngineError) -> Value {
+    let code = if e.kind() == EngineErrorKind::ResumeConflict {
+        "RESUME_CONFLICT"
+    } else if e.kind() == EngineErrorKind::ResumeCorruption {
+        "RESUME_INVALID"
+    } else if e.kind() == EngineErrorKind::ReplayRequired {
+        "RESUME_REPLAY_REQUIRED"
+    } else if e.kind() == EngineErrorKind::AuthenticationFailed {
+        "AUTHENTICATION_FAILED"
+    } else if let Some(e) = e.sample_error() {
         timeline::sample_code(e)
     } else if let Some(e) = e.resource_error() {
         timeline::resource_code(e)
     } else {
         match e.kind() {
-            ContinuousErrorKind::Cancelled => "ABORTED",
-            ContinuousErrorKind::Output => "OUTPUT_WRITE_FAILED",
-            ContinuousErrorKind::BudgetExceeded | ContinuousErrorKind::QueueLimit => {
+            EngineErrorKind::AuthenticationFailed => "AUTHENTICATION_FAILED",
+            EngineErrorKind::ResumeConflict => "RESUME_CONFLICT",
+            EngineErrorKind::ResumeCorruption => "RESUME_INVALID",
+            EngineErrorKind::ReplayRequired => "RESUME_REPLAY_REQUIRED",
+            EngineErrorKind::Cancelled => "ABORTED",
+            EngineErrorKind::Output | EngineErrorKind::SubtitleOutput => "OUTPUT_WRITE_FAILED",
+            EngineErrorKind::BudgetExceeded | EngineErrorKind::QueueLimit => {
                 "RESOURCE_LIMIT_EXCEEDED"
             }
-            ContinuousErrorKind::InputRewrite => "RESOURCE_CHANGED",
-            ContinuousErrorKind::Media => "MEDIA_INVALID",
-            ContinuousErrorKind::InvalidSubtitle | ContinuousErrorKind::MissingSubtitleMapping => {
+            EngineErrorKind::InputRewrite => "RESOURCE_CHANGED",
+            EngineErrorKind::Media => "MEDIA_INVALID",
+            EngineErrorKind::UnsupportedPlaylist => "MANIFEST_INVALID",
+            EngineErrorKind::TimelineAmbiguous
+            | EngineErrorKind::MissingRandomAccess
+            | EngineErrorKind::MissingTailDuration
+            | EngineErrorKind::ConfigurationChanged
+            | EngineErrorKind::TimeOverflow => "TIMELINE_FAILED",
+            EngineErrorKind::InvalidSubtitle | EngineErrorKind::MissingSubtitleMapping => {
                 "SUBTITLE_INVALID"
             }
-            ContinuousErrorKind::UnsupportedSubtitleProfile => "UNSUPPORTED_RENDITION",
+            EngineErrorKind::UnsupportedSubtitleProfile => "UNSUPPORTED_RENDITION",
             _ => "RECORDING_FAILED",
         }
     };
     json!({"error":{"code":code,"reason":format!("{:?}",e.kind()),"phase":"recording",
-        "inputId":e.slot().map(|s|s.input_id().as_str()),"epoch":e.slot().map(|s|s.epoch().to_string()),
+        "resourceKind":e.resource().map(|r|format!("{:?}",r.kind()).to_lowercase()),"scheme":e.sample_error().and_then(|s|s.scheme()),"generation":e.generation().map(|n|n.to_string()),"trackId":e.source_track_id(),"sampleIndex":e.sample_index().map(|n|n.to_string()),"inputId":e.slot().map(|s|s.input_id().as_str()),"epoch":e.slot().map(|s|s.epoch().to_string()),
         "originalSequence":e.slot().map(|s|s.sequence().to_string()),"completedRecordingOutputs":e.completed_outputs()}})
 }
 fn invalid() -> Value {
@@ -97,23 +120,23 @@ fn uint(s: &str) -> std::result::Result<u64, Value> {
     }
     Ok(n)
 }
-fn event(e: ContinuousEvent) -> Value {
+fn event(e: EngineEvent) -> Value {
     match e {
-        ContinuousEvent::State(s) => {
+        EngineEvent::State(s) => {
             json!({"type":"state","state":format!("{s:?}").to_lowercase()})
         }
-        ContinuousEvent::Mapping(m) => json!({"type":"mapping","mapping":m}),
-        ContinuousEvent::Gap {
+        EngineEvent::Mapping(m) => json!({"type":"mapping","mapping":m}),
+        EngineEvent::Gap {
             slot,
             presentation_start,
             duration,
         } => {
             json!({"type":"gap","slot":slot,"presentationStart":presentation_start,"duration":duration})
         }
-        ContinuousEvent::Committed { input, bytes } => {
+        EngineEvent::Committed { input, bytes } => {
             json!({"type":"progress","input":input,"bytesWritten":bytes.to_string()})
         }
-        ContinuousEvent::Output(output) => json!({"type":"output","output":output}),
+        EngineEvent::Output(output) => json!({"type":"output","output":output}),
         _ => Value::Null,
     }
 }
@@ -147,15 +170,15 @@ impl Outputs {
                 .await?;
         }
     }
-    async fn acquire_output(&self, request: ContinuousOutputRequest) -> ContinuousResult<String> {
+    async fn acquire_output(&self, request: EngineOutputRequest) -> EngineResult<String> {
         self.drain()
             .await
-            .map_err(|e| ContinuousError::output(e.into()))?;
+            .map_err(|e| EngineError::output(e.into()))?;
         let output = json!({"index":request.index().to_string(),"tracks":request.tracks().iter().map(|t|json!({"codec":format!("{:?}",t.codec),"timescale":t.timescale,"duration":t.duration.to_string(),"sampleCount":t.sample_count.to_string()})).collect::<Vec<_>>()});
         self.host
             .control(json!({"action":"acquire","output":output}).to_string())
             .await
-            .map_err(|e| ContinuousError::output(e.into()))
+            .map_err(|e| EngineError::output(e.into()))
     }
 }
 struct Writer {
@@ -193,12 +216,12 @@ impl AsyncWrite for Writer {
         Poll::Ready(Ok(()))
     }
 }
-impl ContinuousWriterProvider for Outputs {
+impl EngineWriterProvider for Outputs {
     type Writer = Writer;
     fn acquire<'a>(
         &'a mut self,
-        r: ContinuousOutputRequest,
-    ) -> Pin<Box<dyn Future<Output = ContinuousResult<Writer>> + 'a>> {
+        r: EngineOutputRequest,
+    ) -> Pin<Box<dyn Future<Output = EngineResult<Writer>> + 'a>> {
         Box::pin(async move {
             let index = r.index().to_string();
             self.acquire_output(r).await?;
@@ -211,11 +234,11 @@ impl ContinuousWriterProvider for Outputs {
     }
 }
 #[cfg(not(target_arch = "wasm32"))]
-impl ContinuousFileProvider for Outputs {
+impl EngineFileProvider for Outputs {
     fn acquire<'a>(
         &'a mut self,
-        r: ContinuousOutputRequest,
-    ) -> Pin<Box<dyn Future<Output = ContinuousResult<std::path::PathBuf>> + 'a>> {
+        r: EngineOutputRequest,
+    ) -> Pin<Box<dyn Future<Output = EngineResult<std::path::PathBuf>> + 'a>> {
         Box::pin(async move { Ok(self.acquire_output(r).await?.into()) })
     }
 }
@@ -223,7 +246,7 @@ struct Waiter {
     #[cfg(target_arch = "wasm32")]
     host: Arc<dyn OutputHost>,
 }
-impl ContinuousWait for Waiter {
+impl EngineWait for Waiter {
     #[cfg(not(target_arch = "wasm32"))]
     fn wait(&self, d: std::time::Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(tokio::time::sleep(d))
@@ -239,13 +262,19 @@ impl ContinuousWait for Waiter {
     }
 }
 pub struct Bridge {
-    pub handle: ContinuousHandle,
-    session: Mutex<Option<Session>>,
-    multi: Option<MultiTrackHandle>,
+    pub handle: EngineHandle,
+    session: Mutex<Option<EngineSession>>,
+    source: Arc<dyn Source>,
+    subtitle_samples: usize,
+    subtitle_bytes: usize,
     output: Outputs,
     kind: String,
     format: OutputFormat,
     capacity: usize,
+    #[cfg(not(target_arch = "wasm32"))]
+    recovery: Option<Arc<super::recovery::Store>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    recovery_snapshots: Vec<Value>,
     wake: Mutex<Option<std::task::Waker>>,
     hold: std::sync::atomic::AtomicBool,
 }
@@ -255,8 +284,12 @@ impl Bridge {
         host: Arc<dyn Host>,
         output: Arc<dyn OutputHost>,
     ) -> std::result::Result<Self, Value> {
-        let r: Request = serde_json::from_str(text).map_err(|_| invalid())?;
-        if r.bridge_version != if r.multitrack.is_some() { 2 } else { 1 } {
+        let envelope: Value = serde_json::from_str(text).map_err(|_| invalid())?;
+        if envelope["bridgeVersion"] != 3 || envelope["wireVersion"] != 4 {
+            return Err(error("BRIDGE_VERSION_MISMATCH", "wireVersion"));
+        }
+        let r: Request = serde_json::from_value(envelope).map_err(|_| invalid())?;
+        if r.bridge_version != 3 || r.keyed.wire_version != 4 {
             return Err(error("BRIDGE_VERSION_MISMATCH", "wireVersion"));
         }
         let k = &r.keyed;
@@ -277,20 +310,25 @@ impl Bridge {
             notify: Arc::new(tokio::sync::Notify::new()),
             drain_lock: Arc::new(tokio::sync::Mutex::new(())),
         };
+        #[cfg(not(target_arch = "wasm32"))]
+        let recovery_events: Arc<Mutex<Option<Arc<super::recovery::Store>>>> =
+            Arc::new(Mutex::new(None));
+        #[cfg(not(target_arch = "wasm32"))]
+        let recovery_listener = recovery_events.clone();
         let event_output = outputs.clone();
         let playback = r.multitrack.clone();
         let playback_kind = o.output_type.clone();
         let playback_format = o.format.clone();
         let playback_capacity = o.max_bytes;
         let playback_preserves_gaps = o.timeline.gap_policy.as_deref() != Some("collapse");
-        let mut options = ContinuousOptions::default()
+        let mut options = EngineOptions::default()
             .with_mode(if o.vod {
-                ContinuousMode::Vod
+                EngineMode::Vod
             } else {
-                ContinuousMode::Open
+                EngineMode::Open
             })
             .with_limits(
-                ContinuousLimits::default()
+                EngineLimits::default()
                     .with_queue(
                         b.queued_descriptors.unwrap_or(128),
                         b.queued_metadata_bytes.unwrap_or(4 * 1024 * 1024),
@@ -317,6 +355,7 @@ impl Bridge {
                         EncryptedRangePolicy::Reject
                     }),
             )
+            .with_experimental_gcm(k.experimental_gcm)
             .with_missing_segments(match o.missing_segments.as_deref().unwrap_or("fail") {
                 "fail" => MissingSegmentPolicy::Fail,
                 "skip" => MissingSegmentPolicy::Skip,
@@ -338,11 +377,21 @@ impl Bridge {
                 },
             )
             .with_on_event(Arc::new(move |e| {
+                #[cfg(not(target_arch = "wasm32"))]
+                if let EngineEvent::Committed { ref input, .. } = e {
+                    if let Some(store) = recovery_listener.lock().unwrap().as_ref() {
+                        store.note_commit(input);
+                    }
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                if let EngineEvent::Output(ref output) = e {
+                    if let Some(store) = recovery_listener.lock().unwrap().as_ref() {
+                        store.note_output(json!(output));
+                    }
+                }
                 if let Some(error) = playback
                     .as_ref()
-                    .filter(|_| {
-                        playback_preserves_gaps && matches!(&e, ContinuousEvent::Gap { .. })
-                    })
+                    .filter(|_| playback_preserves_gaps && matches!(&e, EngineEvent::Gap { .. }))
                     .and_then(|selection| {
                         selection
                             .check_playback(
@@ -378,7 +427,7 @@ impl Bridge {
             options = options.with_tail_policy(TailDurationPolicy::Explicit(t));
         }
         for a in &o.timeline.anchors {
-            options = options.with_anchor(ContinuousAnchor::new(
+            options = options.with_anchor(EngineAnchor::new(
                 InputId::new(&a.input_id).map_err(|_| invalid())?,
                 uint(&a.generation)?,
                 uint(&a.epoch)?,
@@ -399,16 +448,6 @@ impl Bridge {
             ids: Mutex::new(Vec::new()),
             next: Arc::new(AtomicU32::new(1)),
         });
-        let mut inputs = ContinuousInputs::new(ContinuousInput::new(
-            InputId::new("primary").unwrap(),
-            source.clone(),
-        ));
-        if k.audio.is_some() {
-            inputs = inputs.with_audio(ContinuousInput::new(
-                InputId::new("audio").unwrap(),
-                source.clone(),
-            ));
-        }
         let keys = KeySession::new(
             k.operation_id.clone(),
             k.scope.clone(),
@@ -428,45 +467,209 @@ impl Bridge {
                 ),
         )
         .map_err(|_| error("KEY_INVALID", "options"))?;
-        let session = if let Some(selection) = &r.multitrack {
-            selection.check_playback(&o.output_type, &o.format, o.max_bytes, false)?;
-            Session::Multi(selection.create(source.clone(), keys, options)?)
+        let selection = r.multitrack.as_ref().ok_or_else(invalid)?;
+        selection.check_playback(&o.output_type, &o.format, o.max_bytes, false)?;
+        let inputs = selection.inputs(source.clone())?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let recovery = r
+            .recovery
+            .as_ref()
+            .map(|c| {
+                super::recovery::Store::open(
+                    c,
+                    serde_json::from_str(text).unwrap(),
+                    b.queued_metadata_bytes.unwrap_or(4 * 1024 * 1024),
+                )
+            })
+            .transpose()?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let checkpoint = recovery.as_ref().and_then(|s| s.checkpoint());
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            *recovery_events.lock().unwrap() = recovery.clone();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let session = if let Some(c) = checkpoint {
+            EngineSession::restore(inputs, keys, options, c)
         } else {
-            Session::Legacy(ContinuousSession::new(inputs, keys, options).map_err(failure)?)
-        };
+            EngineSession::new(inputs, keys, options)
+        }
+        .map_err(failure)?;
+        #[cfg(target_arch = "wasm32")]
+        let session = EngineSession::new(inputs, keys, options).map_err(failure)?;
+        let mut session = session;
+        if selection
+            .subtitle_tracks
+            .iter()
+            .any(|t| t.sidecar.is_some())
+        {
+            #[cfg(not(target_arch = "wasm32"))]
+            if recovery.is_some() {
+                let destinations = selection
+                    .subtitle_tracks
+                    .iter()
+                    .map(|t| {
+                        let path = t
+                            .sidecar
+                            .as_ref()
+                            .filter(|v| v["type"] == "file")
+                            .and_then(|v| v["path"].as_str())
+                            .ok_or_else(|| {
+                                error("UNSUPPORTED_OUTPUT", "RecoverableSubtitleFilesRequired")
+                            })?;
+                        Ok(SubtitleDestination::new(InputId::new(&t.id).unwrap(), path))
+                    })
+                    .collect::<std::result::Result<Vec<_>, Value>>()?;
+                session = session.with_recoverable_subtitle_sink(Arc::new(
+                    super::subtitle::files::Files {
+                        destinations,
+                        host: super::subtitle::HostSink(outputs.host.clone()),
+                    },
+                ));
+            } else {
+                session =
+                    session.with_subtitle_sink(Arc::new(super::subtitle::OrdinaryFiles::new(
+                        selection,
+                        serde_json::from_str::<Value>(text)
+                            .ok()
+                            .as_ref()
+                            .and_then(|v| v["identity"]["output"]["path"].as_str()),
+                        outputs.host.clone(),
+                    )?));
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                session = session
+                    .with_subtitle_sink(Arc::new(super::subtitle::HostSink(outputs.host.clone())));
+            }
+        }
         let format = match o.format.as_str() {
             "mp4" => OutputFormat::Mp4,
             "fmp4" => OutputFormat::FragmentedMp4,
             _ => return Err(invalid()),
         };
-        let (handle, multi) = session.handles();
+        let handle = session.handle();
         Ok(Self {
             handle,
-            multi,
+            source,
+            subtitle_samples: b.samples.unwrap_or(65536),
+            subtitle_bytes: b.sample_bytes.unwrap_or(64 * 1024 * 1024),
             session: Mutex::new(Some(session)),
             output: outputs,
             kind: o.output_type.clone(),
             format,
             capacity: o.max_bytes.unwrap_or(0),
+            #[cfg(not(target_arch = "wasm32"))]
+            recovery,
+            #[cfg(not(target_arch = "wasm32"))]
+            recovery_snapshots: r.recovery_snapshots,
             wake: Mutex::new(None),
             hold: std::sync::atomic::AtomicBool::new(false),
         })
+    }
+    pub async fn text_command(&self, v: Value, replay: bool) -> Value {
+        let recoverable = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.recovery.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+        let (cues, journal) = match super::subtitle::prepare(
+            &self.handle,
+            self.source.clone(),
+            self.output.host.as_ref(),
+            &v,
+            recoverable,
+            self.subtitle_samples,
+            self.subtitle_bytes,
+        )
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => return e,
+        };
+        loop {
+            let apply = || super::subtitle::admit(&self.handle, &v, &cues);
+            #[cfg(not(target_arch = "wasm32"))]
+            let result = if let Some(store) = self.recovery.as_ref().filter(|_| !replay) {
+                store.admit(journal.clone(), apply)
+            } else {
+                apply()
+            };
+            #[cfg(target_arch = "wasm32")]
+            let result = {
+                let _ = (&journal, replay);
+                apply()
+            };
+            if result.get("wouldBlock").is_none() || v["action"] == "tryText" {
+                return result;
+            }
+            if replay {
+                return error("RESUME_REPLAY_REQUIRED", "ReplayCapacity");
+            }
+            if v["action"] == "initialText" {
+                return error("RESOURCE_LIMIT_EXCEEDED", "InitialSubtitleBudget");
+            }
+            if let Err(e) = self.handle.wait_capacity().await {
+                return failure(e);
+            }
+        }
     }
     pub async fn command(&self, text: &str) -> Value {
         let action = serde_json::from_str::<Value>(text)
             .ok()
             .and_then(|v| v["action"].as_str().map(str::to_owned));
+        if action.as_deref() == Some("subtitleResource") {
+            return super::subtitle::read_text(
+                &self.handle,
+                self.source.clone(),
+                &serde_json::from_str(text).unwrap(),
+            )
+            .await;
+        }
+        if matches!(action.as_deref(), Some("initialText" | "tryText" | "text")) {
+            return self
+                .text_command(serde_json::from_str(text).unwrap(), false)
+                .await;
+        }
         if action.as_deref() == Some("pause") {
             self.hold.store(true, Ordering::SeqCst);
         }
         if matches!(action.as_deref(), Some("resume" | "stop" | "cancel")) {
             self.hold.store(false, Ordering::SeqCst);
         }
-        let result = if let Some(multi) = &self.multi {
-            super::multitrack::command(multi, text).await
-        } else {
-            command(&self.handle, text).await
-        };
+        #[cfg(not(target_arch = "wasm32"))]
+        if matches!(
+            action.as_deref(),
+            Some(
+                "accept" | "cues" | "initialCues" | "tryCues" | "endSubtitles" | "end" | "restart"
+            )
+        ) {
+            if let Some(store) = &self.recovery {
+                let v: Value = match serde_json::from_str(text) {
+                    Ok(v) => v,
+                    Err(_) => return invalid(),
+                };
+                loop {
+                    let result =
+                        store.admit(v.clone(), || super::recovery::try_command(&self.handle, &v));
+                    if result.get("wouldBlock").is_none() || action.as_deref() == Some("tryCues") {
+                        return result;
+                    }
+                    if action.as_deref() == Some("initialCues") {
+                        return error("RESOURCE_LIMIT_EXCEEDED", "InitialSubtitleBudget");
+                    }
+                    if let Err(e) = self.handle.wait_capacity().await {
+                        return failure(e);
+                    }
+                }
+            }
+        }
+        let result = super::multitrack::command(&self.handle, text).await;
         if result.get("error").is_some() && action.as_deref() == Some("pause") {
             self.hold.store(false, Ordering::SeqCst);
         }
@@ -483,6 +686,79 @@ impl Bridge {
         let mut output = self.output.clone();
         let result = {
             let run = async {
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Some(store) = &self.recovery {
+                    if !store.terminal() {
+                        let replaced = |v: &Value| {
+                            self.recovery_snapshots
+                                .iter()
+                                .any(|fresh| fresh["inputId"] == v["inputId"])
+                                && matches!(
+                                    v["action"].as_str(),
+                                    Some("accept" | "end" | "restart")
+                                )
+                        };
+                        for command in store
+                            .journal()
+                            .into_iter()
+                            .filter(|v| !replaced(v))
+                            .chain(self.recovery_snapshots.clone())
+                        {
+                            let r = if matches!(
+                                command["action"].as_str(),
+                                Some("initialText" | "tryText" | "text")
+                            ) {
+                                self.text_command(command.clone(), true).await
+                            } else if self.recovery_snapshots.contains(&command) {
+                                store.admit(command.clone(), || {
+                                    super::recovery::try_command(&self.handle, &command)
+                                })
+                            } else {
+                                super::recovery::try_command(&self.handle, &command)
+                            };
+                            if r.get("wouldBlock").is_some() {
+                                return Err(error("RESUME_REPLAY_REQUIRED", "ReplayCapacity"));
+                            }
+                            if r.get("error").is_some() {
+                                return Err(r);
+                            }
+                        }
+                        // Fresh polling must not overtake asynchronous subtitle replay.
+                        self.output
+                            .host
+                            .control(json!({"action":"recoveryReady"}).to_string())
+                            .await
+                            .map_err(|_| error("OUTPUT_WRITE_FAILED", "recoveryReady"))?;
+                    }
+                    let saved = store.clone();
+                    let recovery = RecoveryOptions::new(Arc::new(move |c| saved.commit(c)))
+                        .with_durability(if store.synced {
+                            CheckpointDurability::SyncAll
+                        } else {
+                            CheckpointDurability::Flush
+                        })
+                        .with_output_format(if self.format == OutputFormat::FragmentedMp4 {
+                            OutputFormat::FragmentedMp4
+                        } else {
+                            OutputFormat::StreamingMp4
+                        });
+                    let mut result = session
+                        .write_recoverable_to_file(&store.path, recovery)
+                        .await
+                        .map(report)
+                        .map_err(failure);
+                    match &mut result {
+                        Ok(report) => store.finish(report)?,
+                        Err(error) => {
+                            let mut published =
+                                json!({"outputs":error["error"]["completedRecordingOutputs"]});
+                            store.merge_outputs(&mut published);
+                            error["error"]["completedRecordingOutputs"] =
+                                published["outputs"].clone();
+                        }
+                    }
+                    return result;
+                }
                 if self.kind == "blob" {
                     let (bytes, report) = session
                         .into_bytes(self.capacity, self.format)
@@ -493,7 +769,7 @@ impl Bridge {
                         .write("0".into(), bytes)
                         .await
                         .map_err(|_| error("OUTPUT_WRITE_FAILED", "write"))?;
-                    return Ok(report);
+                    return Ok(super::multitrack::report(report));
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 if self.kind == "file" || self.kind == "files" {
@@ -503,9 +779,14 @@ impl Bridge {
                             FileOutputOptions::default().with_format(self.format),
                         )
                         .await
+                        .map(report)
                         .map_err(failure);
                 }
-                session.write_to_outputs(&mut output).await.map_err(failure)
+                session
+                    .write_to_outputs(&mut output)
+                    .await
+                    .map(report)
+                    .map_err(failure)
             };
             let pump = async {
                 loop {
@@ -516,15 +797,13 @@ impl Bridge {
                 Ok::<(), std::io::Error>(())
             };
             tokio::pin!(run);
-            // v0.9's paused boundary self-wakes its watch receiver. After its
+            // The paused boundary self-wakes its watch receiver. After its
             // acknowledgement, poll media again only when a control releases it.
             // Keep the independent event pump running while media is paused.
             let gated = std::future::poll_fn(|cx| {
                 let mut wake = self.wake.lock().unwrap();
                 *wake = Some(cx.waker().clone());
-                if self.hold.load(Ordering::SeqCst)
-                    && self.handle.state() == ContinuousState::Paused
-                {
+                if self.hold.load(Ordering::SeqCst) && self.handle.state() == EngineState::Paused {
                     return Poll::Pending;
                 }
                 drop(wake);
@@ -536,6 +815,18 @@ impl Bridge {
                 _=pump=>{self.handle.cancel();Err(error("OUTPUT_WRITE_FAILED","event"))}
             }
         };
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(mut e) = self
+            .recovery
+            .as_ref()
+            .and_then(|s| s.failure.lock().unwrap().clone())
+        {
+            if let Err(ref failure) = result {
+                e["error"]["completedRecordingOutputs"] =
+                    failure["error"]["completedRecordingOutputs"].clone();
+            }
+            return e;
+        }
         if let Some(error) = self.output.events.lock().unwrap().playback_error.clone() {
             return error;
         }
@@ -550,7 +841,7 @@ impl Bridge {
         }
     }
 }
-pub async fn command(handle: &ContinuousHandle, text: &str) -> Value {
+pub async fn command(handle: &EngineHandle, text: &str) -> Value {
     let run = async {
         let v: Value = serde_json::from_str(text).map_err(|_| invalid())?;
         let id = || InputId::new(v["inputId"].as_str().unwrap_or("")).map_err(|_| invalid());
@@ -584,6 +875,7 @@ pub async fn command(handle: &ContinuousHandle, text: &str) -> Value {
                 )
                 .map_err(|_| error("MANIFEST_INVALID", "playlist"))?;
                 handle
+                    .control()
                     .accept_when_ready(&input, &snapshot)
                     .await
                     .map_err(failure)?;

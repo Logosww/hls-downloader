@@ -347,7 +347,7 @@ for (const [name, adapter] of [
       await Promise.all([check, success]);
       expect(seen).toEqual(['keep']);
     });
-    it('exports subtitles on the shared timeline without reading full media', async () => {
+    it('exports subtitles on the Engine output clock', async () => {
       const s = await fixture();
       const d = new HlsDownloader({ adapter });
       const r = await d.downloadSubtitles({
@@ -356,7 +356,7 @@ for (const [name, adapter] of [
       });
       expect(r.mimeType).toBe('text/vtt');
       expect(r.text).toContain('00:00:00.500 --> 00:00:01.000 align:start');
-      expect(s.requests.filter((r) => r.path.startsWith('/audio/segment-')).length).toBeLessThan(4);
+      expect(s.requests.filter((r) => r.path.startsWith('/audio/segment-')).length).toBe(4);
     });
     it('rejects implicit alternate audio with copy transcoding before reading media', async () => {
       const s = await fixture();
@@ -366,8 +366,10 @@ for (const [name, adapter] of [
           url: s.origin + '/master.m3u8',
           transcode: { videoCodec: 'copy', audioCodec: 'copy' },
         }),
-      ).rejects.toMatchObject({ code: 'UNSUPPORTED_OUTPUT' });
-      expect(s.requests).toHaveLength(1);
+      ).rejects.toMatchObject({
+        code: name === 'Browser' ? 'TRANSCODE_FAILED' : 'UNSUPPORTED_OUTPUT',
+      });
+      expect(s.requests).toHaveLength(name === 'Browser' ? 0 : 1);
     });
     it('rejects missing audio before media requests', async () => {
       const s = await fixture();

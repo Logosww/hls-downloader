@@ -149,6 +149,7 @@ type HlsDownloaderDownloadOptions = {
 ```ts
 type HlsDownloaderStreamResult = {
   totalSegments: number;
+  report?: HlsEngineReport;
 };
 ```
 
@@ -175,6 +176,7 @@ type GlobalOptions<T extends HlsDownloaderAdapter> = {
 type BrowserAdapterDownloadResult = {
   blobURL: string;
   totalSegments: number;
+  report?: HlsEngineReport;
 };
 ```
 
@@ -184,6 +186,7 @@ type BrowserAdapterDownloadResult = {
 type NodeAdapterDownloadResult = {
   filePath: string;
   totalSegments: number;
+  report?: HlsEngineReport;
 };
 ```
 
@@ -202,10 +205,10 @@ export type HlsDownloaderWritableOptions = HlsDownloaderFetchOptions &
 
 ```ts
 import type { NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/node';
-// { directory: string }
+// { directory: string; durability?: 'flush' | 'sync-all' }
 ```
 
-仅用于 Node 单次 `download()`。可选 `AdapterCapabilities.resumableDownload?: boolean` 缺省视为不支持。新增恢复错误码 `RESUME_CONFLICT`、`RESUME_INVALID`、`RESUME_IO_FAILED`。
+用于 Node 确定文件路径的下载与录制，durability 默认 `sync-all`。Browser、Blob、Writable 和任意文件工厂不支持恢复。错误包括 `RESUME_CONFLICT`、`RESUME_INVALID`、`RESUME_IO_FAILED` 和 `RESUME_REPLAY_REQUIRED`。参见 [Engine 恢复](/guide/engine)。
 
 ## HlsDownloaderBrowserRequestOptions
 
@@ -242,12 +245,25 @@ master 结果增加可选 `renditions`，variant 增加 `audioGroup`、`subtitle
 
 `HlsDownloaderSubtitleOptions` 包含请求配置和必填 `subtitle: { groupId, name }`，以及可选的 `variant`、`audio`、`operationId`、`filename`、`maxRetry`、`downloadConcurrency`。Browser 额外接受 `browserRequest`。`HlsDownloaderSubtitleResult` 包含 `operationId`、`text`、`mimeType: 'text/vtt'`、`filename` 和 `totalSegments`。
 
-## Timeline types
+## Engine 类型
 
-根包及 shared 导出 `HlsMediaTime`、`HlsPresentationRange`、`HlsTimelineOptions`、`HlsMultiTimelineOptions`、`HlsTimelineReport`、`HlsTimelineMapping`、`HlsTimelineOutputDescriptor`、`HlsOutputFactory`、`HlsCompletedOutput`、`HlsSidecar` 和 `HlsChapterOptions`。`HlsDownloaderOutputsOptions` 不接受转码/恢复，仅多输出选项的 timeline 接受 `changePolicy`。sample key request 包含可选 `kid` 及扩展的 method 联合类型。
+`HlsEngineReport`, `HlsEngineEvent`, `HlsEngineOutputRequest`, `HlsEngineOutputReport`,
+`HlsTimelineMap`, `HlsResumeOptions`, `HlsCapabilityQuery`, `HlsCapabilityDecision`.
 
-`HlsDownloaderErrorCode` 新增 `RANGE_INVALID`、`TIMELINE_FAILED`、`RESOURCE_CHANGED` 和 `BRIDGE_VERSION_MISMATCH`。安全错误上下文可包含 `trackId`、十进制字符串 `sampleIndex`、`scheme` 和 `completedOutputs`，不公开原始 key 或 provider 消息。
+[完整契约与示例](/guide/engine)。
 
-## 多轨类型
+## HlsSubtitleSidecar / HlsSubtitleCommit
 
-`HlsMultiTrackOptions<O>` 必须指定 `embeddedAudio` 和录制风格的显式 `output`。`HlsAudioTrackSelection`、`HlsSubtitleTrackSelection`、`HlsTrackMetadata`、`HlsMultiTrackPlaybackTarget` 描述选轨和播放检查。`HlsMultiTrackSession<O>` 控制方法接受任意所选媒体 ID，`HlsMultiTrackResult<O>` 根据 adapter/output 推导 Blob 或文件路径。`HlsMultiTrackReport`、`HlsMultiTrackInfo`、`HlsSubtitleCueReport`、`HlsMultiTrackEvent` 提供独立多轨元数据和字幕回执，不改变旧轨道枚举。自定义 adapter 的 `HlsMultiTrackCapabilities` 可选。`MULTITRACK_FAILED` 表示多轨会话/控制失败，既有资源、字幕、加密、取消、输出错误分类含义不变。
+`HlsMultiTrackOptions` 的字幕选择支持以下输出。file 仅适用于 Node 固定媒体文件；恢复要求每条选中字幕都有固定 sidecar 文件。完成、分卷及恢复语义见 [Engine 指南](/guide/engine#持续-webvtt-sidecar)。
+
+```ts
+type HlsSubtitleSidecarRequest = { inputId: string; outputIndex: string };
+type HlsSubtitleSidecar =
+  | { type: 'writable'; writable: WritableStream<Uint8Array> }
+  | { type: 'writables'; acquire: (request: HlsSubtitleSidecarRequest) => Promise<WritableStream<Uint8Array>> }
+  | { type: 'file'; path: string };
+```
+
+`HlsSubtitleTrackSelection` 新增 `embedded?: boolean`（默认 `true`）与 `sidecar?: HlsSubtitleSidecar`。`HlsMultiTrackEvent` 新增 `{ type: 'subtitleCommit'; commit: HlsSubtitleCommit }`；其 `cues` 包含 receipt、输入/轨道/分卷、generation/epoch、payload/settings、精确输出时间及 `Written`、`Clipped`、`RejectedLate`、`RejectedRange` 结果。`frontiers` 提供输入/轨道/分卷、generation/epoch 及已提交 `end`。协议计数和 epoch 使用十进制字符串。
+
+`HlsDownloaderSubtitleOptions` 新增 `decryption` 与 `maxBytes`（默认 16 MiB）；`HlsDownloaderSubtitleOutputsOptions` 继承两者。静态多轨能力新增 `subtitleResources` 与 `subtitleSidecars: { outputs, resume }`。

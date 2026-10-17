@@ -122,27 +122,27 @@ describe('NodeAdapter protocol contract', () => {
     expect(capabilities.aes128).toBe(true);
     expect(capabilities.decryption).toMatchObject({
       methods: ['AES-128', 'SAMPLE-AES', 'SAMPLE-AES-CTR'],
-      containers: ['ts', 'fmp4'],
+      containers: ['ts', 'fmp4', 'packed-aac'],
       codecs: ['avc', 'hevc', 'aac-lc'],
       finite: true,
       externalAudio: true,
-      resume: false,
+      resume: true,
     });
     expect(Object.isFrozen(capabilities.decryption)).toBe(true);
     expect(Object.isFrozen(capabilities.decryption!.methods)).toBe(true);
-    expect(capabilities.decryption?.profiles).toHaveLength(5);
+    expect(capabilities.decryption?.profiles).toHaveLength(7);
     expect(capabilities.timeline).toEqual({
       finite: true,
       ranges: true,
       epochs: true,
       split: true,
-      resume: false,
+      resume: true,
     });
     expect(capabilities.liveRecording).toBe(true);
     expect(capabilities.recording).toMatchObject({
       pause: 'vod',
       outputs: ['writable', 'writables', 'file', 'files'],
-      resume: false,
+      resume: true,
     });
   });
 
@@ -253,20 +253,38 @@ describe('NodeAdapter protocol contract', () => {
   });
 
   it.each(unsupportedMediaScenarios)(
-    'rejects native %s playlists before fetching media',
-    async (_name, manifest) => {
+    'uses the Engine finite-input contract for %s playlists',
+    async (name, manifest) => {
       const server = await startFixtureServer({
         '/media.m3u8': (_request, response) => sendText(response, manifest),
-        '/segment.ts': (_request, response) => sendBytes(response, new Uint8Array([1])),
+        '/segment.ts': (_request, response) => sendBytes(response, fixture('ts/segment-00.ts')),
       });
       servers.push(server);
       const downloader = new HlsDownloader({ adapter: NodeAdapter });
-      await expect(
-        downloader.download({ url: `${server.origin}/media.m3u8` }),
-      ).rejects.toMatchObject({
-        code: HlsDownloaderErrorCode.TRANSMUX_FAILED,
-      });
-      expect(server.attempts.get('/segment.ts')).toBeUndefined();
+      if (name === 'live') {
+        await expect(
+          downloader.download({ url: server.origin + '/media.m3u8' }),
+        ).rejects.toMatchObject({ code: 'UNSUPPORTED_RENDITION' });
+        expect(server.attempts.get('/segment.ts')).toBeUndefined();
+      } else {
+        const chunks: Uint8Array[] = [];
+        const result = await downloader.downloadToWritable(
+          { url: server.origin + '/media.m3u8' },
+          new WritableStream({
+            write(b) {
+              chunks.push(b);
+            },
+          }),
+        );
+        expect(result.report?.inputs[0]?.committed).toBe('1');
+        expect(server.attempts.get('/segment.ts')).toBeGreaterThan(0);
+        const path = resolve('native-contract-' + randomUUID() + '.mp4');
+        outputs.push(path);
+        writeFileSync(path, Buffer.concat(chunks));
+        expect(probe(path).streams.map((s) => s.codec_name)).toEqual(
+          expect.arrayContaining(['h264', 'aac']),
+        );
+      }
     },
   );
 

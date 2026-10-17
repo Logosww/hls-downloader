@@ -193,7 +193,7 @@ export function createApp(manager: TaskManager) {
     )
     .get('/downloads/:id/report', ({ params }) => {
       const error = timelineTaskError(manager, params.id);
-      return error ?? ok(manager.get(params.id)!.timelineReport);
+      return error ?? ok(manager.get(params.id)!.timelineMap);
     })
     .post(
       '/downloads/:id/subtitles',
@@ -244,7 +244,7 @@ function timelineTaskError(manager: TaskManager, id: string): Response | undefin
   const task = manager.get(id);
   if (!task) return Response.json(fail('Task not found'), { status: 404 });
   if (task.status === 'expired') return Response.json(fail('File has expired'), { status: 410 });
-  if (task.status !== 'completed' || !task.timelineReport)
+  if (task.status !== 'completed' || !task.timelineMap)
     return Response.json(fail('A completed timeline download is required'), { status: 409 });
 }
 async function fileResponse(manager: TaskManager, id: string, index?: string): Promise<Response> {

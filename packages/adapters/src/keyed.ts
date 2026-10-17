@@ -13,18 +13,21 @@ import type {
 import { assertActive, cancellable } from './browser/request';
 import { readBoundedResource } from './bounded';
 import {
-  checkPreparedReport,
+  checkEngineResult,
   type SelectedMedia,
   type RequestOptions,
-  type PreparedReport,
+  type EngineBridgeResult,
 } from './renditions';
 
 export const decryptionProfile = Object.freeze({
+  experimentalMethods: Object.freeze(['AES-256-GCM'] as const),
   methods: Object.freeze(['AES-128', 'SAMPLE-AES', 'SAMPLE-AES-CTR'] as const),
   profiles: Object.freeze(
     [
       { method: 'AES-128', container: 'ts', scheme: 'cbc', codecs: ['avc', 'hevc', 'aac-lc'] },
       { method: 'AES-128', container: 'fmp4', scheme: 'cbc', codecs: ['avc', 'hevc', 'aac-lc'] },
+      { method: 'AES-128', container: 'packed-aac', scheme: 'cbc', codecs: ['aac-lc'] },
+      { method: 'SAMPLE-AES', container: 'packed-aac', scheme: 'sample-cbc', codecs: ['aac-lc'] },
       { method: 'SAMPLE-AES', container: 'ts', scheme: 'sample-cbc', codecs: ['avc', 'aac-lc'] },
       {
         method: 'SAMPLE-AES',
@@ -40,7 +43,7 @@ export const decryptionProfile = Object.freeze({
       },
     ].map((p) => Object.freeze({ ...p, codecs: Object.freeze(p.codecs) })),
   ),
-  containers: Object.freeze(['ts', 'fmp4'] as const),
+  containers: Object.freeze(['ts', 'fmp4', 'packed-aac'] as const),
   codecs: Object.freeze(['avc', 'hevc', 'aac-lc'] as const),
   finite: true as const,
   externalAudio: true as const,
@@ -57,16 +60,9 @@ export type KeyedEngine = (
   signal: AbortSignal,
   control?: import('@hls-downloader/shared').HlsOutputControl,
 ) => Promise<string>;
-export function requiresKeyed(media: SelectedMedia, options: RequestOptions): boolean {
-  return (
-    options.timeline !== undefined ||
-    options.decryption !== undefined ||
-    [media.primary, media.audio].some((s) => s && /^\s*#EXT-X-KEY:/m.test(s.text))
-  );
-}
 export function parseMediaMetadata(result: string): HlsMediaPlaylist {
   const value = JSON.parse(result);
-  checkPreparedReport(value);
+  checkEngineResult(value);
   return value as HlsMediaPlaylist;
 }
 const defaults = {
@@ -88,7 +84,7 @@ export async function executeKeyed(
   write: (bytes: Uint8Array, index?: string) => Promise<void>,
   output?: string,
   control?: import('@hls-downloader/shared').HlsOutputControl,
-): Promise<PreparedReport> {
+): Promise<EngineBridgeResult> {
   if (options.transcode !== undefined)
     throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Encrypted input cannot be transcoded');
   const limits = {
@@ -147,7 +143,8 @@ export async function executeKeyed(
   try {
     const result = await engine(
       JSON.stringify({
-        wireVersion: 3,
+        wireVersion: 4,
+        experimentalGcm: options.decryption?.experimentalGcm ?? false,
         timeline: options.timeline,
         primary: snapshot(media.primary),
         audio: media.audio && snapshot(media.audio),
@@ -168,7 +165,7 @@ export async function executeKeyed(
               (
                 await readBoundedResource(
                   r,
-                  Number(r.maxBytes),
+                  r.offset == null ? Number(r.maxBytes) : limits.resourceBytes,
                   options.headers,
                   options.maxRetry ?? adapter.segmentRetryAttempts,
                   signal,
@@ -226,7 +223,7 @@ export async function executeKeyed(
                   key: (
                     await readBoundedResource(
                       { url: data.uri },
-                      17,
+                      data.method === 'AES-256-GCM' ? 33 : 17,
                       options.headers,
                       options.maxRetry ?? adapter.segmentRetryAttempts,
                       signal,
@@ -249,11 +246,13 @@ export async function executeKeyed(
             if (
               !reply ||
               !(reply.key instanceof Uint8Array) ||
-              reply.key.byteLength !== 16 ||
+              reply.key.byteLength !== (data.method === 'AES-256-GCM' ? 32 : 16) ||
               (reply.version !== undefined && typeof reply.version !== 'string') ||
               (reply.expiresInMs !== undefined &&
                 (!Number.isSafeInteger(reply.expiresInMs) || reply.expiresInMs < 0))
             )
+              return { ...empty, status: 'invalid' };
+            if ((options as Record<string, unknown>).resume && !reply.version)
               return { ...empty, status: 'invalid' };
             assertActive(signal);
             return {
@@ -298,9 +297,20 @@ export async function executeKeyed(
           }
         }),
     );
-    if (originalError) throw originalError;
-    assertActive(options.signal);
-    return checkPreparedReport(camelCaseReport(JSON.parse(result)));
+    try {
+      const checked = checkEngineResult(camelCaseReport(JSON.parse(result)));
+      if (originalError) throw originalError;
+      assertActive(options.signal);
+      return checked;
+    } catch (error) {
+      if (originalError instanceof HlsDownloaderError && error instanceof HlsDownloaderError)
+        originalError = new HlsDownloaderError(originalError.code, originalError.message, {
+          ...error,
+          status: originalError.status,
+          attempt: originalError.attempt,
+        });
+      throw originalError ?? error;
+    }
   } catch (error) {
     throw originalError ?? error;
   } finally {
@@ -310,29 +320,4 @@ export async function executeKeyed(
   }
 }
 
-export function executeMedia(
-  adapter: HlsDownloaderAdapterInternal,
-  options: RequestOptions & { signal: AbortSignal },
-  media: SelectedMedia,
-  legacy: import('./prepared').Engine,
-  keyed: KeyedEngine,
-  mode: string,
-  write: (bytes: Uint8Array, index?: string) => Promise<void>,
-  output?: string,
-  timeline?: KeyedEngine,
-): Promise<PreparedReport> {
-  if (options.timeline) {
-    validateTimeline(options.timeline, false);
-    if (!timeline)
-      throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Timeline engine unavailable');
-    return executeKeyed(adapter, options, media, timeline, mode, write, output, async (r) =>
-      r.action === 'acquire' ? (output ?? '') : '',
-    );
-  }
-  return requiresKeyed(media, options)
-    ? executeKeyed(adapter, options, media, keyed, mode, write, output)
-    : executePrepared(adapter, options, media, legacy, mode, write, output);
-}
-import { executePrepared } from './prepared';
-
-import { validateTimeline, camelCaseReport } from './timeline';
+import { camelCaseReport } from './timeline';

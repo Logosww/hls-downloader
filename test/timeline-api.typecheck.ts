@@ -4,7 +4,7 @@ import { NodeAdapter } from '../packages/adapters/src/node/index';
 import {
   exportChapters,
   type HlsKeyResolver,
-  type HlsTimelineReport,
+  type HlsTimelineMap,
 } from '../packages/shared/src/index';
 const browser = new HlsDownloader({ adapter: BrowserAdapter });
 const node = new HlsDownloader({ adapter: NodeAdapter });
@@ -12,13 +12,13 @@ const timeline = {
   range: { start: { ticks: '1', timescale: 1 }, end: { ticks: '4', timescale: 1 } },
 };
 const resolver: HlsKeyResolver = async (request) => {
-  const method: 'AES-128' | 'SAMPLE-AES' | 'SAMPLE-AES-CTR' = request.method;
+  const method: 'AES-128' | 'SAMPLE-AES' | 'SAMPLE-AES-CTR' | 'AES-256-GCM' = request.method;
   const kid: string | undefined = request.kid;
   void method;
   void kid;
   return { key: new Uint8Array(16) };
 };
-async function check(report: HlsTimelineReport) {
+async function check(report: HlsTimelineMap) {
   const a = await browser.download({ url: 'x', timeline, decryption: { keyResolver: resolver } });
   const blob: string = a.blobURL;
   void blob;
@@ -39,10 +39,10 @@ async function check(report: HlsTimelineReport) {
   await browser.downloadSubtitleOutputs({
     url: 'x',
     subtitle: { groupId: 's', name: 'en' },
-    timelineReport: report,
+    timelineMap: report,
   });
   exportChapters({
-    timelineReport: report,
+    timelineMap: report,
     chapters: [{ range: timeline.range, title: 'chapter' }],
   });
   // @ts-expect-error split requires a multi-output method

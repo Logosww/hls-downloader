@@ -22,9 +22,7 @@ pub async fn extract_poster(
 
     let bytes = response.bytes().await?;
 
-    let tmp_file = tempfile::Builder::new()
-        .suffix(".ts")
-        .tempfile()?;
+    let tmp_file = tempfile::Builder::new().suffix(".ts").tempfile()?;
     {
         let mut f = tmp_file.as_file();
         f.write_all(&bytes)?;
@@ -123,7 +121,8 @@ fn encode_rgb_to_jpeg(rgb_data: &[u8], width: u32, height: u32) -> Vec<u8> {
         return Vec::new();
     };
 
-    let mut src_frame = ffmpeg_next::frame::Video::new(ffmpeg_next::format::Pixel::RGB24, width, height);
+    let mut src_frame =
+        ffmpeg_next::frame::Video::new(ffmpeg_next::format::Pixel::RGB24, width, height);
     src_frame.data_mut(0)[..rgb_data.len()].copy_from_slice(rgb_data);
 
     let mut yuv_frame = ffmpeg_next::frame::Video::empty();

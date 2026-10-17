@@ -4,7 +4,7 @@ import type {
   HlsMediaTime,
   HlsSidecar,
   HlsTimelineMapping,
-  HlsTimelineReport,
+  HlsTimelineMap,
   HlsTimelineTrackSelection,
 } from './timeline';
 type Rational = { n: bigint; d: bigint };
@@ -30,11 +30,13 @@ const cmp = (a: Rational, b: Rational): number =>
 const max = (a: Rational, b: Rational): Rational => (cmp(a, b) >= 0 ? a : b);
 const min = (a: Rational, b: Rational): Rational => (cmp(a, b) <= 0 ? a : b);
 const zero: Rational = { n: 0n, d: 1n };
-function mappings(
-  report: HlsTimelineReport,
-  track?: HlsTimelineTrackSelection,
-): HlsTimelineMapping[] {
-  if (report?.schemaVersion !== 1 || !Array.isArray(report.outputs) || !report.outputs.length)
+function mappings(report: HlsTimelineMap, track?: HlsTimelineTrackSelection): HlsTimelineMapping[] {
+  if (
+    report?.schemaVersion !== 2 ||
+    !report.complete ||
+    !Array.isArray(report.outputs) ||
+    !report.outputs.length
+  )
     invalid();
   const all = report.outputs.flatMap((o) => o.mappings);
   if (!track) {
@@ -82,7 +84,7 @@ function put(
   cues.set(m.outputIndex, list);
 }
 function render(
-  report: HlsTimelineReport,
+  report: HlsTimelineMap,
   cues: Map<string, Cue[]>,
   filename: string,
   metadata: string[] = [],
@@ -111,13 +113,12 @@ function render(
 }
 /** Export caller-supplied presentation intervals on each output's media clock. */
 export function exportChapters(options: HlsChapterOptions): HlsSidecar[] {
-  const selected = mappings(options.timelineReport, options.track),
+  const selected = mappings(options.timelineMap, options.track),
     cues = new Map<string, Cue[]>();
   for (const c of options.chapters) {
     const start = time(c.range.start),
       end = time(c.range.end);
     if (
-      cmp(start, zero) < 0 ||
       cmp(start, end) >= 0 ||
       typeof c.title !== 'string' ||
       !c.title.trim() ||
@@ -133,7 +134,7 @@ export function exportChapters(options: HlsChapterOptions): HlsSidecar[] {
     for (const m of selected)
       put(cues, m, start, end, { body: title, id: c.id ?? '', settings: '' });
   }
-  return render(options.timelineReport, cues, options.filename ?? 'chapters');
+  return render(options.timelineMap, cues, options.filename ?? 'chapters');
 }
 export type HlsWebVttPart = {
   text: string;
@@ -153,7 +154,7 @@ function parseStamp(s: string): Rational {
 /** Map clear WebVTT resources using media clocks; epoch sequence numbers are not clocks. */
 export function mapTimelineWebVtt(
   parts: readonly HlsWebVttPart[],
-  report: HlsTimelineReport,
+  report: HlsTimelineMap,
   track?: HlsTimelineTrackSelection,
   filename = 'subtitles',
 ): HlsSidecar[] {

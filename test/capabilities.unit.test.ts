@@ -14,7 +14,8 @@ const evidence = {
     stream: 'hls-http.integration: EXT-X-MAP stream',
     configurableRetry: 'hls-http.integration: transient segment retry',
     byteRange: 'hls-http.integration: real Range requests',
-    transcodePresets: 'library-api.e2e: transcode option forwarding',
+    transcodePresets:
+      'transcode-selected.integration + browser/transcode-smoke: selected encrypted media, actual codecs, bounds and cancellation',
   },
 } as const;
 
@@ -41,7 +42,7 @@ describe('capability evidence', () => {
     expect(capabilities.aes128).toBe(true);
     expect(capabilities.decryption).toMatchObject({
       methods: ['AES-128', 'SAMPLE-AES', 'SAMPLE-AES-CTR'],
-      containers: ['ts', 'fmp4'],
+      containers: ['ts', 'fmp4', 'packed-aac'],
       codecs: ['avc', 'hevc', 'aac-lc'],
       finite: true,
       externalAudio: true,
@@ -49,7 +50,7 @@ describe('capability evidence', () => {
     });
     expect(Object.isFrozen(capabilities.decryption)).toBe(true);
     expect(Object.isFrozen(capabilities.decryption!.methods)).toBe(true);
-    expect(capabilities.decryption?.profiles).toHaveLength(5);
+    expect(capabilities.decryption?.profiles).toHaveLength(7);
     expect(capabilities.timeline).toEqual({
       finite: true,
       ranges: true,

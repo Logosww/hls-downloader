@@ -1,17 +1,14 @@
 pub mod cancel;
-pub mod resume;
 pub mod download;
 pub mod hls;
 pub mod poster;
-pub mod transmux;
 
 pub use cancel::JobCancelToken;
 pub use download::{
-    download_and_merge, download_segments_to_dir, Aria2Options, DownloadProgress, MergeProgress,
-    TranscodeOptions,
+    Aria2Options, DownloadProgress, MergeProgress, TranscodeOptions, download_and_merge,
+    download_segments_to_dir,
 };
-pub use transmux::{transmux_hls_to_stream, transmux_segments_to_mp4_file};
-pub use hls::{parse_hls, ParseHlsResult, Playlist, Segment};
+pub use hls::{ParseHlsResult, Playlist, Segment, parse_hls};
 pub use poster::extract_poster;
 
 use std::sync::Once;

@@ -397,8 +397,9 @@ describe('Bun API', () => {
   });
 });
 
-const timelineReport = {
-  schemaVersion: 1 as const,
+const timelineMap = {
+  schemaVersion: 2 as const,
+  complete: true,
   requested: null,
   actual: { start: { ticks: '0', timescale: 1 }, end: { ticks: '2', timescale: 1 } },
   preroll: null,
@@ -447,7 +448,33 @@ describe('Bun timeline lifecycle', () => {
     job.resolve({
       operationId: 'multi',
       totalSegments: 2,
-      timelineReport,
+      report: {
+        schemaVersion: 1,
+        timelineMap,
+        configurationId: [],
+        tracks: [],
+        subtitleReports: [],
+        trackHistoryTruncated: false,
+        subtitleHistoryTruncated: false,
+        endReason: 'Eof',
+        inputs: [],
+        bytesWritten: '20',
+        duration: { ticks: '2', timescale: 1 },
+        requestedRange: null,
+        actualRange: null,
+        gapCount: '0',
+        mappings: [],
+        historyTruncated: false,
+        peaks: { queuedDescriptors: '0', queuedMetadataBytes: '0', samples: '0', sampleBytes: '0' },
+        outputs: timelineMap.outputs.map((o) => ({
+          ...o,
+          duration: '2',
+          durationTimescale: 1,
+          segmentCount: '1',
+          collectedBytes: '0',
+          classicIndexSamples: '0',
+        })),
+      },
       outputs: [
         { index: '0', filePath: '/tmp/no-app-output-one.mp4' },
         { index: '1', filePath: '/tmp/no-app-output-two.mp4' },
@@ -460,7 +487,7 @@ describe('Bun timeline lifecycle', () => {
         { index: '0', filename: 'movie.001.mp4' },
         { index: '1', filename: 'movie.002.mp4' },
       ],
-      timelineReport,
+      timelineMap,
     });
     const app = createApp(manager);
     expect((await app.handle(new Request('http://test/downloads/multi/file'))).status).toBe(409);
@@ -491,9 +518,7 @@ describe('Bun timeline lifecycle', () => {
       job.reject(
         Object.assign(new Error('output failed'), {
           code: mode === 'cancel' ? 'ABORTED' : 'OUTPUT_WRITE_FAILED',
-          completedOutputs: [
-            { ...timelineReport.outputs[0], filePath: '/tmp/no-app-published.mp4' },
-          ],
+          completedOutputs: [{ ...timelineMap.outputs[0], filePath: '/tmp/no-app-published.mp4' }],
         }),
       );
       await settle();
@@ -557,9 +582,7 @@ it('keeps cancellation SSE open until late published outputs and cleanup settle'
     Object.assign(new Error('aborted'), {
       name: 'AbortError',
       code: 'ABORTED',
-      completedOutputs: [
-        { ...timelineReport.outputs[0], filePath: '/tmp/no-app-sse-published.mp4' },
-      ],
+      completedOutputs: [{ ...timelineMap.outputs[0], filePath: '/tmp/no-app-sse-published.mp4' }],
     }),
   );
   const events = await body;
