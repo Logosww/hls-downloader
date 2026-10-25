@@ -696,7 +696,19 @@ export async function runMultiTrack(
         maxBytes: out.type === 'blob' ? out.maxBytes : undefined,
         durationLimit: options.durationLimit,
         missingSegments: options.missingSegments,
-        limits: options.limits ?? {},
+        limits: {
+          ...options.limits,
+          // The engine admits each VOD snapshot atomically. Its recording default
+          // of 128 descriptors must not become a finite playlist length limit.
+          queuedDescriptors:
+            options.limits?.queuedDescriptors ??
+            (finite
+              ? Math.max(
+                  128,
+                  snapshots.reduce((total, [, s]) => total + s.metadata.segments.length, 0),
+                )
+              : undefined),
+        },
         timeline: options.timeline ?? {},
       };
       bridge = await factory(

@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Finite downloads no longer fail with `QueueLimit` solely because a playlist exceeds 128 segments; explicit queue limits and metadata budgets remain enforced.
 - Avoid spurious `RESOURCE_CHANGED` errors when encrypted WebVTT playlists slide, while continuing to reject rewrites of overlapping subtitle resources.
 - Preserve decoded AAC samples across audio gaps in classic MP4 output.
 - Consistently report `RESUME_REPLAY_REQUIRED` for missing snapshot replay before modifying recovered output.

@@ -9,6 +9,7 @@ import { NodeAdapter } from '../packages/adapters/src/node/index';
 import { BrowserAdapter } from '../packages/adapters/src/browser/index';
 import { exportChapters } from '../packages/shared/src/index';
 import { startFixtureServer, sendText, sendBytes } from './fixtures/http-server';
+import { shiftTsTimestamps } from './fixtures/continuous-ts';
 const dir = mkdtempSync(join(tmpdir(), 'hls-engine-sdk-'));
 const media = (name: string) => readFileSync(resolve(import.meta.dirname, 'fixtures/media', name));
 const originalFetch = globalThis.fetch;
@@ -77,6 +78,57 @@ for (const [name, adapter] of [
   ['browser', BrowserAdapter],
 ] as const) {
   describe(name, () => {
+    it('downloads VOD beyond the recording queue default and honors explicit queue limits', async () => {
+      const count = 130;
+      const f = await startFixtureServer({
+        '/media.m3u8': (_, res) =>
+          sendText(
+            res,
+            '#EXTM3U\n#EXT-X-TARGETDURATION:2\n' +
+              Array.from({ length: count }, (_, i) => `#EXTINF:2,\nsegment.ts?i=${i}\n`).join('') +
+              '#EXT-X-ENDLIST\n',
+          ),
+        '/segment.ts': (req, res) =>
+          sendBytes(
+            res,
+            shiftTsTimestamps(media('ts/segment-00.ts'), Number(req.query.get('i')) * 2),
+          ),
+      });
+      try {
+        const downloader = new HlsDownloader({ adapter });
+        const url = f.origin + '/media.m3u8';
+        let bytes = 0;
+        const result = await downloader.downloadToWritable(
+          { url },
+          new WritableStream<Uint8Array>({
+            write(chunk) {
+              bytes += chunk.length;
+            },
+          }),
+        );
+        expect(result.totalSegments).toBe(count);
+        expect(bytes).toBeGreaterThan(0);
+        await expect(
+          downloader.downloadMultiTrack({
+            url,
+            embeddedAudio: 'keep',
+            limits: { queuedDescriptors: 128 },
+            output: { type: 'writable', writable: new WritableStream() },
+          }),
+        ).rejects.toMatchObject({ code: 'RESOURCE_LIMIT_EXCEEDED', reason: 'QueueLimit' });
+        await expect(
+          downloader.downloadMultiTrack({
+            url,
+            embeddedAudio: 'keep',
+            limits: { queuedMetadataBytes: 64 },
+            output: { type: 'writable', writable: new WritableStream() },
+          }),
+        ).rejects.toMatchObject({ code: 'RESOURCE_LIMIT_EXCEEDED' });
+      } finally {
+        await f.close();
+      }
+    });
+
     it('finite downloads use Engine reports and exact sidecar mappings', async () => {
       const f = await fixture();
       try {

@@ -80,9 +80,18 @@ try {
       await page.close();
     }
   }
-  // Segment count increases 100x, while media buffers and WASM high-water stay bounded.
-  // Allow allocator/GC and playlist metadata overhead rather than asserting a false constant RSS.
-  assert.ok(measurements[3].wasmPeak < measurements[1].wasmPeak * 8);
+  // VOD snapshots are admitted atomically, so descriptor metadata grows with count.
+  // Check media buffering separately from the allocator's non-shrinking high-water.
+  for (const measurement of measurements) {
+    assert.ok(BigInt(measurement.peaks.queuedDescriptors) <= BigInt(measurement.count));
+    assert.ok(BigInt(measurement.peaks.queuedMetadataBytes) <= 4n * 1024n * 1024n);
+    assert.ok(BigInt(measurement.peaks.samples) <= BigInt(measurements[1].peaks.samples) * 2n);
+    assert.ok(
+      BigInt(measurement.peaks.sampleBytes) <= BigInt(measurements[1].peaks.sampleBytes) * 2n,
+    );
+    // Reserve 4 KiB per descriptor for parsed snapshots, queue copies and allocator slack.
+    assert.ok(measurement.wasmPeak < measurements[1].wasmPeak * 8 + measurement.count * 4096);
+  }
   assert.ok(measurements[3].heapPeak < measurements[1].heapPeak * 8);
   mkdirSync(resolve(root, 'test-results'), { recursive: true });
   writeFileSync(
@@ -92,7 +101,7 @@ try {
         browser: browser.version(),
         measurements,
         notes:
-          'JS heap includes playlist metadata and GC slack; WASM memory is a non-shrinking high-water mark. Output is discarded for memory runs. Resource-window bounds are asserted separately in integration tests.',
+          'JS heap includes playlist metadata and GC slack; WASM memory is a non-shrinking high-water mark with a 4 KiB/descriptor allowance for atomic VOD snapshots. Engine sample/count peaks are checked independently of metadata. Output is discarded for memory runs; stalled-writer backpressure is checked in integration tests.',
       },
       null,
       2,

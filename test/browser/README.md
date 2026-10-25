@@ -38,11 +38,17 @@ its high-water includes both playlist metadata and media processing. Heap
 telemetry includes GC slack. Do not subtract these counters to claim exact
 media-buffer bytes or treat them as total browser RSS.
 
-The browser harness applies a generous growth regression threshold; the
-resource-window assertions and stalled-writer HTTP test are the deterministic
-backpressure checks. Both Browser WASM and Node use the registry hls-transmux dependency. Since
-0.4.2, upstream skips unused mfra index accumulation when write_mfra is false;
-no local patch is needed.
+The current Engine admits complete VOD snapshots atomically. Finite downloads
+size the default descriptor queue for all selected media playlists; explicit queue
+limits and the 4 MiB default metadata budget still apply. The baseline above
+predates Engine integration and is retained as historical data.
+
+The browser harness allows 4 KiB per descriptor in the WASM high-water regression
+budget for parsed snapshots, queue copies and allocator slack. It separately
+checks that Engine sample counts and sample bytes stay within twice the 100-segment
+baseline, while queued metadata stays within 4 MiB. This distinguishes playlist
+metadata growth from accumulating media output. The stalled-writer HTTP test
+checks deterministic backpressure. Both Browser WASM and Node use hls-engine.
 
 ## App-web flow
 

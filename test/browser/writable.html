@@ -37,7 +37,7 @@ window.runWritable = async (count, playback) => {
         });
       } finally { video.removeAttribute('src'); video.load(); URL.revokeObjectURL(url); }
     }
-    return { segments: result.totalSegments, bytes, writes, heapPeak, wasmPeak, parsedHeap };
+    return { segments: result.totalSegments, bytes, writes, heapPeak, wasmPeak, parsedHeap, peaks: result.report.peaks };
   } finally { clearInterval(timer); if (directory) await directory.removeEntry("writable-smoke.mp4"); }
 };
 </script></body></html>
