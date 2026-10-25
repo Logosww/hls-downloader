@@ -87,6 +87,9 @@ jobs:
       - name: Fast tests
         run: pnpm test
 
+      - name: Build Node native module for protocol tests
+        run: pnpm --filter @hls-downloader/adapters run build:native
+
       - name: Build browser WASM from source for protocol tests
         run: |
           node -e "require('node:fs').rmSync('packages/adapters/src/browser/generated', { recursive: true, force: true })"
@@ -147,8 +150,8 @@ jobs:
       - name: Node native protocol contract
         run: pnpm run test:native:contract
 
-      - name: Prepared input contracts
-        run: pnpm run test:native:prepared
+      - name: Engine integration contracts
+        run: pnpm run test:engine
 
       - name: Rendition public types
         run: pnpm run test:types:renditions
