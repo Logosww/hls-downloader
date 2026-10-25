@@ -107,6 +107,31 @@ try {
     (origin) => (window as any).runAcceptance(origin),
     server.origin,
   );
+  assert.ok(result.results.some((r: any) => r.kind === 'transcode-vp9' && r.size > 0));
+  // A fresh page avoids codec-probe caches. Exercise Linux-like AAC encoder
+  // absence even on hosts where the real H.264/AAC transcode succeeds.
+  const withoutAacPage = await context.newPage();
+  await withoutAacPage.addInitScript(() => {
+    const isConfigSupported = AudioEncoder.isConfigSupported.bind(AudioEncoder);
+    AudioEncoder.isConfigSupported = async (config) =>
+      config.codec.startsWith('mp4a') ? { supported: false, config } : isConfigSupported(config);
+  });
+  await withoutAacPage.goto(`chrome-extension://${id}/task.html`);
+  await withoutAacPage.waitForFunction(() => typeof (window as any).runAcceptance === 'function');
+  const withoutAacEncoder = await withoutAacPage.evaluate(
+    (origin) => (window as any).runAcceptance(origin),
+    server.origin,
+  );
+  assert.ok(withoutAacEncoder.results.some((r: any) => r.kind === 'transcode-vp9' && r.size > 0));
+  assert.deepEqual(
+    withoutAacEncoder.results.find((r: any) => r.kind === 'transcode-h264'),
+    {
+      kind: 'transcode-h264',
+      unsupported: true,
+      code: 'UNSUPPORTED_OUTPUT',
+      reason: 'UnsupportedEncoder',
+    },
+  );
   assert.ok(
     server.requests.some((r) => r.headers.range),
     'Missing real Range requests',
@@ -114,6 +139,7 @@ try {
   const report = {
     browser: await context.browser()?.version(),
     ...result,
+    withoutAacEncoder,
     chrome:
       process.env.HLS_EXTENSION_CHANNEL === 'chrome'
         ? 'passed'

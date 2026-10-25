@@ -90,8 +90,13 @@ and an extension CSP with `wasm-unsafe-eval`. A controlled loopback server requi
 real HttpOnly session cookie, an Authorization header and a Referer applied by an
 asynchronously installed `declarativeNetRequest` session rule. Every manifest/init/media
 request must pass those checks. The rule is removed in `finally`. TS, fMP4 and byte-range
-fixtures write to OPFS, and the test verifies completion and the MP4 signature. H.264
-transcoding and fMP4 poster extraction exercise the WebCodecs media path as well.
+fixtures write to OPFS, and the test verifies completion and the MP4 signature.
+VP9/Opus transcoding must succeed with a nonempty WebM output. H.264/AAC must either
+produce MP4 or reject with `UNSUPPORTED_OUTPUT` / `UnsupportedEncoder`, because
+WebCodecs encoder availability varies by platform. Other errors always fail the test.
+A second fresh extension page disables AAC encoder support to exercise that rejection
+while still requiring VP9/Opus success. Both runs also verify fMP4 poster extraction;
+the report includes the second run under `withoutAacEncoder`.
 OPFS validates FileSystemWritableFileStream behavior; native save-picker UI remains a
 manual browser check and is not exercised by this fixture.
 

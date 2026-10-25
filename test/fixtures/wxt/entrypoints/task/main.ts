@@ -62,20 +62,55 @@ async function run(origin: string) {
       results.push({ kind, size: file.size, segments: result.totalSegments });
       await root.removeEntry(name);
     }
-    const transcoded = await d.download({
-      url: origin + '/fmp4/media.m3u8',
-      transcode: { preset: 'h264' },
-    });
-    try {
-      const bytes = await (await fetch(transcoded.blobURL)).arrayBuffer();
-      if (bytes.byteLength === 0) throw new Error('Empty transcode');
-      results.push({
-        kind: 'transcode-h264',
-        size: bytes.byteLength,
-        segments: transcoded.totalSegments,
-      });
-    } finally {
-      URL.revokeObjectURL(transcoded.blobURL);
+    for (const preset of ['vp9', 'h264'] as const) {
+      const transcoded = await d
+        .download({
+          url: origin + '/fmp4/media.m3u8',
+          transcode: { preset },
+        })
+        .catch((error) => {
+          // WebCodecs encoders vary by platform. VP9/Opus is mandatory here;
+          // H.264/AAC must either succeed or report the documented encoder rejection.
+          if (
+            preset !== 'h264' ||
+            error.code !== 'UNSUPPORTED_OUTPUT' ||
+            error.reason !== 'UnsupportedEncoder'
+          )
+            throw error;
+          results.push({
+            kind: 'transcode-h264',
+            unsupported: true,
+            code: error.code,
+            reason: error.reason,
+          });
+          return undefined;
+        });
+      if (!transcoded) continue;
+      try {
+        const blob = await (await fetch(transcoded.blobURL)).blob();
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        if (bytes.byteLength === 0 || transcoded.totalSegments !== 2)
+          throw new Error('Empty/incomplete transcode');
+        if (preset === 'vp9') {
+          if (
+            blob.type !== 'video/webm' ||
+            ![0x1a, 0x45, 0xdf, 0xa3].every((byte, i) => bytes[i] === byte)
+          )
+            throw new Error('Invalid WebM transcode');
+        } else if (
+          blob.type !== 'video/mp4' ||
+          new TextDecoder().decode(bytes.subarray(4, 8)) !== 'ftyp'
+        ) {
+          throw new Error('Invalid MP4 transcode');
+        }
+        results.push({
+          kind: `transcode-${preset}`,
+          size: bytes.byteLength,
+          segments: transcoded.totalSegments,
+        });
+      } finally {
+        URL.revokeObjectURL(transcoded.blobURL);
+      }
     }
     const poster = await d.getPosterUrl({ url: origin + '/fmp4/media.m3u8' });
     if (!poster?.startsWith('data:image/jpeg')) throw new Error('Poster decode failed');
