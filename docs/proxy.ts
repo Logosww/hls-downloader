@@ -4,6 +4,6 @@ import { i18n } from '@/lib/i18n';
 export default createI18nMiddleware(i18n);
 
 export const config = {
-  // API reference pages need locale routing; only the search endpoint bypasses it.
-  matcher: ['/((?!api/search(?:/|$)|_next/static|_next/image|favicon.ico).*)'],
+  // Keep API reference pages localized; serve brand assets without locale rewriting.
+  matcher: ['/((?!api/search(?:/|$)|brand(?:/|$)|_next/static|_next/image|favicon.ico).*)'],
 };

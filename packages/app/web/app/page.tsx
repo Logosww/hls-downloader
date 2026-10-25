@@ -21,6 +21,8 @@ import { buildTimelineOptions, parseChapters } from '@/lib/timeline-options';
 import DownloadList from '@/components/download-list';
 import { HeadersModal } from '@/components/headers-modal';
 import { ModeToggle } from '@/components/mode-toggle';
+import { BrandMark } from '@/components/brand';
+import brand from '@/lib/brand.generated.json';
 import { Platform, usePlatform } from '@/hooks';
 import { useDownloadManager } from '@/hooks/use-download-manager';
 import { useHlsMetadata } from '@/hooks/use-hls-metadata';
@@ -154,11 +156,17 @@ export default function HomePage() {
           <ModeToggle />
         </div>
       ) : null}
-      <h1 className="text-3xl font-bold lg:text-4xl">HLS Downloader</h1>
-      <h2 className="mt-3 max-w-xl text-center text-sm md:text-base">
+      <div className="mb-5">
+        <BrandMark />
+      </div>
+      <h1 className="text-center text-3xl font-semibold tracking-tight lg:text-4xl">
+        {brand.name}
+      </h1>
+      <p className="text-muted-foreground mt-3 max-w-xl text-center text-sm md:text-base">
         下载任何你喜爱的 HLS 视频资源。 请确保资源 uri 为有效的{' '}
-        <code className="text-background bg-foreground rounded-sm border px-1">.m3u8</code> 资源。
-      </h2>
+        <code className="text-accent-foreground bg-accent rounded-sm border px-1">.m3u8</code>{' '}
+        资源。
+      </p>
       <Form {...form}>
         <form className="mb-2 w-full max-w-2xl" onSubmit={form.handleSubmit(onSubmit)}>
           <FormField

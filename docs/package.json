@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "preview": "next start",
+    "brand:generate": "node scripts/generate-brand-assets.mjs",
     "types:check": "next typegen && tsc --noEmit"
   },
   "dependencies": {

@@ -1,6 +1,12 @@
 import type { Metadata } from 'next';
-import { ArrowRight, Zap, Layers, FileCode2, Activity, Boxes } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { ArrowRight, Zap, Layers, FileCode2, Activity } from 'lucide-react';
 import { appName, demoUrl, gitConfig } from '@/lib/shared';
+import Link from 'next/link';
+import { HeroFlow } from '@/components/hero-flow';
+import { InstallCommand } from '@/components/install-command';
+import SpecularButton from '@/components/react-bits/specular-button';
+import SpotlightCard from '@/components/react-bits/spotlight-card';
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -12,8 +18,15 @@ function GitHubIcon({ className }: { className?: string }) {
 
 const content = {
   en: {
-    title: 'HLS Downloader',
+    title: appName,
     tagline: 'TypeScript HLS Download Library',
+    headline: 'Every segment.',
+    headlineAccent: 'One complete file.',
+    platforms: 'Browser & Node.js',
+    sourceCodecs: 'Source codecs preserved',
+    typed: 'Fully typed API',
+    foundation: 'BUILT FOR YOUR NEXT INTEGRATION',
+    featuresHeading: 'The stream is complex. Your API doesn’t have to be.',
     subtitle:
       'Parse HLS (.m3u8) playlists and download/merge streams into playable files. Default downloads transmux while keeping source codecs; opt into re-encoding with transcode.',
     getStarted: 'Get Started',
@@ -45,17 +58,18 @@ const content = {
         details:
           'Rich event system for tracking download progress, segment stitching, and error handling in real time.',
       },
-      {
-        icon: Boxes,
-        title: 'Monorepo Architecture',
-        details:
-          'Modular packages — install the umbrella package or pick only what you need with scoped imports.',
-      },
     ],
   },
   zh: {
-    title: 'HLS Downloader',
+    title: appName,
     tagline: 'TypeScript HLS 下载库',
+    headline: '让每一段流，',
+    headlineAccent: '完整抵达。',
+    platforms: '浏览器 & Node.js',
+    sourceCodecs: '默认保留源编码',
+    typed: '完整类型支持',
+    foundation: '为你的下一次集成而生',
+    featuresHeading: '流媒体很复杂，接入可以很简单。',
     subtitle:
       '解析 HLS（.m3u8）播放列表，下载并合并为可播放文件。默认保留源编码并 transmux；需要重编码时再通过 transcode 显式启用。',
     getStarted: '快速开始',
@@ -85,11 +99,6 @@ const content = {
         title: '事件驱动的进度追踪',
         details: '丰富的事件系统，实时追踪下载进度、分片合并和错误处理。',
       },
-      {
-        icon: Boxes,
-        title: 'Monorepo 架构',
-        details: '模块化的包结构 — 可安装聚合包，也可按需引入作用域子包。',
-      },
     ],
   },
 } as const;
@@ -101,66 +110,127 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
   const githubUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}`;
 
   return (
-    <main className="flex flex-1 flex-col items-center px-6 py-24 text-center">
-      <div className="mx-auto max-w-3xl">
-        <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-          {t.tagline}
-        </p>
-        <h1 className="mt-4 text-4xl font-extrabold tracking-tight sm:text-6xl">{t.title}</h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">{t.subtitle}</p>
+    <div className="docs-home">
+      <section className="docs-hero" aria-labelledby="hero-title">
+        <div className="hero-copy">
+          <p className="hero-eyebrow">
+            <span />
+            {t.tagline}
+          </p>
+          <h1 id="hero-title">
+            {t.headline}
+            <br />
+            <span>{t.headlineAccent}</span>
+          </h1>
+          <p className="hero-description">{t.subtitle}</p>
 
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <a
-            href={`${prefix}/guide/getting-started`}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-          >
-            {t.getStarted}
-            <ArrowRight className="size-4" />
-          </a>
-          <a
-            href={demoUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            {t.liveDemo}
-          </a>
-          <a
-            href={`${prefix}/api/hls-downloader`}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            {t.apiReference}
-          </a>
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            <GitHubIcon className="size-4" />
-            {t.github}
-          </a>
-        </div>
-      </div>
-
-      <div className="mx-auto mt-20 grid w-full max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {t.features.map((feature) => {
-          const Icon = feature.icon;
-          return (
-            <div
-              key={feature.title}
-              className="rounded-lg border border-border bg-card p-6 text-left shadow-sm transition-colors hover:bg-accent/50"
+          <div className="hero-actions">
+            <SpecularButton
+              href={`${prefix}/guide/getting-started`}
+              className="hero-button hero-button-primary"
+              size="sm"
+              radius={8}
+              tint="var(--primary)"
+              tintOpacity={1}
+              textColor="var(--primary-foreground)"
+              lineColor="#ffffff"
+              baseColor="var(--primary)"
+              intensity={1.4}
+              idleIntensity={0.5}
+              shineSize={14}
+              shineFade={48}
             >
-              <div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Icon className="size-5" />
-              </div>
-              <h3 className="mt-4 font-semibold">{feature.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{feature.details}</p>
-            </div>
-          );
-        })}
+              {t.getStarted}
+              <ArrowRight size={17} aria-hidden="true" />
+            </SpecularButton>
+            <SpecularButton
+              href={demoUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hero-button hero-button-secondary"
+              size="sm"
+              radius={8}
+              tint="var(--card)"
+              tintOpacity={0.9}
+              textColor="var(--foreground)"
+              lineColor="var(--primary)"
+              baseColor="var(--border)"
+              intensity={1.4}
+              idleIntensity={0.5}
+              shineSize={14}
+              shineFade={48}
+            >
+              {t.liveDemo}
+              <ArrowRight size={17} className="hero-external-arrow" aria-hidden="true" />
+            </SpecularButton>
+          </div>
+          <InstallCommand lang={lang} />
+          <div className="hero-secondary-links">
+            <Link href={`${prefix}/api/hls-downloader`}>
+              {t.apiReference}
+              <ArrowRight size={14} aria-hidden="true" />
+            </Link>
+            <span aria-hidden="true" />
+            <a href={githubUrl} target="_blank" rel="noreferrer">
+              <GitHubIcon className="size-4" />
+              {t.github}
+            </a>
+          </div>
+        </div>
+        <HeroFlow lang={lang} />
+      </section>
+
+      <div className="hero-capabilities">
+        <span>
+          <Layers size={17} aria-hidden="true" />
+          {t.platforms}
+        </span>
+        <span>
+          <Zap size={17} aria-hidden="true" />
+          {t.sourceCodecs}
+        </span>
+        <span>
+          <FileCode2 size={17} aria-hidden="true" />
+          {t.typed}
+        </span>
       </div>
-    </main>
+
+      <section className="home-features" aria-labelledby="features-title">
+        <p className="features-eyebrow">{t.foundation}</p>
+        <h2 id="features-title">{t.featuresHeading}</h2>
+        <div className="home-features-grid">
+          {t.features.map((feature, index) => {
+            const Icon = feature.icon;
+            return (
+              <SpotlightCard
+                key={feature.title}
+                className="home-feature"
+                spotlightColor="var(--primary)"
+                intensity={0.12}
+                spotlightSize={280}
+                borderGlow={0.75}
+                proximity={72}
+                flare={false}
+                style={
+                  {
+                    '--spotlight-card-surface': 'var(--card)',
+                    '--spotlight-card-border': 'var(--border)',
+                    '--spotlight-card-shadow': 'none',
+                  } as CSSProperties
+                }
+              >
+                <div className="feature-top">
+                  <Icon size={21} aria-hidden="true" />
+                  <span>0{index + 1}</span>
+                </div>
+                <h3>{feature.title}</h3>
+                <p>{feature.details}</p>
+              </SpotlightCard>
+            );
+          })}
+        </div>
+      </section>
+    </div>
   );
 }
 

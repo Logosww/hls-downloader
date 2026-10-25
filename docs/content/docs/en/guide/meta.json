@@ -1,5 +1,5 @@
 {
   "title": "Guide",
   "defaultOpen": true,
-  "pages": ["getting-started", "adapters", "events", "engine"]
+  "pages": ["getting-started", "adapters", "events"]
 }

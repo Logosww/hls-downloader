@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { ImageResponse } from 'next/og';
 import { generate as DefaultImage } from 'fumadocs-ui/og';
 import { appName } from '@/lib/shared';
+import { BrandMark } from '@/components/brand';
+import brand from '@/lib/brand.json';
 
 export const revalidate = false;
 
@@ -56,7 +58,14 @@ export async function GET(
   const fonts = await loadCJKFonts();
 
   return new ImageResponse(
-    <DefaultImage title={page.data.title} description={page.data.description} site={appName} />,
+    <DefaultImage
+      title={page.data.title}
+      description={page.data.description}
+      site={appName}
+      icon={<BrandMark size={56} color={brand.colors.mint} />}
+      primaryColor={brand.colors.deep}
+      primaryTextColor={brand.colors.mint}
+    />,
     {
       width: 1200,
       height: 630,

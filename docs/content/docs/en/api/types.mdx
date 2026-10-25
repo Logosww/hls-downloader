@@ -242,7 +242,7 @@ import type { NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/n
 // { directory: string; durability?: 'flush' | 'sync-all' }
 ```
 
-Node deterministic-file download and recording option; durability defaults to `sync-all`. Browser, Blob, Writable and file factories do not support recovery. Errors include `RESUME_CONFLICT`, `RESUME_INVALID`, `RESUME_IO_FAILED` and `RESUME_REPLAY_REQUIRED`. See [Engine recovery](/guide/engine).
+Node deterministic-file download and recording option; durability defaults to `sync-all`. Browser, Blob, Writable and file factories do not support recovery. Errors include `RESUME_CONFLICT`, `RESUME_INVALID`, `RESUME_IO_FAILED` and `RESUME_REPLAY_REQUIRED`. See [recording and recovery](/api/adapters#recording-and-recovery).
 
 ## HlsDownloaderBrowserRequestOptions
 
@@ -284,11 +284,11 @@ Master results add optional `renditions`; variants add `audioGroup`, `subtitlesG
 `HlsEngineReport`, `HlsEngineEvent`, `HlsEngineOutputRequest`, `HlsEngineOutputReport`,
 `HlsTimelineMap`, `HlsResumeOptions`, `HlsCapabilityQuery`, `HlsCapabilityDecision`.
 
-[Contracts and examples](/guide/engine).
+[Contracts and examples](/api/adapters#unified-engine-output).
 
 ## HlsSubtitleSidecar / HlsSubtitleCommit
 
-Subtitle selections in `HlsMultiTrackOptions` accept the following outputs. File sidecars require Node fixed media files; recovery requires a fixed file for every selected subtitle. See the [Engine guide](/guide/engine#continuous-webvtt-sidecars) for completion, split and recovery semantics.
+Subtitle selections in `HlsMultiTrackOptions` accept the following outputs. File sidecars require Node fixed media files; recovery requires a fixed file for every selected subtitle. See the [Adapter API](/api/adapters#continuous-webvtt-sidecars) for completion, split and recovery semantics.
 
 ```ts
 type HlsSubtitleSidecarRequest = { inputId: string; outputIndex: string };

@@ -208,7 +208,7 @@ import type { NodeAdapterResumeOptions } from '@logosw/hls-downloader/adapters/n
 // { directory: string; durability?: 'flush' | 'sync-all' }
 ```
 
-用于 Node 确定文件路径的下载与录制，durability 默认 `sync-all`。Browser、Blob、Writable 和任意文件工厂不支持恢复。错误包括 `RESUME_CONFLICT`、`RESUME_INVALID`、`RESUME_IO_FAILED` 和 `RESUME_REPLAY_REQUIRED`。参见 [Engine 恢复](/guide/engine)。
+用于 Node 确定文件路径的下载与录制，durability 默认 `sync-all`。Browser、Blob、Writable 和任意文件工厂不支持恢复。错误包括 `RESUME_CONFLICT`、`RESUME_INVALID`、`RESUME_IO_FAILED` 和 `RESUME_REPLAY_REQUIRED`。参见 [录制与恢复](/api/adapters#录制与恢复)。
 
 ## HlsDownloaderBrowserRequestOptions
 
@@ -250,11 +250,11 @@ master 结果增加可选 `renditions`，variant 增加 `audioGroup`、`subtitle
 `HlsEngineReport`, `HlsEngineEvent`, `HlsEngineOutputRequest`, `HlsEngineOutputReport`,
 `HlsTimelineMap`, `HlsResumeOptions`, `HlsCapabilityQuery`, `HlsCapabilityDecision`.
 
-[完整契约与示例](/guide/engine)。
+[完整契约与示例](/api/adapters#统一-engine-输出)。
 
 ## HlsSubtitleSidecar / HlsSubtitleCommit
 
-`HlsMultiTrackOptions` 的字幕选择支持以下输出。file 仅适用于 Node 固定媒体文件；恢复要求每条选中字幕都有固定 sidecar 文件。完成、分卷及恢复语义见 [Engine 指南](/guide/engine#持续-webvtt-sidecar)。
+`HlsMultiTrackOptions` 的字幕选择支持以下输出。file 仅适用于 Node 固定媒体文件；恢复要求每条选中字幕都有固定 sidecar 文件。完成、分卷及恢复语义见 [Adapter API](/api/adapters#持续-webvtt-sidecar)。
 
 ```ts
 type HlsSubtitleSidecarRequest = { inputId: string; outputIndex: string };

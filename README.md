@@ -1,14 +1,22 @@
-# HLS Downloader
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/brand/logo-mint.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/public/brand/logo-deep.svg">
+    <img src="docs/public/brand/logo-deep.svg" width="80" height="80" alt="hls-downloader 标志">
+  </picture>
+</p>
 
-[![logosww/hls-downloader, explained in a one-minute video](https://gitdiagram.com/api/video/file?username=logosww&repo=hls-downloader&format=poster)](https://gitdiagram.com/logosww/hls-downloader/video)
+<h1 align="center">hls-downloader</h1>
 
 随时随地下载你喜爱的任何 HLS 视频流。Downloads HLS stream whatever and wherever you want.
 
-[![npm version](https://img.shields.io/npm/v/@logosw/hls-downloader?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/@logosw/hls-downloader)
-[![npm downloads](https://img.shields.io/npm/dm/@logosw/hls-downloader?style=flat-square&logo=npm&label=downloads)](https://www.npmjs.com/package/@logosw/hls-downloader)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![GitHub](https://img.shields.io/badge/GitHub-Logosww%2Fhls--downloader-181717?style=flat-square&logo=github)](https://github.com/Logosww/hls-downloader)
+[![npm version](https://img.shields.io/npm/v/@logosw/hls-downloader?style=flat-square&logo=npm&logoColor=white&label=npm&labelColor=0B1F24&color=087F72)](https://www.npmjs.com/package/@logosw/hls-downloader)
+[![npm downloads](https://img.shields.io/npm/dm/@logosw/hls-downloader?style=flat-square&logo=npm&logoColor=white&label=downloads&labelColor=0B1F24&color=087F72)](https://www.npmjs.com/package/@logosw/hls-downloader)
+[![License: MIT](https://img.shields.io/badge/License-MIT-087F72.svg?style=flat-square&labelColor=0B1F24)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20-087F72?style=flat-square&logo=node.js&logoColor=white&labelColor=0B1F24)](https://nodejs.org/)
+[![GitHub](https://img.shields.io/badge/GitHub-Logosww%2Fhls--downloader-087F72?style=flat-square&logo=github&logoColor=white&labelColor=0B1F24)](https://github.com/Logosww/hls-downloader)
+
+[![logosww/hls-downloader, explained in a one-minute video](https://gitdiagram.com/api/video/file?username=logosww&repo=hls-downloader&format=poster)](https://gitdiagram.com/logosww/hls-downloader/video)
 
 ---
 
@@ -458,26 +466,3 @@ await downloader.parseHls({ url: mediaOrigin + '/public.m3u8', browserRequest: {
 Extensions own permissions, restricted-header rules and credential destination policies. Cookie/Referer/Origin cannot simply be replayed as ordinary headers; browser policies and site authorization may still prevent access. Do not attach site credentials unconditionally to CDN URLs or redirects. Explicit shared headers keep their existing behavior.
 
 扩展负责权限、受限头规则及凭据目标域策略。Cookie/Referer/Origin 不能仅依赖普通 headers 重放；浏览器策略和站点授权仍可能阻止访问。不要无条件向 CDN 或重定向目标扩散凭据。详见中英文 Adapter API 文档。
-
-## Engine 1.0
-
-所有 HLS 下载、流式输出和录制统一使用 `hls-engine 1.0.2`，remux/录制结果通过 `report: HlsEngineReport` 返回。选轨 VOD 转码支持解密与可解码范围，转码结果不返回中间 Engine 报告。
-普通 Browser 下载默认容量 256 MiB；Blob 录制仍需显式 `maxBytes`。
-Node 确定文件路径支持 schema-2 恢复及 `durability: 'sync-all' | 'flush'`，默认 `sync-all`；不兼容旧恢复目录。
-GCM 通过 `decryption.experimentalGcm` 显式开启。`queryCapability()` 区分容器和播放支持。
-字幕/章节有限导出使用 `report.timelineMap`，不再接受旧报告。
-AES-128 WebVTT 支持 segment/MAP、轮换及持续 sidecar：两端 Writable，Node 固定路径及 schema-2 联合恢复。
-`subtitleTracks[].embedded: false` 可仅输出 sidecar；有限字幕导出支持 `decryption` 与 `maxBytes`（默认 16 MiB）。
-
-All HLS operations use `hls-engine 1.0.2` and expose `report: HlsEngineReport` for remux/recording. Selected VOD transcoding supports decryption and decodable ranges; encoded results omit the intermediate Engine report.
-Browser downloads default to a 256 MiB capacity; Blob recording requires an explicit limit.
-Native deterministic files support schema-2 recovery with `sync-all` durability by default.
-Experimental draft-22 GCM requires opt-in. Use `queryCapability()` for declared container,
-playback and recovery conditions; finite mapped exports require a complete `report.timelineMap`.
-AES-128 WebVTT supports segments/MAPs, rotation and continuous sidecars: Writable on both runtimes,
-fixed files with schema-2 joint recovery on Node. Set `subtitleTracks[].embedded: false` for sidecar-only
-output. Finite subtitle exports accept `decryption` and `maxBytes` (default 16 MiB).
-Old reports and schema-1 recovery are removed. Transcoding remains FFmpeg/WebCodecs.
-
-See [English Engine guide](docs/content/docs/en/guide/engine.mdx) and
-[中文 Engine 指南](docs/content/docs/zh/guide/engine.mdx) for API examples.

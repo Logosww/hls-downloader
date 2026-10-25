@@ -1,0 +1,21 @@
+{
+  "name": "hls-downloader",
+  "mark": {
+    "viewBox": "0 0 32 32",
+    "angle": 27,
+    "cutWidth": 3.2,
+    "path": "M4 3L11 3L11 13L18.3635 13L21 11.6567L21 3L28 3L28 8.09L4 20.3186ZM28 11.6814L28 29L21 29L21 19L13.6365 19L11 20.3433L11 29L4 29L4 23.91Z"
+  },
+  "colors": {
+    "mint": "#22D3B6",
+    "deep": "#087F72",
+    "ink": "#0B1F24",
+    "paper": "#F4FAF8",
+    "white": "#FFFFFF",
+    "black": "#000000"
+  },
+  "icon": {
+    "transform": "translate(2 2) scale(.875)",
+    "radius": 6
+  }
+}

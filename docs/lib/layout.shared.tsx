@@ -1,7 +1,8 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 import { uiTranslations } from 'fumadocs-ui/i18n';
 import { i18n } from './i18n';
-import { appName, gitConfig } from './shared';
+import { gitConfig } from './shared';
+import { BrandLogo } from '@/components/brand';
 
 export const translations = i18n
   .translations()
@@ -30,7 +31,8 @@ export function baseOptions(locale: string): BaseLayoutProps {
 
   return {
     nav: {
-      title: appName,
+      title: <BrandLogo />,
+      url: prefix || '/',
     },
     links: [
       {

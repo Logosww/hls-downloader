@@ -1,4 +1,6 @@
-export const appName = 'HLS Downloader';
+import brand from './brand.json';
+
+export const appName = brand.name;
 
 // Docs are served from the site root (`/guide`, `/api`, `/changelog`) to
 // preserve the previous VitePress URL structure. The default locale (`en`)
