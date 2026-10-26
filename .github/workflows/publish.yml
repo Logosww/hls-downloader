@@ -36,6 +36,8 @@ jobs:
         run: node scripts/assert-release-version.ts
       - name: Validate frozen lockfile before native builds
         run: pnpm install --frozen-lockfile --lockfile-only --ignore-scripts
+      - name: Verify publish retry checks
+        run: node --test scripts/npm-version-exists.test.ts
 
   build-adapters-native:
     needs: validate-release
@@ -262,6 +264,11 @@ jobs:
               echo "Skip ${pkg} (no .node artifact)"
               continue
             fi
+            PUBLISHED=$(node scripts/npm-version-exists.ts "${pkg}/package.json")
+            if [[ "$PUBLISHED" == "true" ]]; then
+              echo "Skip ${pkg} (${VER} already published)"
+              continue
+            fi
             echo "Publishing ${pkg}"
             (cd "${pkg}" && pnpm publish --provenance --access public --no-git-checks "${PUBLISH_EXTRA[@]}")
           done
@@ -298,11 +305,14 @@ jobs:
           echo "pnpm $(pnpm -v)"
           echo "npm path: $(command -v npm)"
 
-      - name: Install vcpkg host dependencies (Linux)
+      - name: Install vcpkg host dependencies and media test tools (Linux)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev
+          sudo apt-get install -y build-essential cmake ninja-build git curl zip unzip tar pkg-config clang libclang-dev nasm libssl-dev ffmpeg
+          # The vcpkg FFmpeg libraries do not provide the CLI used by publish e2e tests.
+          ffmpeg -version
+          ffprobe -version
 
       # actions/cache does not expand ~ reliably; path must match Node os.homedir()/vcpkg.
       - name: Resolve VCPKG_ROOT (Linux)
