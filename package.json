@@ -1,6 +1,6 @@
 {
   "name": "@logosw/hls-downloader",
-  "version": "3.9.0",
+  "version": "4.0.0",
   "description": "",
   "keywords": [],
   "license": "MIT",
@@ -121,5 +121,5 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@12.14.0"
+  "packageManager": "pnpm@12.15.0"
 }

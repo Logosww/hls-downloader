@@ -8,7 +8,7 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
-## [Unreleased]
+## [4.0.0] - 2026-10-26
 
 ### 新增
 
@@ -30,7 +30,7 @@ description: '本项目的所有重要变更。'
 
 ### 修复
 
-- 修复加密 WebVTT 清单窗口滑动时误报 `RESOURCE_CHANGED` 的问题，仍拒绝重写重叠窗口内已有的字幕资源。
+- 修复加密 WebVTT 清单窗口滑动时误报 `RESOURCE_变更` 的问题，仍拒绝重写重叠窗口内已有的字幕资源。
 - classic MP4 输出在音频缺口处保留正确的 AAC 解码内容。
 - 缺失快照重放记录时，在修改恢复输出前稳定返回 `RESUME_REPLAY_REQUIRED`。
 
@@ -55,18 +55,18 @@ description: '本项目的所有重要变更。'
 - **NodeAdapter**：新增 `resume: { directory }`，支持跨进程恢复中断的 VOD 下载。仅支持不使用转码或 aria2 的普通文件下载。
 - 新增 `NodeAdapterResumeOptions`、`capabilities.resumableDownload` 及结构化错误 `RESUME_CONFLICT`、`RESUME_INVALID`、`RESUME_IO_FAILED`。
 
-### Changed
+### 变更
 
 - **BrowserAdapter**：播放列表和封面不再跨操作缓存，后续调用使用当前登录上下文；`clearCache()` 保留为 no-op。
 - **BrowserAdapter**：封面网络失败现在返回结构化错误；媒体响应体读取失败会重试且不提交不完整内容，取消后丢弃迟到响应。
 
 ## [3.5.1] - 2026-10-02
 
-### Changed
+### 变更
 
 - **Universal**：浏览器与 Node 转封装现在会拒绝不受支持的 TS 时间戳重置，避免生成不一致的时间轴；TS 分片边界时长会在可用时使用下一分片的时间戳计算。
 
-### Fixed
+### 修复
 
 - 有限下载不再仅因播放列表超过 128 个分片而触发 `QueueLimit`；显式队列限制与元数据预算仍然生效。
 - **NodeAdapter**：确保 Node 流式下载完成前所有分块回调均已执行，避免短流输出为空或不完整。
@@ -117,7 +117,7 @@ description: '本项目的所有重要变更。'
 
 ## [3.2.0] - 2026-08-13
 
-### Added
+### 新增
 
 - **BrowserAdapter / NodeAdapter**：新增 `downloadMultiTrack()`、`startMultiTrackRecording()`，支持显式保留多音轨、内嵌纯文本 WebVTT 字幕及 Packed AAC-LC（clear、AES-128、SAMPLE-AES）。提供独立多轨报告和可选播放器兼容性检查；支持有限下载、持续录制和分割输出，既有单音轨接口保持兼容。
 
@@ -125,39 +125,39 @@ description: '本项目的所有重要变更。'
 - **Universal**: 新增 `VariantSelectOptions` 与 `VariantSelector` 类型；`selectBestVariant` 改为可替换策略，支持通过 `download({ variant })` / `downloadToStream({ variant })` 按次调用指定偏好。
 - `Playlist` 新增 `resolution`、`codecs`、`frameRate`、`isAudioOnly` 字段。
 
-### Changed
+### 变更
 
 - **Universal**: `parseHls` 缓存 key 改为 URL + headers，增加 TTL + LRU 上限，且不再缓存错误结果。
 - **Universal**: `selectBestVariant` 过滤纯音频 variant，按 codec 偏好 → 分辨率 → 带宽排序。
 - **NodeAdapter**: `downloadToStream` 不再发起冗余的 `parseHls` 调用。
 
-### Fixed
+### 修复
 
 - **NodeAdapter**: 下载临时目录在成功与失败时都会清理。
 
 ## [3.1.1] - 2026-08-12
 
-### Changed
+### 变更
 
 - BrowserAdapter `init` 方法现在默认动态加载 `hls-transmux` WebAssembly 模块。
 - 升级内置 `FFmpeg` to v9.0
 
 ## [3.1.0] - 2026-07-15
 
-### Changed
+### 变更
 
 - **破坏性变更**：BrowserAdapter 使用 [hls-transmux](https://github.com/Logosww/hls-transmux) WebAssembly 生成经典 MP4 下载与 fragmented MP4 流，不再使用 Mediabunny remux（参考 CPU 微基准下 transmux 约 **5.0×** 于 Mediabunny remux）。
 - **破坏性变更**：BrowserAdapter 转码改用 Mediabunny WebCodecs，支持 `h264`、`hevc`、`vp9` 预设及可选视频/音频码率，不再接受 FFmpeg 资源选项或依赖 `@ffmpeg/ffmpeg`（参考 CPU 微基准下 H.264 约 **2.2×** 于多线程 `ffmpeg.wasm`）。
 
 ## [3.0.1] - 2026-07-09
 
-### Fixed
+### 修复
 
 - 修复 `NodeAdapter` 在某些场景下 transmux 会丢失部分 PES packets 导致解码异常问题。
 
 ## [3.0.0] - 2026-07-05
 
-### Added
+### 新增
 
 - 彻底重构 `NodeAdapter` transmux 实现以获得更好的性能与稳定性，同时带来效率更高的并发下载分片能力。
 - `NodeAdpater` 现在新增 `downloadToStream` 方法以实现 HLS 边下载边推流。
