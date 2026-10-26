@@ -3,8 +3,51 @@ name: CI
 on:
   push:
     branches: [main]
+    # Keep in sync with pull_request. Shared tooling and dependencies affect the SDK.
+    paths:
+      - 'src/**'
+      - 'packages/**'
+      - 'test/**'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
+      - '.github/actions/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.npmrc'
+      - '.pnpmfile.cjs'
+      - 'tsconfig*.json'
+      - 'tsdown.config.*'
+      - 'turbo.json'
+      - 'turbo.jsonc'
+      - '.oxlintrc.json'
+      - '.oxfmtrc.json'
+      - '!packages/app/**'
+      - '!**/*.md'
+      - '!**/*.mdx'
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'packages/**'
+      - 'test/**'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
+      - '.github/actions/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.npmrc'
+      - '.pnpmfile.cjs'
+      - 'tsconfig*.json'
+      - 'tsdown.config.*'
+      - 'turbo.json'
+      - 'turbo.jsonc'
+      - '.oxlintrc.json'
+      - '.oxfmtrc.json'
+      - '!packages/app/**'
+      - '!**/*.md'
+      - '!**/*.mdx'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
