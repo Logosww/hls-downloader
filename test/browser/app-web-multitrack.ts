@@ -138,20 +138,22 @@ async function prepare(
   await page.getByRole('textbox', { name: '请输入 HLS 链接' }).fill(origin + source);
   await page.getByRole('button', { name: '下载', exact: true }).click();
   await page.getByRole('alertdialog').waitFor();
-  await page.getByRole('button', { name: '多轨下载', exact: true }).click();
+  await page.getByRole('radio', { name: '多轨下载', exact: true }).click();
   assert.equal(
     await page.getByRole('button', { name: '直接播放', exact: true }).isDisabled(),
     true,
   );
-  assert.equal(await page.getByRole('button', { name: 'H.264', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('radio', { name: 'H.264', exact: true }).isDisabled(), true);
   return page;
 }
 async function tracks(page: Page) {
   for (const label of ['外部音轨（多选）', '内嵌字幕（多选）']) {
-    await page.getByRole('combobox', { name: label, exact: true }).click();
-    await page.getByRole('option', { name: /English/ }).click();
-    await page.getByRole('option', { name: /Japanese/ }).click();
+    await page.getByRole('button', { name: new RegExp(label) }).click();
+    const listbox = page.getByRole('listbox', { name: label, exact: true });
+    await listbox.getByRole('option', { name: /English/ }).click();
+    await listbox.getByRole('option', { name: /Japanese/ }).click();
     await page.keyboard.press('Escape');
+    await listbox.waitFor({ state: 'hidden' });
   }
 }
 async function submit(page: Page) {
@@ -220,8 +222,8 @@ try {
     const page = await prepare(multiTrackRoutes());
     await tracks(page);
     if (embedded === 'exclude')
-      await page.getByRole('button', { name: '排除', exact: true }).click();
-    await page.getByRole('combobox', { name: '默认音轨', exact: true }).click();
+      await page.getByRole('radio', { name: '排除', exact: true }).click();
+    await page.getByRole('button', { name: /默认音轨/ }).click();
     await page.getByRole('option', { name: 'Japanese', exact: true }).click();
     if (embedded === 'exclude') {
       const evidence = resolve(import.meta.dirname, '../../test-results');
@@ -257,15 +259,18 @@ try {
     );
   const switched = await prepare(variants);
   await tracks(switched);
-  await switched.getByRole('combobox', { name: '视频质量', exact: true }).click();
+  await switched.getByRole('button', { name: /视频质量/ }).click();
   await switched.getByRole('option', { name: '320x180', exact: true }).click();
-  assert.equal(
-    await switched.getByRole('combobox', { name: '内嵌字幕（多选）', exact: true }).isDisabled(),
-    true,
-  );
-  await switched.getByRole('combobox', { name: '外部音轨（多选）', exact: true }).click();
+  assert.equal(await switched.getByRole('button', { name: /内嵌字幕（多选）/ }).isDisabled(), true);
+  await switched.getByRole('button', { name: /外部音轨（多选）/ }).click();
   await switched.getByRole('option', { name: 'Other', exact: true }).waitFor();
-  assert.equal(await switched.getByRole('option').count(), 1);
+  assert.equal(
+    await switched
+      .getByRole('listbox', { name: '外部音轨（多选）', exact: true })
+      .getByRole('option')
+      .count(),
+    1,
+  );
   await switched.getByRole('option', { name: 'Other', exact: true }).click();
   await switched.keyboard.press('Escape');
   await submit(switched);
@@ -313,8 +318,8 @@ try {
   const c = timelineCases.find((c) => c.name === 'config-split');
   for (const mode of ['browser', 'write-failure']) {
     const page = await prepare(timelineRoutes(c), '/master.m3u8', mode);
-    await page.getByRole('button', { name: '时间轴下载', exact: true }).click();
-    await page.getByRole('combobox', { name: '配置变化', exact: true }).click();
+    await page.getByRole('radio', { name: '时间轴下载', exact: true }).click();
+    await page.getByRole('button', { name: /配置变化/ }).click();
     await page.getByRole('option', { name: '拆分独立文件', exact: true }).click();
     await submit(page);
     if (mode === 'browser') {

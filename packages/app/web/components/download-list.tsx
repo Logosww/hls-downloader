@@ -1,13 +1,14 @@
 import { MultiTrackSummary } from './multitrack-summary';
 import { formatMediaTime } from '@/lib/timeline-options';
 import { Fragment } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, DownloadCloudIcon, Trash2Icon, XIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ProgressBar, ProgressBarTrack } from '@/components/ui/progress-bar';
+import { Dialog as AriaDialog } from 'react-aria-components/Dialog';
+import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DownloadTask } from '@/hooks/use-download-manager';
 
@@ -45,18 +46,25 @@ const DownloadProgress = ({
   onCancel,
 }: Pick<IDownloadListItemProps, 'item' | 'onCancel'>) => (
   <div className="w-full sm:w-44 shrink-0 flex items-center gap-2">
-    <Progress className="min-w-0 flex-1" value={item.multiTrack ? null : item.percentage} />
+    <ProgressBar
+      aria-label={`${item.title} 下载进度`}
+      className="min-w-0 flex-1"
+      value={item.percentage}
+      isIndeterminate={!!item.multiTrack}
+    >
+      <ProgressBarTrack className="min-w-0" />
+    </ProgressBar>
     <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
       {item.multiTrack
         ? `${(Number(item.multiTrackBytes ?? '0') / 1048576).toFixed(1)} MiB`
         : `${Math.floor(item.percentage)}%`}
     </span>
     <Button
-      size="icon-sm"
-      variant="destructive"
+      size="sq-sm"
+      intent="danger"
       type="button"
       aria-label={`取消 ${item.title}`}
-      onClick={() => onCancel?.(item.id)}
+      onPress={() => onCancel?.(item.id)}
     >
       <XIcon data-icon="icon" />
     </Button>
@@ -75,19 +83,19 @@ const DownloadActions = ({
         <Button
           size="sm"
           type="button"
-          disabled={item.status === 'saved'}
-          onClick={() => onSave?.(item.id)}
+          isDisabled={item.status === 'saved'}
+          onPress={() => onSave?.(item.id)}
         >
           {item.status === 'saved' ? <CheckCircle data-icon="inline-start" /> : null}
           {item.status === 'saved' ? '已保存' : '保存'}
         </Button>
       ) : null}
       <Button
-        size="icon-sm"
-        variant="ghost"
+        size="sq-sm"
+        intent="plain"
         type="button"
         aria-label={`删除 ${item.title}`}
-        onClick={() => onRemove?.(item.id)}
+        onPress={() => onRemove?.(item.id)}
       >
         <Trash2Icon data-icon="icon" />
       </Button>
@@ -123,8 +131,8 @@ const DownloadOutputRow = ({
       </div>
       <Button
         size="sm"
-        disabled={output.saved || !output.blobURL}
-        onClick={() => onSave?.(item.id, output.index)}
+        isDisabled={output.saved || !output.blobURL}
+        onPress={() => onSave?.(item.id, output.index)}
       >
         {output.saved ? '已保存' : '保存文件'}
       </Button>
@@ -199,7 +207,7 @@ const DownloadListItem = ({
               {formatMediaTime(item.timeline?.range.end)}
             </span>
           )}
-          <Button variant="outline" size="sm" onClick={() => onSaveArtifact?.(item.id)}>
+          <Button intent="outline" size="sm" onPress={() => onSaveArtifact?.(item.id)}>
             保存时间轴报告
           </Button>
         </div>
@@ -211,9 +219,9 @@ const DownloadListItem = ({
         <div key={sidecar.filename} className="flex items-center justify-between gap-2 text-sm">
           <span className="truncate">{sidecar.filename}</span>
           <Button
-            variant="outline"
+            intent="outline"
             size="sm"
-            onClick={() => onSaveArtifact?.(item.id, sidecar.filename)}
+            onPress={() => onSaveArtifact?.(item.id, sidecar.filename)}
           >
             保存 WebVTT
           </Button>
@@ -243,7 +251,7 @@ export const DownloadList = ({
           <CardTitle>下载列表</CardTitle>
         </CardHeader>
         <CardContent className="w-full">
-          <ScrollArea className="max-h-72">
+          <ScrollArea className="max-h-72 [&>[data-slot=scroll-area-viewport]]:max-h-72">
             {items.length ? (
               items.map((item, index) => (
                 <Fragment key={item.id}>
@@ -266,50 +274,38 @@ export const DownloadList = ({
     );
 
   return (
-    <Popover>
-      <TooltipProvider>
-        <Tooltip>
-          <PopoverTrigger
-            render={
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="cursor-pointer font-bold shadow-xl fixed z-10 bottom-16 right-16"
+    <PopoverTrigger>
+      <TooltipTrigger delay={300}>
+        <Button size="lg" intent="outline" aria-label="下载列表" className="fixed bottom-8 right-6">
+          <DownloadCloudIcon data-icon="icon" />
+          {items.length || ''}
+        </Button>
+        <Tooltip>下载列表</Tooltip>
+      </TooltipTrigger>
+      <Popover className="w-150 max-w-[calc(100vw-2rem)] select-none" placement="top end">
+        <AriaDialog aria-label="下载列表" className="flex flex-col gap-4 p-4 outline-hidden">
+          <h4 className="font-medium leading-none">下载列表</h4>
+          <ScrollArea className="max-h-72 [&>[data-slot=scroll-area-viewport]]:max-h-72">
+            {items.length ? (
+              items.map((item, index) => (
+                <Fragment key={item.id}>
+                  <DownloadListItem
+                    item={item}
+                    onSave={onSave}
+                    onSaveArtifact={onSaveArtifact}
+                    onCancel={onCancel}
+                    onRemove={onRemove}
                   />
-                }
-              />
-            }
-          >
-            <DownloadCloudIcon data-icon="icon" />
-            {items.length || ''}
-          </PopoverTrigger>
-          <TooltipContent>下载列表</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      <PopoverContent className="w-150 select-none">
-        <h4 className="font-medium leading-none">下载列表</h4>
-        <ScrollArea className="max-h-72">
-          {items.length ? (
-            items.map((item, index) => (
-              <Fragment key={item.id}>
-                <DownloadListItem
-                  item={item}
-                  onSave={onSave}
-                  onSaveArtifact={onSaveArtifact}
-                  onCancel={onCancel}
-                  onRemove={onRemove}
-                />
-                {index !== items.length - 1 && <Separator className="my-2" />}
-              </Fragment>
-            ))
-          ) : (
-            <div className="py-4 text-sm text-center text-muted-foreground">暂无下载任务</div>
-          )}
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+                  {index !== items.length - 1 && <Separator className="my-2" />}
+                </Fragment>
+              ))
+            ) : (
+              <div className="py-4 text-sm text-center text-muted-foreground">暂无下载任务</div>
+            )}
+          </ScrollArea>
+        </AriaDialog>
+      </Popover>
+    </PopoverTrigger>
   );
 };
 

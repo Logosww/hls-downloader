@@ -111,14 +111,11 @@ try {
   const page = await browser.newPage();
   await prepare(page);
   await openConfirm(page);
-  assert.equal(
-    await page.getByRole('radio', { name: /大文件直存/ }).getAttribute('aria-checked'),
-    'true',
-  );
-  assert.equal(await page.getByRole('button', { name: 'H.264', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('radio', { name: /大文件直存/ }).isChecked(), true);
+  assert.equal(await page.getByRole('radio', { name: 'H.264', exact: true }).isDisabled(), true);
   const dialog = page.getByRole('alertdialog');
-  await dialog.evaluate(async (el) => {
-    await Promise.all(el.getAnimations().map((animation) => animation.finished));
+  await dialog.evaluate(async () => {
+    await Promise.all(document.getAnimations().map((animation) => animation.finished));
   });
   assert.equal(Math.round((await dialog.boundingBox())!.width), 672);
   await page.evaluate(() => {
@@ -190,7 +187,7 @@ try {
     const row = button.parentElement!.parentElement!;
     return {
       rightGap: row.getBoundingClientRect().right - button.getBoundingClientRect().right,
-      progressWidth: row.querySelector('[data-slot=progress]')!.getBoundingClientRect().width,
+      progressWidth: row.querySelector('[role=progressbar]')!.getBoundingClientRect().width,
     };
   });
   assert.ok(geometry.rightGap < 2);
@@ -229,8 +226,10 @@ try {
     (window as any).fileTest.failWrite = false;
   });
   await openConfirm(page);
-  await page.getByRole('radio', { name: /普通下载/ }).check();
-  assert.equal(await page.getByRole('button', { name: 'H.264', exact: true }).isEnabled(), true);
+  // React Aria keeps the native radio visually hidden; click its visible label.
+  await page.getByText('普通下载', { exact: true }).click();
+  assert.equal(await page.getByRole('radio', { name: /普通下载/ }).isChecked(), true);
+  assert.equal(await page.getByRole('radio', { name: 'H.264', exact: true }).isEnabled(), true);
   await page.getByRole('alertdialog').getByRole('button', { name: '下载', exact: true }).click();
   await page.getByRole('button', { name: '保存', exact: true }).waitFor();
   results.push(
@@ -241,18 +240,15 @@ try {
   await prepare(unsupported, false);
   await openConfirm(unsupported);
   assert.equal(await unsupported.getByRole('radio', { name: /大文件直存/ }).isDisabled(), true);
-  assert.equal(
-    await unsupported.getByRole('radio', { name: /普通下载/ }).getAttribute('aria-checked'),
-    'true',
-  );
+  assert.equal(await unsupported.getByRole('radio', { name: /普通下载/ }).isChecked(), true);
   assert.equal(
     await unsupported.getByText('此浏览器暂不支持文件直存', { exact: false }).count(),
     1,
   );
   assert.ok(await unsupported.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   mkdirSync(resolve(root, 'test-results'), { recursive: true });
-  await unsupported.getByRole('alertdialog').evaluate(async (el) => {
-    await Promise.all(el.getAnimations().map((a) => a.finished));
+  await unsupported.getByRole('alertdialog').evaluate(async () => {
+    await Promise.all(document.getAnimations().map((a) => a.finished));
   });
   await unsupported.screenshot({
     path: resolve(root, 'test-results/app-web-unsupported-mobile.png'),
@@ -271,9 +267,12 @@ try {
   );
 
   await openConfirm(page);
-  await page.getByRole('radio', { name: /大文件直存/ }).check();
-  await page.getByRole('alertdialog').evaluate(async (el) => {
-    await Promise.all(el.getAnimations().map((a) => a.finished));
+  const fileRadio = page.getByRole('radio', { name: /大文件直存/ });
+  await fileRadio.focus();
+  await fileRadio.press('Space');
+  assert.equal(await fileRadio.isChecked(), true);
+  await page.getByRole('alertdialog').evaluate(async () => {
+    await Promise.all(document.getAnimations().map((a) => a.finished));
   });
   await page.screenshot({
     path: resolve(root, 'test-results/app-web-writable.png'),

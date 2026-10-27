@@ -15,7 +15,7 @@ export function MultiTrackSummary({
         <span>
           多轨输出：{report.outputs.length} 个文件 · {formatMediaTime(report.duration)}
         </span>
-        <Button variant="outline" size="sm" onClick={onSave}>
+        <Button intent="outline" size="sm" onPress={onSave}>
           保存多轨报告
         </Button>
       </div>

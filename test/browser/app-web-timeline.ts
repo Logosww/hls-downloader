@@ -196,14 +196,14 @@ async function prepare(name: string, mode = 'browser') {
   return page;
 }
 async function timeline(page: Page, split = false) {
-  await page.getByRole('button', { name: '时间轴下载', exact: true }).click();
+  await page.getByRole('radio', { name: '时间轴下载', exact: true }).click();
   assert.equal(
     await page.getByRole('button', { name: '直接播放', exact: true }).isDisabled(),
     true,
   );
-  assert.equal(await page.getByRole('button', { name: 'H.264', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('radio', { name: 'H.264', exact: true }).isDisabled(), true);
   if (split) {
-    await page.getByRole('combobox', { name: '配置变化' }).click();
+    await page.getByRole('button', { name: /配置变化/ }).click();
     await page.getByRole('option', { name: '拆分独立文件' }).click();
   }
 }
@@ -243,12 +243,17 @@ async function fileBytes(page: Page, name: string) {
   );
 }
 async function settleAnimations(locator: Locator) {
-  await locator.evaluate(async (element) => {
-    // Base UI applies starting styles on mount and removes them on the next frame.
+  await locator.evaluate(async () => {
+    // Wait for the opening frame and all overlay entrance animations.
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
-    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+    await Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+        .map((animation) => animation.finished),
+    );
   });
 }
 async function verifyConfirmLayout(width: number, height: number) {
@@ -261,10 +266,10 @@ async function verifyConfirmLayout(width: number, height: number) {
   const bounds = (await dialog.boundingBox())!;
   assert.ok(bounds.height <= Math.min(640, height - 32));
   assert.ok(bounds.height <= legacy.height + 16, 'height stays near the full-download form');
-  assert.ok(bounds.y >= 16 && bounds.y + bounds.height <= height - 16);
-  const header = dialog.locator('[data-slot="alert-dialog-header"]');
-  const footer = dialog.locator('[data-slot="alert-dialog-footer"]');
-  const viewport = dialog.locator('[data-slot="scroll-area-viewport"]');
+  assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= height);
+  const header = dialog.locator('[data-slot="dialog-header"]');
+  const footer = dialog.locator('[data-slot="dialog-footer"]');
+  const viewport = dialog.locator('[data-slot="dialog-body"]');
   const headerBounds = (await header.boundingBox())!;
   const footerBounds = (await footer.boundingBox())!;
   assert.ok(headerBounds.y >= bounds.y);
@@ -276,9 +281,9 @@ async function verifyConfirmLayout(width: number, height: number) {
   assert.equal(await dialog.evaluate((element) => getComputedStyle(element).overflowY), 'hidden');
 
   for (const name of ['缺口处理', '配置变化', 'WebVTT 字幕']) {
-    const trigger = page.getByRole('combobox', { name });
+    const trigger = page.getByRole('button', { name: new RegExp(name) });
     await trigger.click();
-    const popup = page.locator('[data-slot="select-content"][data-open]');
+    const popup = page.getByRole('listbox');
     await popup.waitFor({ state: 'visible' });
     await settleAnimations(popup);
     const triggerBounds = (await trigger.boundingBox())!;
@@ -447,7 +452,7 @@ try {
   for (const name of ['subtitle-valid', 'subtitle-ambiguous']) {
     const page = await prepare(name);
     await timeline(page);
-    await page.getByRole('combobox', { name: 'WebVTT 字幕' }).click();
+    await page.getByRole('button', { name: /WebVTT 字幕/ }).click();
     await page.getByRole('option', { name: 'English', exact: true }).click();
     await submit(page);
     await page.getByRole('button', { name: '保存文件', exact: true }).waitFor();

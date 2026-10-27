@@ -8,9 +8,9 @@ import { DownloadIcon, Loader2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 import z from 'zod';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Input, InputGroup } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import ConfirmModal, {
   buildBrowserTranscodeOptions,
@@ -150,7 +150,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex min-h-svh w-full select-none flex-col items-center justify-center px-4 py-20">
+    <main className="flex min-h-svh w-full select-none flex-col items-center justify-center px-4 py-20">
       {platform === Platform.web ? (
         <div className="fixed top-6 right-6">
           <ModeToggle />
@@ -175,30 +175,21 @@ export default function HomePage() {
             render={({ field, formState }) => (
               <FormItem className="my-3">
                 <div className="flex w-full items-center gap-2">
-                  <FormControl>
-                    <InputGroup>
-                      <InputGroupInput
+                  <InputGroup className="min-w-0 flex-1 [--input-gutter-end:--spacing(24)]">
+                    <FormControl>
+                      <Input
+                        aria-label="请输入 HLS 链接"
                         className="min-w-0 w-full"
                         type="url"
                         placeholder="请输入 HLS 链接"
                         {...field}
                       />
-                      <InputGroupAddon align="inline-end">
-                        <Button
-                          variant="link"
-                          type="button"
-                          onClick={() => setHeadersModalOpen(true)}
-                        >
-                          Headers
-                        </Button>
-                      </InputGroupAddon>
-                    </InputGroup>
-                  </FormControl>
-                  <Button
-                    size="lg"
-                    type="submit"
-                    disabled={formState.isSubmitting || formState.isLoading}
-                  >
+                    </FormControl>
+                    <Button intent="plain" type="button" onPress={() => setHeadersModalOpen(true)}>
+                      Headers
+                    </Button>
+                  </InputGroup>
+                  <Button type="submit" isDisabled={formState.isSubmitting || formState.isLoading}>
                     {formState.isSubmitting || formState.isLoading ? (
                       <Loader2Icon data-icon="inline-start" className="animate-spin" />
                     ) : (
@@ -236,14 +227,16 @@ export default function HomePage() {
         onCancel={downloads.cancel}
         onRemove={downloads.remove}
       />
-      <Dialog open={streamPreview.open} onOpenChange={(open) => !open && closeStreamPreview()}>
-        <DialogContent
-          className="sm:max-w-2xl"
-          overlayClassName="supports-backdrop-filter:backdrop-blur-none"
-        >
-          <DialogHeader>
-            <DialogTitle>预览 · {streamPreview.title}</DialogTitle>
-          </DialogHeader>
+      <Dialog
+        isOpen={streamPreview.open}
+        onOpenChange={(open) => !open && closeStreamPreview()}
+        size="2xl"
+        overlay={{ className: 'backdrop-blur-none' }}
+      >
+        <DialogHeader>
+          <DialogTitle>预览 · {streamPreview.title}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="pb-6">
           <div className="relative isolate aspect-video w-full overflow-hidden rounded-lg">
             <video
               ref={videoRef}
@@ -260,8 +253,8 @@ export default function HomePage() {
               <Skeleton className="absolute inset-0 size-full rounded-lg" />
             ) : null}
           </div>
-        </DialogContent>
+        </DialogBody>
       </Dialog>
-    </div>
+    </main>
   );
 }

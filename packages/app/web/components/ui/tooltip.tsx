@@ -1,54 +1,85 @@
 'use client';
 
-import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
+import { composeRenderProps } from 'react-aria-components/composeRenderProps';
+import type { TooltipProps as TooltipPrimitiveProps } from 'react-aria-components/Tooltip';
+import {
+  OverlayArrow,
+  Tooltip as TooltipPrimitive,
+  TooltipTrigger as TooltipTriggerPrimitive,
+} from 'react-aria-components/Tooltip';
+import { twJoin } from 'cn';
+import type { VariantProps } from 'tailwind-variants';
+import { tv } from 'tailwind-variants';
 
-import { cn } from 'cn';
+const tooltipStyles = tv({
+  base: [
+    'group max-w-sm origin-(--trigger-anchor-point) rounded-lg border border-(--tooltip-border) px-2.5 py-1.5 text-sm/6 will-change-transform [--tooltip-border:var(--color-muted-foreground)]/30 dark:shadow-none *:[strong]:font-medium',
+  ],
+  variants: {
+    inverse: {
+      true: [
+        'border-transparent bg-foreground text-background',
+        '**:[.text-muted-foreground]:text-background/60',
+      ],
+      false: 'bg-overlay text-overlay-foreground',
+    },
+    isEntering: {
+      true: [
+        'fade-in animate-in',
+        'placement-left:slide-in-from-right-1 placement-right:slide-in-from-left-1 placement-top:slide-in-from-bottom-1 placement-bottom:slide-in-from-top-1',
+      ],
+    },
+    isExiting: {
+      true: [
+        'fade-in direction-reverse animate-in',
+        'placement-left:slide-out-to-right-1 placement-right:slide-out-to-left-1 placement-top:slide-out-to-bottom-1 placement-bottom:slide-out-to-top-1',
+      ],
+    },
+  },
+  defaultVariants: {
+    inverse: false,
+  },
+});
 
-function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
-  return <TooltipPrimitive.Provider data-slot="tooltip-provider" delay={delay} {...props} />;
+export const TooltipTrigger = TooltipTriggerPrimitive;
+
+export interface TooltipProps
+  extends Omit<TooltipPrimitiveProps, 'children'>, VariantProps<typeof tooltipStyles> {
+  arrow?: boolean;
+  children?: React.ReactNode;
 }
 
-function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
-}
-
-function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
-}
-
-function TooltipContent({
-  className,
-  side = 'top',
-  sideOffset = 4,
-  align = 'center',
-  alignOffset = 0,
-  children,
-  ...props
-}: TooltipPrimitive.Popup.Props &
-  Pick<TooltipPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+export function Tooltip({ offset = 10, arrow = true, inverse, children, ...props }: TooltipProps) {
   return (
-    <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Positioner
-        align={align}
-        alignOffset={alignOffset}
-        side={side}
-        sideOffset={sideOffset}
-        className="isolate z-50"
-      >
-        <TooltipPrimitive.Popup
-          data-slot="tooltip-content"
-          className={cn(
-            'z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-            className,
-          )}
-          {...props}
-        >
-          {children}
-          <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5" />
-        </TooltipPrimitive.Popup>
-      </TooltipPrimitive.Positioner>
-    </TooltipPrimitive.Portal>
+    <TooltipPrimitive
+      {...props}
+      offset={offset}
+      className={composeRenderProps(props.className, (className, renderProps) =>
+        tooltipStyles({
+          ...renderProps,
+          inverse,
+          className,
+        }),
+      )}
+    >
+      {arrow && (
+        <OverlayArrow className="group">
+          <svg
+            width={12}
+            height={12}
+            viewBox="0 0 12 12"
+            className={twJoin(
+              'block group-placement-bottom:rotate-180 group-placement-left:-rotate-90 group-placement-right:rotate-90 forced-colors:fill-[Canvas] forced-colors:stroke-[ButtonBorder]',
+              inverse
+                ? 'fill-foreground stroke-transparent'
+                : 'fill-overlay stroke-(--tooltip-border)',
+            )}
+          >
+            <path d="M0 0 L6 6 L12 0" />
+          </svg>
+        </OverlayArrow>
+      )}
+      {children}
+    </TooltipPrimitive>
   );
 }
-
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

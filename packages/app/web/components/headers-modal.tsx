@@ -6,7 +6,7 @@ import { PlusIcon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogContent,
+  DialogBody,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -75,32 +75,34 @@ export const HeadersModal = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>自定义 Headers</DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={onSubmit} className="space-y-3">
-            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+    <Dialog isOpen={open} onOpenChange={onOpenChange} size="lg">
+      <DialogHeader>
+        <DialogTitle>自定义 Headers</DialogTitle>
+      </DialogHeader>
+      <Form {...form}>
+        <form onSubmit={onSubmit} className="flex min-h-0 flex-col gap-4">
+          <DialogBody className="gap-3">
+            <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1">
               {fields.map((field, index) => (
                 <div key={field.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
                   <Input
+                    aria-label="Header 名称"
                     placeholder="Header 名称"
                     autoComplete="off"
                     {...register(`headers.${index}.key`)}
                   />
                   <Input
+                    aria-label="Header 值"
                     placeholder="Header 值"
                     autoComplete="off"
                     {...register(`headers.${index}.value`)}
                   />
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => remove(index)}
-                    disabled={fields.length === 1}
+                    intent="plain"
+                    size="sq-sm"
+                    onPress={() => remove(index)}
+                    isDisabled={fields.length === 1}
                   >
                     <Trash2Icon />
                     <span className="sr-only">删除</span>
@@ -110,22 +112,22 @@ export const HeadersModal = ({
             </div>
             <Button
               type="button"
-              variant="outline"
+              intent="outline"
               className="w-full"
-              onClick={() => append({ key: '', value: '' })}
+              onPress={() => append({ key: '', value: '' })}
             >
               <PlusIcon />
               添加 Header
             </Button>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                取消
-              </Button>
-              <Button type="submit">确认</Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" intent="outline" onPress={onCancel}>
+              取消
+            </Button>
+            <Button type="submit">确认</Button>
+          </DialogFooter>
+        </form>
+      </Form>
     </Dialog>
   );
 };

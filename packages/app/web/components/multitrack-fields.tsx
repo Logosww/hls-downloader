@@ -3,14 +3,13 @@ import type { Playlist, Rendition } from '@hls-downloader/shared';
 import type { ConfirmFormValues } from './confirm-modal';
 import { availableTracks } from '@/lib/multitrack-options';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { FieldGroup, FieldDescription } from '@/components/ui/field';
+import { FieldGroup, Description } from '@/components/ui/field';
 import {
   Select,
   SelectContent,
-  SelectGroup,
+  SelectSection,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
@@ -50,8 +49,10 @@ export function MultiTrackFields({
             <FormLabel>轨道模式</FormLabel>
             <FormControl>
               <ToggleGroup
-                value={[field.value ?? 'single']}
-                onValueChange={(v) => {
+                selectedKeys={[field.value ?? 'single']}
+                disallowEmptySelection
+                onSelectionChange={(keys) => {
+                  const v = [...keys];
                   if (!v[0]) return;
                   field.onChange(v[0]);
                   form.setValue('timelineAdvanced', '');
@@ -61,8 +62,8 @@ export function MultiTrackFields({
                 }}
                 aria-label="轨道模式"
               >
-                <ToggleGroupItem value="single">单音轨</ToggleGroupItem>
-                <ToggleGroupItem value="multi">多轨下载</ToggleGroupItem>
+                <ToggleGroupItem id="single">单音轨</ToggleGroupItem>
+                <ToggleGroupItem id="multi">多轨下载</ToggleGroupItem>
               </ToggleGroup>
             </FormControl>
           </FormItem>
@@ -70,10 +71,10 @@ export function MultiTrackFields({
       />
       {mode === 'multi' && (
         <FieldGroup>
-          <FieldDescription>
+          <Description>
             只下载已结束的媒体及字幕。所选轨道写入同一
             MP4；仅保证容器输出，播放器对多音轨和内嵌字幕的支持可能不同。字幕支持纯文本及有限设置。
-          </FieldDescription>
+          </Description>
           <FormField
             name="embeddedAudio"
             control={form.control}
@@ -82,8 +83,10 @@ export function MultiTrackFields({
                 <FormLabel>主媒体内嵌音频</FormLabel>
                 <FormControl>
                   <ToggleGroup
-                    value={[field.value ?? 'keep']}
-                    onValueChange={(v) => {
+                    selectedKeys={[field.value ?? 'keep']}
+                    disallowEmptySelection
+                    onSelectionChange={(keys) => {
+                      const v = [...keys];
                       if (!v[0]) return;
                       field.onChange(v[0]);
                       if (v[0] === 'exclude' && form.getValues('defaultAudio') === 'primary')
@@ -91,8 +94,8 @@ export function MultiTrackFields({
                     }}
                     aria-label="主媒体内嵌音频"
                   >
-                    <ToggleGroupItem value="keep">保留</ToggleGroupItem>
-                    <ToggleGroupItem value="exclude">排除</ToggleGroupItem>
+                    <ToggleGroupItem id="keep">保留</ToggleGroupItem>
+                    <ToggleGroupItem id="exclude">排除</ToggleGroupItem>
                   </ToggleGroup>
                 </FormControl>
               </FormItem>
@@ -115,11 +118,11 @@ export function MultiTrackFields({
                     </FormLabel>
                     <FormControl>
                       <Select
-                        multiple
+                        selectionMode="multiple"
                         items={options}
                         value={field.value ?? []}
-                        disabled={!options.length}
-                        onValueChange={(value) => {
+                        isDisabled={!options.length}
+                        onChange={(value) => {
                           field.onChange(value);
                           form.setValue(
                             name === 'audioTracks' ? 'defaultAudio' : 'defaultSubtitle',
@@ -132,28 +135,15 @@ export function MultiTrackFields({
                             );
                         }}
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue>
-                            {(value: string[]) =>
-                              value.length
-                                ? `${value.length} 条已选：${options
-                                    .filter((t) => value.includes(t.value))
-                                    .map((t) => t.label)
-                                    .join('、')}`
-                                : options.length
-                                  ? '不选入其他轨道'
-                                  : '当前视频质量无可选轨道'
-                            }
-                          </SelectValue>
-                        </SelectTrigger>
+                        <SelectTrigger className="w-full" />
                         <SelectContent>
-                          <SelectGroup>
+                          <SelectSection>
                             {options.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
+                              <SelectItem key={item.value} id={item.value}>
                                 {item.label}
                               </SelectItem>
                             ))}
-                          </SelectGroup>
+                          </SelectSection>
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -189,19 +179,17 @@ export function MultiTrackFields({
                       <Select
                         items={items}
                         value={field.value ?? items[0]!.value}
-                        onValueChange={field.onChange}
+                        onChange={field.onChange}
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <SelectTrigger className="w-full" />
                         <SelectContent>
-                          <SelectGroup>
+                          <SelectSection>
                             {items.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
+                              <SelectItem key={item.value} id={item.value}>
                                 {item.label}
                               </SelectItem>
                             ))}
-                          </SelectGroup>
+                          </SelectSection>
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -223,23 +211,21 @@ export function MultiTrackFields({
                     <Select
                       items={mediaItems}
                       value={field.value ?? 'primary'}
-                      onValueChange={field.onChange}
+                      onChange={field.onChange}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="w-full" />
                       <SelectContent>
-                        <SelectGroup>
+                        <SelectSection>
                           {mediaItems.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>
+                            <SelectItem key={item.value} id={item.value}>
                               {item.label}
                             </SelectItem>
                           ))}
-                        </SelectGroup>
+                        </SelectSection>
                       </SelectContent>
                     </Select>
                   </FormControl>
-                  <FieldDescription>绑定 X-TIMESTAMP-MAP 所引用的媒体源时钟。</FieldDescription>
+                  <Description>绑定 X-TIMESTAMP-MAP 所引用的媒体源时钟。</Description>
                 </FormItem>
               )}
             />
@@ -253,9 +239,9 @@ export function MultiTrackFields({
                 <FormControl>
                   <Input {...field} type="number" min={1} max={4096} />
                 </FormControl>
-                <FieldDescription>
+                <Description>
                   普通下载及分割输出共享此上限；大文件可使用直存。超限会停止任务并保留已完成输出。
-                </FieldDescription>
+                </Description>
                 <FormMessage />
               </FormItem>
             )}

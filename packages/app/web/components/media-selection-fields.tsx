@@ -6,10 +6,9 @@ import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
-  SelectGroup,
+  SelectSection,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import { FieldGroup } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,7 +65,7 @@ export function MediaSelectionFields({
                   <FormControl>
                     <Select
                       value={field.value}
-                      onValueChange={(value) => {
+                      onChange={(value) => {
                         field.onChange(value);
                         form.setValue('audioTracks', []);
                         form.setValue('embeddedSubtitles', []);
@@ -75,17 +74,15 @@ export function MediaSelectionFields({
                         form.setValue('subtitleBindings', {});
                       }}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="选择视频质量" />
-                      </SelectTrigger>
+                      <SelectTrigger className="w-full" />
                       <SelectContent>
-                        <SelectGroup>
+                        <SelectSection>
                           {playlist.map(({ name, bandwidth }) => (
-                            <SelectItem key={`${name}-${bandwidth}`} value={name}>
+                            <SelectItem key={`${name}-${bandwidth}`} id={name}>
                               {name}
                             </SelectItem>
                           ))}
-                        </SelectGroup>
+                        </SelectSection>
                       </SelectContent>
                     </Select>
                   </FormControl>

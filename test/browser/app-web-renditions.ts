@@ -131,7 +131,7 @@ try {
   assert.equal(await page.locator('video').evaluate((v: HTMLVideoElement) => v.error), null);
   const duration = await page.locator('video').evaluate((v: HTMLVideoElement) => v.duration);
   assert.ok(duration < 3);
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
   assert.deepEqual(errors, []);
   console.log('PASS Web preview awaits MSE append completion and plays dual-input output');
 } finally {

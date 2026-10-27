@@ -7,19 +7,18 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
-  SelectGroup,
+  SelectSection,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { FieldGroup, FieldDescription } from '@/components/ui/field';
+import { FieldGroup, Description } from '@/components/ui/field';
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+  DisclosureGroup,
+  DisclosurePanel,
+  Disclosure,
+  DisclosureTrigger,
+} from '@/components/ui/disclosure-group';
 
 export function TimelineSettings({
   form,
@@ -50,17 +49,19 @@ export function TimelineSettings({
             <FormLabel>下载范围</FormLabel>
             <FormControl>
               <ToggleGroup
-                multiple={false}
-                value={[field.value ?? 'legacy']}
-                onValueChange={(value) => {
+                selectionMode="single"
+                selectedKeys={[field.value ?? 'legacy']}
+                disallowEmptySelection
+                onSelectionChange={(keys) => {
+                  const value = [...keys];
                   if (!value[0]) return;
                   field.onChange(value[0]);
                   if (value[0] === 'timeline') form.setValue('transcodePreset', 'none');
                 }}
                 aria-label="下载范围"
               >
-                <ToggleGroupItem value="legacy">完整下载</ToggleGroupItem>
-                <ToggleGroupItem value="timeline">时间轴下载</ToggleGroupItem>
+                <ToggleGroupItem id="legacy">完整下载</ToggleGroupItem>
+                <ToggleGroupItem id="timeline">时间轴下载</ToggleGroupItem>
               </ToggleGroup>
             </FormControl>
           </FormItem>
@@ -68,12 +69,12 @@ export function TimelineSettings({
       />
       {timelineMode === 'timeline' && (
         <FieldGroup>
-          <FieldDescription>
+          <Description>
             {multi
               ? '按多轨媒体时间轴处理范围、缺口和配置变化；不逐帧裁切。'
               : '先扫描并验证时间轴，再开始输出。范围按可解码边界扩展；不逐帧裁切。当前直接播放与转码仅适用于完整下载。'}{' '}
             留空起止时间表示整个资源。
-          </FieldDescription>
+          </Description>
           <FieldGroup className="grid gap-4 sm:grid-cols-2">
             {(
               [
@@ -126,25 +127,21 @@ export function TimelineSettings({
                     <FormControl>
                       <Select
                         value={field.value}
-                        onValueChange={(value) => {
+                        onChange={(value) => {
                           field.onChange(value);
                           if (name === 'changePolicy' && value === 'split' && !canWriteToDirectory)
                             form.setValue('outputMode', 'browser');
                         }}
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue>
-                            {choices.find(([value]) => value === field.value)?.[1]}
-                          </SelectValue>
-                        </SelectTrigger>
+                        <SelectTrigger className="w-full" />
                         <SelectContent>
-                          <SelectGroup>
+                          <SelectSection>
                             {choices.map(([value, text]) => (
-                              <SelectItem key={value} value={value}>
+                              <SelectItem key={value} id={value}>
                                 {text}
                               </SelectItem>
                             ))}
-                          </SelectGroup>
+                          </SelectSection>
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -170,33 +167,27 @@ export function TimelineSettings({
                             ? field.value
                             : 'none'
                         }
-                        onValueChange={field.onChange}
+                        onChange={field.onChange}
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue>
-                            {subtitles.find(
-                              (item) => JSON.stringify([item.groupId, item.name]) === field.value,
-                            )?.name ?? '不导出字幕'}
-                          </SelectValue>
-                        </SelectTrigger>
+                        <SelectTrigger className="w-full" />
                         <SelectContent>
-                          <SelectGroup>
-                            <SelectItem value="none">不导出字幕</SelectItem>
+                          <SelectSection>
+                            <SelectItem id="none">不导出字幕</SelectItem>
                             {subtitles.map((item) => (
                               <SelectItem
                                 key={JSON.stringify([item.groupId, item.name])}
-                                value={JSON.stringify([item.groupId, item.name])}
+                                id={JSON.stringify([item.groupId, item.name])}
                               >
                                 {item.name}
                               </SelectItem>
                             ))}
-                          </SelectGroup>
+                          </SelectSection>
                         </SelectContent>
                       </Select>
                     </FormControl>
-                    <FieldDescription>
+                    <Description>
                       跟随已完成媒体报告，按输出拆分。同步证据不足时单独显示导出失败。
-                    </FieldDescription>
+                    </Description>
                   </FormItem>
                 )}
               />
@@ -209,19 +200,17 @@ export function TimelineSettings({
                     <FormControl>
                       <Textarea {...field} placeholder="0 --> 30 | 开场&#10;30 --> 60 | 正文" />
                     </FormControl>
-                    <FieldDescription>
-                      每行填写公共时间轴秒数：开始 --&gt; 结束 | 标题
-                    </FieldDescription>
+                    <Description>每行填写公共时间轴秒数：开始 --&gt; 结束 | 标题</Description>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </>
           )}
-          <Accordion>
-            <AccordionItem value="timeline-advanced">
-              <AccordionTrigger>高级时间轴设置</AccordionTrigger>
-              <AccordionContent>
+          <DisclosureGroup>
+            <Disclosure id="timeline-advanced">
+              <DisclosureTrigger>高级时间轴设置</DisclosureTrigger>
+              <DisclosurePanel>
                 <FormField
                   name="timelineAdvanced"
                   control={form.control}
@@ -234,19 +223,19 @@ export function TimelineSettings({
                           placeholder={'{"limits":{"samples":500000,"resources":2000}}'}
                         />
                       </FormControl>
-                      <FieldDescription>
+                      <Description>
                         {multi
                           ? '可填写 anchors（inputId、generation、epoch、source、presentation）、limits、tailDuration；input ID 见默认轨及字幕绑定。'
                           : '可填写 epochAnchors、limits、tailDuration；预算限制规划量，并非内存上限。'}{' '}
                         时间使用 ticks 字符串与 timescale。
-                      </FieldDescription>
+                      </Description>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+              </DisclosurePanel>
+            </Disclosure>
+          </DisclosureGroup>
         </FieldGroup>
       )}
     </>

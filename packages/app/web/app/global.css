@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@plugin 'tailwindcss-react-aria-components';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -40,6 +40,29 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-foreground: var(--success-subtle-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-subtle-foreground: var(--danger-subtle-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-subtle-foreground: var(--warning-subtle-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-subtle-foreground: var(--info-subtle-foreground);
+  --color-overlay: var(--overlay);
+  --color-overlay-foreground: var(--overlay-foreground);
+  --color-navbar: var(--navbar);
+  --color-navbar-foreground: var(--navbar-foreground);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
@@ -75,6 +98,26 @@
   --sidebar-accent-foreground: #075f56;
   --sidebar-border: #cfdfda;
   --sidebar-ring: #087f72;
+  --primary-subtle: color-mix(in oklab, var(--primary) 15%, transparent);
+  --primary-subtle-foreground: var(--primary);
+  --overlay: var(--popover);
+  --overlay-foreground: var(--popover-foreground);
+  --success: oklch(0.596 0.145 163.225);
+  --success-foreground: oklch(1 0 0);
+  --success-subtle: oklch(0.696 0.17 162.48 / 0.15);
+  --success-subtle-foreground: oklch(0.508 0.118 165.612);
+  --info-subtle: oklch(0.685 0.169 237.323 / 0.15);
+  --info-subtle-foreground: oklch(0.5 0.134 242.749);
+  --warning: oklch(0.828 0.189 84.429);
+  --warning-foreground: oklch(0.279 0.077 45.635);
+  --warning-subtle: oklch(0.828 0.189 84.429 / 0.2);
+  --warning-subtle-foreground: oklch(0.555 0.163 48.998);
+  --danger: oklch(0.577 0.245 27.325);
+  --danger-foreground: oklch(0.971 0.013 17.38);
+  --danger-subtle: oklch(0.637 0.237 25.331 / 0.15);
+  --danger-subtle-foreground: oklch(0.505 0.213 27.518);
+  --navbar: oklch(0.995 0 0);
+  --navbar-foreground: oklch(0.141 0.005 285.823);
 }
 
 .dark {
@@ -109,6 +152,26 @@
   --sidebar-accent-foreground: #6be5cf;
   --sidebar-border: #29474d;
   --sidebar-ring: #22d3b6;
+  --primary-subtle: color-mix(in oklab, var(--primary) 15%, transparent);
+  --primary-subtle-foreground: var(--primary);
+  --overlay: var(--popover);
+  --overlay-foreground: var(--popover-foreground);
+  --success: oklch(0.596 0.145 163.225);
+  --success-foreground: oklch(1 0 0);
+  --success-subtle: oklch(0.696 0.17 162.48 / 0.1);
+  --success-subtle-foreground: oklch(0.765 0.177 163.223);
+  --info-subtle: oklch(0.685 0.169 237.323 / 0.1);
+  --info-subtle-foreground: oklch(0.828 0.111 230.318);
+  --warning: oklch(0.828 0.189 84.429);
+  --warning-foreground: oklch(0.279 0.077 45.635);
+  --warning-subtle: oklch(0.828 0.189 84.429 / 0.1);
+  --warning-subtle-foreground: oklch(0.828 0.189 84.429);
+  --danger: oklch(0.577 0.245 27.325);
+  --danger-foreground: oklch(0.971 0.013 17.38);
+  --danger-subtle: oklch(0.637 0.237 25.331 / 0.1);
+  --danger-subtle-foreground: oklch(0.704 0.191 22.216);
+  --navbar: oklch(0.19 0.006 285.885);
+  --navbar-foreground: oklch(0.985 0 0);
 }
 
 @layer base {
@@ -121,5 +184,15 @@
   button:not(:disabled),
   [role='button']:not(:disabled) {
     cursor: pointer;
+  }
+}
+
+@utility touch-target {
+  @media (pointer: coarse) {
+    &::after {
+      position: absolute;
+      content: '';
+      inset: -0.25rem;
+    }
   }
 }

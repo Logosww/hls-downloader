@@ -24,23 +24,24 @@ export function TranscodeFields({
             <FormLabel>转码预设</FormLabel>
             <FormControl>
               <ToggleGroup
-                variant="outline"
+                selectionMode="single"
+                disallowEmptySelection
                 size="sm"
-                disabled={disabled}
+                isDisabled={disabled}
                 className="w-full"
-                value={field.value ? [field.value] : []}
-                onValueChange={(value) => value[0] && field.onChange(value[0])}
+                selectedKeys={field.value ? [field.value] : []}
+                onSelectionChange={(keys) => field.onChange([...keys][0])}
               >
-                <ToggleGroupItem className="flex-1" value="none">
+                <ToggleGroupItem className="flex-1" id="none">
                   默认
                 </ToggleGroupItem>
-                <ToggleGroupItem className="flex-1" value="h264">
+                <ToggleGroupItem className="flex-1" id="h264">
                   H.264
                 </ToggleGroupItem>
-                <ToggleGroupItem className="flex-1" value="hevc">
+                <ToggleGroupItem className="flex-1" id="hevc">
                   HEVC
                 </ToggleGroupItem>
-                <ToggleGroupItem className="flex-1" value="vp9">
+                <ToggleGroupItem className="flex-1" id="vp9">
                   VP9
                 </ToggleGroupItem>
               </ToggleGroup>

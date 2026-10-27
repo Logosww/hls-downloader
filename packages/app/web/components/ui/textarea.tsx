@@ -1,18 +1,32 @@
-import * as React from 'react';
+'use client';
 
-import { cn } from 'cn';
+import {
+  TextArea,
+  type TextAreaProps as TextAreaPrimitiveProps,
+} from 'react-aria-components/TextArea';
+import { cx } from '@/lib/primitive';
 
-function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
+export interface TextAreaProps extends TextAreaPrimitiveProps {
+  ref?: React.Ref<HTMLTextAreaElement>;
+}
+export function Textarea({ className, ref, ...props }: TextAreaProps) {
   return (
-    <textarea
-      data-slot="textarea"
-      className={cn(
-        'border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 flex field-sizing-content min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-        className,
-      )}
-      {...props}
-    />
+    <span data-slot="control" className="relative block w-full">
+      <TextArea
+        {...props}
+        ref={ref}
+        className={cx(
+          'field-sizing-content relative block min-h-16 w-full appearance-none rounded-lg bg-(--control-bg,transparent) px-[calc(--spacing(3.5)-1px)] py-[calc(--spacing(2.5)-1px)] sm:px-[calc(--spacing(3)-1px)] sm:py-[calc(--spacing(1.5)-1px)]',
+          'text-base/6 text-foreground placeholder:text-muted-foreground sm:text-sm/6',
+          'border border-input enabled:hover:border-muted-foreground/30',
+          'outline-hidden focus:border-ring/70 focus:ring-3 focus:ring-ring/20 focus:enabled:hover:border-ring/80',
+          'invalid:border-danger-subtle-foreground/70 focus:invalid:border-danger-subtle-foreground/70 focus:invalid:ring-danger-subtle-foreground/20 invalid:enabled:hover:border-danger-subtle-foreground/80 invalid:focus:enabled:hover:border-danger-subtle-foreground/80',
+          'disabled:bg-muted forced-colors:in-disabled:text-[GrayText]',
+          'in-disabled:bg-muted forced-colors:in-disabled:text-[GrayText]',
+          'dark:scheme-dark',
+          className,
+        )}
+      />
+    </span>
   );
 }
-
-export { Textarea };

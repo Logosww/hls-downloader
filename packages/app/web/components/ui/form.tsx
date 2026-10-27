@@ -10,11 +10,9 @@ import {
   type FieldPath,
   type FieldValues,
 } from 'react-hook-form';
-import { mergeProps } from '@base-ui/react/merge-props';
-import { useRender } from '@base-ui/react/use-render';
 
 import { cn } from 'cn';
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/ui/field';
 
 const Form = FormProvider;
 
@@ -87,29 +85,24 @@ function FormLabel({ className, ...props }: React.ComponentProps<typeof Label>) 
       data-slot="form-label"
       data-error={!!error}
       className={cn('data-[error=true]:text-destructive', className)}
+      id={`${formItemId}-label`}
       htmlFor={formItemId}
       {...props}
     />
   );
 }
 
-function FormControl({ render, children, ...props }: useRender.ComponentProps<'input'>) {
-  const { error, formItemId, formDescriptionId, formMessageId } = useFormField();
-
-  return useRender({
-    defaultTagName: 'input',
-    render: (render ?? children) as React.ReactElement | undefined,
-    props: mergeProps<'input'>(
-      {
-        'data-slot': 'form-control',
-        id: formItemId,
-        'aria-describedby': !error
-          ? `${formDescriptionId}`
-          : `${formDescriptionId} ${formMessageId}`,
-        'aria-invalid': !!error,
-      } as React.ComponentProps<'input'>,
-      props,
-    ),
+// React Aria composite controls use aria-labelledby; native inputs also use htmlFor.
+function FormControl({ children }: { children: React.ReactElement<Record<string, unknown>> }) {
+  const { error, formItemId, formMessageId } = useFormField();
+  return React.cloneElement(children, {
+    id: formItemId,
+    'aria-labelledby': children.props['aria-label'] ? undefined : `${formItemId}-label`,
+    'aria-describedby':
+      [children.props['aria-describedby'], error ? formMessageId : undefined]
+        .filter(Boolean)
+        .join(' ') || undefined,
+    'aria-invalid': !!error,
   });
 }
 
@@ -136,6 +129,7 @@ function FormMessage({ className, ...props }: React.ComponentProps<'p'>) {
 
   return (
     <p
+      role="alert"
       data-slot="form-message"
       id={formMessageId}
       className={cn('text-destructive text-sm', className)}

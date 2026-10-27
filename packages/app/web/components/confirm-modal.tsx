@@ -1,12 +1,11 @@
 import {
-  AlertDialog,
-  AlertDialogHeader,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogCancel,
-} from '@/components/ui/alert-dialog';
+  Dialog,
+  DialogHeader,
+  DialogBody,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { MultiTrackFields } from './multitrack-fields';
 import { multiTrackAdvancedSchema } from '@/lib/multitrack-options';
@@ -17,7 +16,6 @@ import { toast } from 'sonner';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { Form } from '@/components/ui/form';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { TimelineSettings } from './timeline-settings';
 import { TranscodeFields } from './transcode-fields';
 import { buildTimelineOptions, parseChapters } from '@/lib/timeline-options';
@@ -229,84 +227,90 @@ export const ConfirmModal = ({
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={(value) => !isDownloading && onOpenChange?.(value)}>
-      <AlertDialogContent className="max-h-[min(40rem,calc(100dvh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] px-0 overflow-hidden gap-5 data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-2xl">
-        <AlertDialogHeader className="px-4">
-          <AlertDialogTitle>确认下载</AlertDialogTitle>
-          <AlertDialogDescription>确认视频信息并选择下载设置</AlertDialogDescription>
-        </AlertDialogHeader>
-        <Form {...form}>
-          <ScrollArea className="min-h-0">
-            <form
-              id="confirm-modal-form"
-              className="flex flex-col gap-5 px-4 py-1"
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitDownload();
-              }}
-            >
-              <MediaSelectionFields
-                form={form}
-                previewSrc={previewSrc}
-                playlist={playlist}
-                isLoading={isLoading}
-              />
-              <MultiTrackFields form={form} playlist={playlist} renditions={metadata?.renditions} />
-              <TimelineSettings
-                form={form}
-                playlist={playlist}
-                renditions={metadata?.renditions}
-                canWriteToDirectory={canWriteToDirectory}
-              />
-              <SaveModeFields
-                form={form}
-                disabled={isDownloading}
-                fileAvailable={fileAvailable}
-                outputMode={outputMode}
-                timeline={advancedMode}
-              />
-              <TranscodeFields
-                form={form}
-                disabled={outputMode === 'file' || advancedMode || isDownloading}
-              />
-            </form>
-          </ScrollArea>
-          <AlertDialogFooter className="mx-0">
-            <AlertDialogCancel
-              className="cursor-pointer"
-              size="sm"
+    <Dialog
+      className="max-h-[min(40rem,calc(100dvh-2rem))]"
+      isOpen={open}
+      size="2xl"
+      role="alertdialog"
+      closeButton={false}
+      onOpenChange={(value) => !isDownloading && onOpenChange?.(value)}
+    >
+      <DialogHeader>
+        <DialogTitle>确认下载</DialogTitle>
+        <DialogDescription>确认视频信息并选择下载设置</DialogDescription>
+      </DialogHeader>
+      <Form {...form}>
+        <DialogBody>
+          <form
+            id="confirm-modal-form"
+            className="flex flex-col gap-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitDownload();
+            }}
+          >
+            <MediaSelectionFields
+              form={form}
+              previewSrc={previewSrc}
+              playlist={playlist}
+              isLoading={isLoading}
+            />
+            <MultiTrackFields form={form} playlist={playlist} renditions={metadata?.renditions} />
+            <TimelineSettings
+              form={form}
+              playlist={playlist}
+              renditions={metadata?.renditions}
+              canWriteToDirectory={canWriteToDirectory}
+            />
+            <SaveModeFields
+              form={form}
               disabled={isDownloading}
-              onClick={() => onOpenChange?.(false)}
-            >
-              取消
-            </AlertDialogCancel>
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              disabled={isDownloading || advancedMode}
-              onClick={form.handleSubmit(handleStreamPreview)}
-            >
-              直接播放
-            </Button>
-            <Button
-              form="confirm-modal-form"
-              className="cursor-pointer"
-              size="sm"
-              type="submit"
-              disabled={isDownloading}
-            >
-              {isDownloading && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
-              {downloadButtonLabel(
-                isDownloading,
-                outputMode,
-                advancedMode && changePolicy === 'split',
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </Form>
-      </AlertDialogContent>
-    </AlertDialog>
+              fileAvailable={fileAvailable}
+              outputMode={outputMode}
+              timeline={advancedMode}
+            />
+            <TranscodeFields
+              form={form}
+              disabled={outputMode === 'file' || advancedMode || isDownloading}
+            />
+          </form>
+        </DialogBody>
+        <DialogFooter className="mx-0">
+          <Button
+            intent="outline"
+            className="cursor-pointer"
+            size="sm"
+            isDisabled={isDownloading}
+            onPress={() => onOpenChange?.(false)}
+          >
+            取消
+          </Button>
+          <Button
+            intent="outline"
+            size="sm"
+            type="button"
+            isDisabled={isDownloading || advancedMode}
+            onPress={() => void form.handleSubmit(handleStreamPreview)()}
+          >
+            直接播放
+          </Button>
+          <Button
+            form="confirm-modal-form"
+            className="cursor-pointer"
+            size="sm"
+            type="submit"
+            isDisabled={isDownloading}
+          >
+            {isDownloading && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
+            {downloadButtonLabel(
+              isDownloading,
+              outputMode,
+              advancedMode && changePolicy === 'split',
+            )}
+          </Button>
+        </DialogFooter>
+      </Form>
+    </Dialog>
   );
 };
 
