@@ -21,13 +21,31 @@
 | ---------- | --------- | ---------------------------------------- |
 | 青绿 Mint  | `#22D3B6` | 深色背景上的标志、链接与主按钮           |
 | 深青 Deep  | `#087F72` | 浅色背景上的标志、链接与主按钮           |
-| 墨色 Ink   | `#0B1F24` | 浅色主题正文、深色主题背景、favicon 底板 |
+| 墨色 Ink   | `#0B1F24` | 浅色主题正文、青绿按钮文字、favicon 底板 |
+| 夜色 Night | `#070F12` | 深色页面、侧栏与浏览器主题背景           |
 | 浅底 Paper | `#F4FAF8` | 浅色页面背景、深色主题正文               |
 | 白 White   | `#FFFFFF` | 浅色卡片、深青按钮上的文字、反白标志     |
 
 青绿和深青属于同一套主题配对，不随页面任意切换。浅底避免用亮青绿写小字；深青按钮搭配白字，青绿按钮搭配墨色字。品牌色不代替错误、警告等语义色，状态应同时有文字或图标。
 
 文档站样式位于 [`docs/app/global.css`](docs/app/global.css)，Web 示例样式位于 [`packages/app/web/app/global.css`](packages/app/web/app/global.css)。两端的 primary、accent、ring、背景与 sidebar token 保持一致，Fumadocs 与 shadcn 组件使用这些语义色。修改品牌色时，同时更新这两处样式、数据源、本表和 README 徽章颜色，再重新生成资源。
+
+### 深色表面层级
+
+深色主题以 Night 为底，保留低饱和冷色倾向；Mint / Deep 品牌强调色与浅色主题不变。浏览器 `theme-color` 使用 Night，Ink 继续用于浅色正文、按钮文字和图标底板。
+
+| Token | HEX | 用途 |
+| --- | --- | --- |
+| background / sidebar / navbar | `#070F12` | 页面与导航底色 |
+| card | `#0B161A` | 下载列表等卡片表面 |
+| popover / overlay | `#10181B` | Dialog、浮层与菜单表面，降低青色倾向 |
+| muted | `#13252B` | 次要内容表面 |
+| secondary | `#162A30` | 次级操作表面 |
+| accent / sidebar-accent | `#12332F` | 悬停与选中状态 |
+| border / sidebar-border | `#294148` | 表面分隔 |
+| input | `#35525A` | 输入控件边界 |
+
+正文保持 Paper，辅助文字保持 `#AFC6C5`，焦点环保持 Mint；不要通过降低文字透明度配合背景变暗。
 
 ## 字标与留白
 
