@@ -54,7 +54,7 @@ export function ToggleGroup({
             '[--toggle-focused-bg:var(--color-secondary)] [--toggle-focused-foreground:var(--color-secondary-foreground)]',
             '[--toggle-hover-bg:var(--toggle-focused-bg)] [--toggle-hover-foreground:var(--toggle-focused-foreground)]',
             '[--toggle-icon:color-mix(in_oklab,var(--toggle-focused-foreground)_50%,var(--toggle-focused-bg))]',
-            'inset-ring inset-ring-border inline-flex overflow-hidden p-(--toggle-gutter)',
+            'inset-ring inset-ring-border inline-flex w-fit max-w-full overflow-hidden p-(--toggle-gutter)',
             orientation === 'horizontal' ? 'flex-row' : 'flex-col',
             selectionMode === 'single' ? 'gap-(--toggle-gutter)' : 'gap-0',
             isCircle ? 'rounded-full' : 'rounded-(--toggle-group-radius)',

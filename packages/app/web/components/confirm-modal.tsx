@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { MultiTrackFields } from './multitrack-fields';
 import { multiTrackAdvancedSchema } from '@/lib/multitrack-options';
 import { MediaSelectionFields } from './media-selection-fields';
@@ -235,47 +236,54 @@ export const ConfirmModal = ({
       closeButton={false}
       onOpenChange={(value) => !isDownloading && onOpenChange?.(value)}
     >
-      <DialogHeader>
+      <DialogHeader className="shrink-0">
         <DialogTitle>确认下载</DialogTitle>
         <DialogDescription>确认视频信息并选择下载设置</DialogDescription>
       </DialogHeader>
       <Form {...form}>
-        <DialogBody>
-          <form
-            id="confirm-modal-form"
-            className="flex flex-col gap-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitDownload();
-            }}
+        <DialogBody className="overflow-hidden p-0">
+          <ScrollArea
+            className="flex h-auto flex-1"
+            viewportClassName="h-auto min-h-0 flex-1 scroll-fade scroll-fade-6"
+            orientation="vertical"
+            scrollbarGutter
           >
-            <MediaSelectionFields
-              form={form}
-              previewSrc={previewSrc}
-              playlist={playlist}
-              isLoading={isLoading}
-            />
-            <MultiTrackFields form={form} playlist={playlist} renditions={metadata?.renditions} />
-            <TimelineSettings
-              form={form}
-              playlist={playlist}
-              renditions={metadata?.renditions}
-              canWriteToDirectory={canWriteToDirectory}
-            />
-            <SaveModeFields
-              form={form}
-              disabled={isDownloading}
-              fileAvailable={fileAvailable}
-              outputMode={outputMode}
-              timeline={advancedMode}
-            />
-            <TranscodeFields
-              form={form}
-              disabled={outputMode === 'file' || advancedMode || isDownloading}
-            />
-          </form>
+            <form
+              id="confirm-modal-form"
+              className="flex flex-col gap-5 px-(--gutter) py-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitDownload();
+              }}
+            >
+              <MediaSelectionFields
+                form={form}
+                previewSrc={previewSrc}
+                playlist={playlist}
+                isLoading={isLoading}
+              />
+              <MultiTrackFields form={form} playlist={playlist} renditions={metadata?.renditions} />
+              <TimelineSettings
+                form={form}
+                playlist={playlist}
+                renditions={metadata?.renditions}
+                canWriteToDirectory={canWriteToDirectory}
+              />
+              <SaveModeFields
+                form={form}
+                disabled={isDownloading}
+                fileAvailable={fileAvailable}
+                outputMode={outputMode}
+                timeline={advancedMode}
+              />
+              <TranscodeFields
+                form={form}
+                disabled={outputMode === 'file' || advancedMode || isDownloading}
+              />
+            </form>
+          </ScrollArea>
         </DialogBody>
-        <DialogFooter className="mx-0">
+        <DialogFooter className="mx-0 shrink-0">
           <Button
             intent="outline"
             className="cursor-pointer"

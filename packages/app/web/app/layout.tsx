@@ -37,7 +37,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh" className={inter.className} suppressHydrationWarning>
-      <body className="bg-background text-foreground">
+      <body className="flex min-h-svh flex-col bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <Suspense
             fallback={
@@ -51,6 +51,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           >
             {children}
           </Suspense>
+          <footer className="shrink-0 px-4 pb-6 text-center text-xs text-muted-foreground">
+            Powered by{' '}
+            <a
+              href="https://hls-downloader-docs.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+            >
+              @logosw/hls-downloader
+            </a>
+          </footer>
           <Toaster />
         </ThemeProvider>
       </body>

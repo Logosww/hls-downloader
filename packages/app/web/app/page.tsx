@@ -150,7 +150,7 @@ export default function HomePage() {
   };
 
   return (
-    <main className="flex min-h-svh w-full select-none flex-col items-center justify-center px-4 py-20">
+    <main className="flex w-full flex-1 select-none flex-col items-center justify-center px-4 py-20">
       {platform === Platform.web ? (
         <div className="fixed top-6 right-6">
           <ModeToggle />

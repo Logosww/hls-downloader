@@ -18,7 +18,10 @@ export function RadioGroup({ className, ...props }: RadioGroupProps) {
     <RadioGroupPrimitive
       {...props}
       data-slot="control"
-      className={cx('flex flex-col gap-3 *:data-[slot=label]:font-medium', className)}
+      className={cx(
+        'flex w-fit max-w-full flex-col items-start gap-3 *:data-[slot=label]:font-medium',
+        className,
+      )}
     />
   );
 }

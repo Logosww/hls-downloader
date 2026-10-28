@@ -49,6 +49,7 @@ export function MultiTrackFields({
             <FormLabel>轨道模式</FormLabel>
             <FormControl>
               <ToggleGroup
+                size="sm"
                 selectedKeys={[field.value ?? 'single']}
                 disallowEmptySelection
                 onSelectionChange={(keys) => {
@@ -83,6 +84,7 @@ export function MultiTrackFields({
                 <FormLabel>主媒体内嵌音频</FormLabel>
                 <FormControl>
                   <ToggleGroup
+                    size="sm"
                     selectedKeys={[field.value ?? 'keep']}
                     disallowEmptySelection
                     onSelectionChange={(keys) => {

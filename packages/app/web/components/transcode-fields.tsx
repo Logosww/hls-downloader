@@ -26,7 +26,7 @@ export function TranscodeFields({
               <ToggleGroup
                 selectionMode="single"
                 disallowEmptySelection
-                size="sm"
+                size="xs"
                 isDisabled={disabled}
                 className="w-full"
                 selectedKeys={field.value ? [field.value] : []}

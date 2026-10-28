@@ -1,11 +1,12 @@
 'use client';
 
 import { useLayoutEffect, useRef } from 'react';
-import { twJoin, cn } from 'cn';
+import { cn } from 'cn';
 
 export type ScrollAreaOrientation = 'vertical' | 'horizontal' | 'both';
 
 export interface ScrollAreaProps extends React.ComponentPropsWithRef<'div'> {
+  viewportClassName?: string;
   scrollFade?: boolean;
   scrollbarGutter?: boolean;
   orientation?: ScrollAreaOrientation;
@@ -14,6 +15,7 @@ export interface ScrollAreaProps extends React.ComponentPropsWithRef<'div'> {
 export function ScrollArea({
   ref: forwardedRef,
   className,
+  viewportClassName,
   children,
   scrollFade = false,
   scrollbarGutter = false,
@@ -83,7 +85,7 @@ export function ScrollArea({
     <div ref={forwardedRef} className={cn('size-full min-h-0', className)} {...props}>
       <div
         ref={viewportRef}
-        className={twJoin(
+        className={cn(
           'h-full overscroll-auto rounded-[inherit] outline-none transition-shadow data-has-overflow-y:overscroll-y-contain data-has-overflow-x:overscroll-x-contain',
 
           orientation === 'vertical'
@@ -102,6 +104,7 @@ export function ScrollArea({
           scrollbarGutter
             ? [allowY && 'data-has-overflow-y:pe-2.5', allowX && 'data-has-overflow-x:pb-2.5']
             : '',
+          viewportClassName,
         )}
         data-slot="scroll-area-viewport"
       >

@@ -49,6 +49,7 @@ export function TimelineSettings({
             <FormLabel>下载范围</FormLabel>
             <FormControl>
               <ToggleGroup
+                size="sm"
                 selectionMode="single"
                 selectedKeys={[field.value ?? 'legacy']}
                 disallowEmptySelection
