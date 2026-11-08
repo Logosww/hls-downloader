@@ -50,18 +50,6 @@ baseline, while queued metadata stays within 4 MiB. This distinguishes playlist
 metadata growth from accumulating media output. The stalled-writer HTTP test
 checks deterministic backpressure. Both Browser WASM and Node use hls-engine.
 
-## App-web flow
-
-After building the library, start `pnpm --filter @hls-downloader/app-web dev --port 3100`
-and run `pnpm test:app-web:writable` in another terminal. Set `HLS_APP_WEB_URL`
-for a different origin; `HLS_TEST_CHROMIUM_PATH` is also supported.
-
-This test substitutes the file picker with an OPFS handle and uses real Browser
-WASM plus local media fixtures. It verifies user activation, direct file output
-without a Blob URL, queue isolation/cancellation, permission/write failures,
-legacy manual save, and unsupported-browser mobile layout. Screenshots go to
-`test-results/app-web-*.png`. Native OS picker dialogs remain a manual check.
-
 ## 3.6.0 extension request-context acceptance
 
 After building the library (`pnpm run build`), run:
@@ -127,17 +115,6 @@ Do not mark 3.6.0 ready for publication until both real-browser runs have passed
 References: [WXT entrypoints](https://wxt.dev/guide/essentials/entrypoints),
 [WXT manifest configuration](https://wxt.dev/guide/essentials/config/manifest),
 [Chromium extension debugging protocol](https://chromium.googlesource.com/chromium/src.git/+/225b2eaa7f23c33b7c4e30c1bfc58f1bd99cbe1c).
-
-## App-web metadata cancellation
-
-Run `pnpm run test:app-web:metadata` with an installed Playwright Chromium, or set
-`HLS_TEST_CHROMIUM_PATH` to an installed Chrome executable. This standalone browser
-fixture mounts the real metadata hook under React StrictMode and uses controlled
-responses to cover replacement during parsing/poster reads, unmount during either
-stage, late results, and optional poster failure. Cancelled operations return `null`;
-actual parse failures return `false`, while valid metadata returns `true` even when
-poster extraction fails. The page ignores cancelled results rather than opening a
-confirmation or displaying a parsing error. The test runs in CI after the library build.
 
 ## Continuous recording
 

@@ -55,8 +55,6 @@
 ```sh
 pnpm test:app-bun
 pnpm test:unit
-# 先启动 Web 开发服务器；默认测试地址为 http://localhost:3100
-HLS_APP_WEB_URL=http://localhost:3100 pnpm test:app-web:timeline
 ```
 
-Chrome 脚本使用 Playwright，可通过 `HLS_TEST_CHROMIUM_PATH` 指定实际 Chrome；媒体验收需 FFmpeg / FFprobe。新增测试覆盖范围、拆分、自动 sample 解密、字幕/章节、规划预算、第二输出失败、取消及迟到 Promise，复用真实 native/WASM 和独立加密 fixture。Web 原直存、关联音轨和 metadata 取消测试入口仍保留。
+Bun 测试使用真实 native 与独立加密 fixture，媒体验收需 FFmpeg / FFprobe，覆盖范围、拆分、自动 sample 解密、字幕/章节、规划预算、第二输出失败、取消及迟到 Promise。

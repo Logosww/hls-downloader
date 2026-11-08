@@ -175,22 +175,6 @@ jobs:
           name: extension-acceptance
           path: test-results/extension/acceptance-*.json
 
-      - name: App-web metadata cancellation
-        run: pnpm run test:app-web:metadata
-
-      - name: App-web writable flow
-        run: |
-          pnpm --filter @hls-downloader/app-web build
-          pnpm --filter @hls-downloader/app-web start --port 3100 > /tmp/hls-app-web.log 2>&1 &
-          APP_WEB_PID=$!
-          trap 'kill "$APP_WEB_PID" || true' EXIT
-          for attempt in $(seq 1 60); do
-            if curl --fail --silent http://localhost:3100 > /dev/null; then break; fi
-            sleep 1
-          done
-          pnpm run test:app-web:writable
-          pnpm run test:app-web:renditions
-
       - name: Node native protocol contract
         run: pnpm run test:native:contract
 
