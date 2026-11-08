@@ -27,22 +27,22 @@ jobs:
       matrix:
         include:
           - name: linux-x64
-            os: ubuntu-latest
+            os: ubuntu-24.04
             vcpkg_triplet: x64-linux
           - name: linux-arm64
             os: ubuntu-24.04-arm
             vcpkg_triplet: arm64-linux
           - name: darwin-x64
-            os: macos-15-intel
+            os: macos-26-intel
             vcpkg_triplet: x64-osx
           - name: darwin-arm64
-            os: macos-14
+            os: macos-26
             vcpkg_triplet: arm64-osx
           - name: windows-x64
-            os: windows-latest
+            os: windows-2025
             vcpkg_triplet: x64-windows-static-md
           - name: windows-arm64
-            os: windows-11-arm
+            os: windows-11-vs2026-arm
             vcpkg_triplet: arm64-windows-static-md
     steps:
       - uses: actions/checkout@v4
@@ -117,9 +117,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows'
@@ -127,9 +127,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Setup vcpkg + static FFmpeg (Unix)
         if: runner.os != 'Windows'
@@ -144,14 +144,14 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config, Unix)
         if: runner.os != 'Windows'
@@ -178,6 +178,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          key: ${{ matrix.os }}
           workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile

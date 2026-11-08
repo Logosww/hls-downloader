@@ -59,7 +59,7 @@ env:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       FFMPEG_LIBAVCODEC_MIN_MAJOR: '63'
@@ -92,9 +92,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
-          key: vcpkg-ff902-Linux-x64-linux-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-Linux-x64-linux-
+            vcpkg-ff902-ubuntu-24.04-x64-linux-
 
       - name: Setup vcpkg + static FFmpeg (Linux x64)
         run: node scripts/setup-vcpkg-ffmpeg.ts x64-linux
@@ -104,7 +104,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
-          key: vcpkg-ff902-Linux-x64-linux-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config)
         run: |
@@ -123,6 +123,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          key: ubuntu-24.04
           workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile
@@ -221,7 +222,7 @@ jobs:
       matrix:
         include:
           - name: linux-x64
-            os: ubuntu-latest
+            os: ubuntu-24.04
             vcpkg_triplet: x64-linux
             mode: build-and-load
             install_ffmpeg: true
@@ -231,22 +232,22 @@ jobs:
             mode: build-and-load
             install_ffmpeg: true
           - name: darwin-x64
-            os: macos-15-intel
+            os: macos-26-intel
             vcpkg_triplet: x64-osx
             mode: build-and-load
             install_ffmpeg: true
           - name: darwin-arm64
-            os: macos-14
+            os: macos-26
             vcpkg_triplet: arm64-osx
             mode: build-and-load
             install_ffmpeg: true
           - name: windows-x64
-            os: windows-latest
+            os: windows-2025
             vcpkg_triplet: x64-windows-static-md
             mode: build-and-load
             install_ffmpeg: true
           - name: windows-arm64
-            os: windows-11-arm
+            os: windows-11-vs2026-arm
             vcpkg_triplet: arm64-windows-static-md
             mode: build-and-load
             install_ffmpeg: true
@@ -323,9 +324,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
@@ -333,9 +334,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Setup vcpkg + static FFmpeg (Unix)
         if: runner.os != 'Windows' && matrix.install_ffmpeg
@@ -350,14 +351,14 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff902-${{ runner.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && matrix.install_ffmpeg && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff902-Windows-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config, Unix)
         if: matrix.install_ffmpeg && runner.os != 'Windows'
@@ -380,6 +381,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          key: ${{ matrix.os }}
           workspaces: packages/adapters/src/node -> target
 
       - run: pnpm install --frozen-lockfile
