@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Fix BrowserAdapter `downloadToWritable()` and `downloadToStream()` ignoring instance-level `download.maxRetry` for playlist and media requests; per-call `maxRetry` still takes precedence and counts the initial attempt.
+
 ## [4.0.0] - 2026-10-27
 
 ### Added

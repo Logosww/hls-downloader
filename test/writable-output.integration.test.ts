@@ -59,6 +59,44 @@ async function server(n = 10) {
 }
 
 describe('writable output (real WASM)', () => {
+  describe.each(['writable', 'stream'] as const)('%s retry configuration', (output) => {
+    it.each([
+      { globalMaxRetry: 1, callMaxRetry: undefined, attempts: 1 },
+      { globalMaxRetry: 3, callMaxRetry: undefined, attempts: 3 },
+      { globalMaxRetry: 1, callMaxRetry: 2, attempts: 2 },
+    ])(
+      'uses $attempts attempts with global=$globalMaxRetry and call=$callMaxRetry',
+      async ({ globalMaxRetry, callMaxRetry, attempts }) => {
+        for (const resource of ['manifest', 'segment'] as const) {
+          let failedRequests = 0;
+          const d = new HlsDownloader({
+            adapter: BrowserAdapter,
+            options: {
+              download: { maxRetry: globalMaxRetry },
+              browserRequest: {
+                fetch: async (input) => {
+                  if (resource === 'segment' && String(input).endsWith('.m3u8'))
+                    return new Response(playlist(1));
+                  failedRequests++;
+                  return new Response('', { status: 503 });
+                },
+              },
+            },
+          });
+          const options = { url: 'https://fixture.test/media.m3u8', maxRetry: callMaxRetry };
+          const operation =
+            output === 'writable'
+              ? d.downloadToWritable(options, new WritableStream())
+              : d.downloadToStream(options, () => {});
+          await expect(operation).rejects.toMatchObject({
+            code: resource === 'manifest' ? 'MANIFEST_FETCH_FAILED' : 'SEGMENT_FETCH_FAILED',
+          });
+          expect(failedRequests).toBe(attempts);
+        }
+      },
+    );
+  });
+
   it('rejects TS timestamp resets with a structured transmux error', async () => {
     const s = await startFixtureServer({
       '/media.m3u8': (_, res) => sendText(res, playlist(2)),

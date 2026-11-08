@@ -300,11 +300,14 @@ const download: HlsDownloaderBrowserAdapter['download'] = async function (
 
 const downloadToWritable: NonNullable<HlsDownloaderBrowserAdapter['downloadToWritable']> =
   async function (this: HlsDownloaderBrowserAdapter, options, write) {
+    const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
     return finiteEngine(
       this,
       {
         ...options,
-        ...mergeFetchOptions(getAdapterGlobalOptionsFromInternal(this, options), options),
+        ...mergeFetchOptions(globalOptions, options),
+        maxRetry:
+          options.maxRetry ?? globalOptions?.download?.maxRetry ?? this.segmentRetryAttempts,
       },
       { type: 'writable', writable: undefined as never },
       browserRecordingBridge,
