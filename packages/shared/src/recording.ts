@@ -44,6 +44,7 @@ export type HlsRecordingProgress = {
   committedSlot: { inputId: string; generation: string; epoch: string; sequence: string } | null;
 };
 export type HlsEngineMediaReport = {
+  aacRepairs?: import('./timeline').HlsAacRepairSummary[];
   schemaVersion: 1;
   endReason: 'Eof' | 'Stop' | 'DurationLimit';
   inputs: HlsRecordingProgress[];
@@ -63,6 +64,12 @@ export type HlsEngineMediaReport = {
   };
 };
 export type HlsRecordingEvent =
+  | {
+      type: 'aacTimestampRepaired';
+      slot: import('./timeline').HlsTimelineSlot;
+      correctedFrames: string;
+      maxShift: HlsMediaTime;
+    }
   | { type: 'state'; state: HlsRecordingState }
   | { type: 'mapping'; mapping: HlsRecordingMapping }
   | {
@@ -97,6 +104,7 @@ export type HlsRecordingOptions<O extends HlsRecordingOutput = HlsRecordingOutpu
       missingSegments?: 'fail' | 'skip' | 'split';
       timeline?: {
         range?: HlsPresentationRange;
+        aacOverlapRepair?: import('./timeline').HlsAacOverlapRepair;
         gapPolicy?: 'preserve' | 'collapse';
         changePolicy?: 'fail' | 'split';
         tailDuration?: HlsMediaTime;

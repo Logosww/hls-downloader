@@ -1,3 +1,4 @@
+import { withAacOverlapRetry } from './aac-retry';
 import {
   createTimelineRecorder,
   HlsDownloaderError,
@@ -12,7 +13,7 @@ import { parseManifest, selectAudio, type SelectedMedia, type RequestOptions } f
 import { createSidecars } from './sidecars';
 import { readBoundedResource } from './bounded';
 import { assertActive, cancellable } from './browser/request';
-import { camelCaseReport } from './timeline';
+import { camelCaseReport, validateAacOverlapRepair } from './timeline';
 
 import {
   recordingDelay,
@@ -95,6 +96,32 @@ const emptyReport = (): HlsMultiTrackReport => ({
 type Snapshot = { url: string; text: string; metadata: HlsMediaPlaylist };
 
 export async function runMultiTrack(
+  ...args: Parameters<typeof runMultiTrackOnce>
+): Promise<{ report: HlsMultiTrackReport }> {
+  const [, options, , factory, finite] = args;
+  validateAacOverlapRepair(options.timeline?.aacOverlapRepair);
+  // A retry must never duplicate external writes or cross recovery identities.
+  const eligible =
+    finite &&
+    !options.resume &&
+    (options.output.type === 'file' || options.output.type === 'blob') &&
+    !options.subtitleTracks?.some((t) => t.sidecar) &&
+    options.timeline?.changePolicy !== 'split' &&
+    options.missingSegments !== 'split';
+  if (!eligible || options.timeline?.aacOverlapRepair === false) return runMultiTrackOnce(...args);
+  return withAacOverlapRetry(
+    factory,
+    options.timeline?.aacOverlapRepair,
+    options.signal,
+    async (retryFactory) => {
+      const attempt = [...args] as Parameters<typeof runMultiTrackOnce>;
+      attempt[3] = retryFactory;
+      return runMultiTrackOnce(...attempt);
+    },
+  );
+}
+
+async function runMultiTrackOnce(
   adapter: HlsDownloaderAdapterInternal,
   options: HlsMultiTrackOptions & HlsDownloaderBrowserOperationOptions,
   host: HlsMultiTrackHost,
@@ -709,7 +736,7 @@ export async function runMultiTrack(
                 )
               : undefined),
         },
-        timeline: options.timeline ?? {},
+        timeline: { ...options.timeline, aacOverlapRepair: undefined },
       };
       bridge = await factory(
         JSON.stringify({

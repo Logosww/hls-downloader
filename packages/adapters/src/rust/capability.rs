@@ -24,38 +24,38 @@ struct Query {
     resume: Option<bool>,
     experimental_gcm: Option<bool>,
 }
-fn input(v: &Input) -> KeyedInputCapability {
-    KeyedInputCapability::new(
+fn input(v: &Input) -> InputCapability {
+    InputCapability::new(
         match v.container.as_str() {
-            "ts" => KeyedContainer::TransportStream,
-            "fmp4" => KeyedContainer::FragmentedMp4,
-            "packed-aac" => KeyedContainer::PackedAac,
-            _ => KeyedContainer::Other,
+            "ts" => InputContainer::TransportStream,
+            "fmp4" => InputContainer::FragmentedMp4,
+            "packed-aac" => InputContainer::PackedAac,
+            _ => InputContainer::Other,
         },
         match v.encryption.as_str() {
-            "clear" => KeyedEncryption::Clear,
-            "AES-128" => KeyedEncryption::Aes128,
-            "clear-and-aes128" => KeyedEncryption::ClearAndAes128,
-            "SAMPLE-AES" => KeyedEncryption::SampleAes,
-            "SAMPLE-AES-CTR" => KeyedEncryption::SampleAesCtr,
-            "AES-256-GCM" => KeyedEncryption::Aes256Gcm,
-            _ => KeyedEncryption::Other,
+            "clear" => InputEncryption::Clear,
+            "AES-128" => InputEncryption::Aes128,
+            "clear-and-aes128" => InputEncryption::ClearAndAes128,
+            "SAMPLE-AES" => InputEncryption::SampleAes,
+            "SAMPLE-AES-CTR" => InputEncryption::SampleAesCtr,
+            "AES-256-GCM" => InputEncryption::Aes256Gcm,
+            _ => InputEncryption::Other,
         },
         v.codecs
             .iter()
             .map(|c| match c.as_str() {
-                "avc" => KeyedCodec::Avc,
-                "hevc" => KeyedCodec::Hevc,
-                "aac-lc" => KeyedCodec::AacLc,
-                _ => KeyedCodec::Other,
+                "avc" => InputCodec::Avc,
+                "hevc" => InputCodec::Hevc,
+                "aac-lc" => InputCodec::AacLc,
+                _ => InputCodec::Other,
             })
             .collect(),
     )
     .with_scheme(match v.scheme.as_deref().unwrap_or("none") {
-        "none" => KeyedProtectionScheme::None,
-        "cenc" => KeyedProtectionScheme::Cenc,
-        "cbcs" => KeyedProtectionScheme::Cbcs,
-        _ => KeyedProtectionScheme::Other,
+        "none" => InputProtectionScheme::None,
+        "cenc" => InputProtectionScheme::Cenc,
+        "cbcs" => InputProtectionScheme::Cbcs,
+        _ => InputProtectionScheme::Other,
     })
 }
 pub fn query(text: &str) -> String {
@@ -68,10 +68,10 @@ pub fn query(text: &str) -> String {
             .ok_or_else(|| error("UNSUPPORTED_OUTPUT", "MissingInput"))?;
         let id = |s: &str| InputId::new(s).map_err(|_| error("UNSUPPORTED_OUTPUT", "InvalidInput"));
         let output = match q.output.as_str() {
-            "blob" => KeyedOutput::Mp4Bytes,
-            "writable" => KeyedOutput::FragmentedWriter,
-            "file-mp4" => KeyedOutput::NativeStreamingFile,
-            "file-fmp4" => KeyedOutput::FragmentedFile,
+            "blob" => OutputTarget::Mp4Bytes,
+            "writable" => OutputTarget::FragmentedWriter,
+            "file-mp4" => OutputTarget::NativeStreamingFile,
+            "file-fmp4" => OutputTarget::FragmentedFile,
             _ => return Err(error("UNSUPPORTED_OUTPUT", "InvalidOutput")),
         };
         let mut query = CapabilityQuery::new(
@@ -85,26 +85,26 @@ pub fn query(text: &str) -> String {
             },
         )
         .with_source_mode(match q.mode.as_deref().unwrap_or("vod") {
-            "vod" => KeyedSourceMode::FiniteVod,
-            "live" => KeyedSourceMode::Live,
-            "event" => KeyedSourceMode::Event,
-            _ => KeyedSourceMode::RewrittenSnapshot,
+            "vod" => SourceMode::FiniteVod,
+            "live" => SourceMode::Live,
+            "event" => SourceMode::Event,
+            _ => SourceMode::RewrittenSnapshot,
         })
         .with_range(match q.range.as_deref().unwrap_or("whole-resources") {
-            "whole-resources" => KeyedRange::WholeResources,
-            "clear-byte-ranges" => KeyedRange::ClearByteRanges,
-            "complete-encrypted-resources" => KeyedRange::CompleteEncryptedResources,
-            "presentation" => KeyedRange::PresentationRange,
-            "iframe" => KeyedRange::IFrameRanges,
-            _ => KeyedRange::ArbitraryEncryptedRanges,
+            "whole-resources" => RangeCapability::WholeResources,
+            "clear-byte-ranges" => RangeCapability::ClearByteRanges,
+            "complete-encrypted-resources" => RangeCapability::CompleteEncryptedResources,
+            "presentation" => RangeCapability::PresentationRange,
+            "iframe" => RangeCapability::IFrameRanges,
+            _ => RangeCapability::ArbitraryEncryptedRanges,
         })
         .with_playback(match q.playback_target.as_deref().unwrap_or("container") {
-            "container" => MultiTrackPlayback::Container,
-            "direct-browser" => MultiTrackPlayback::DirectBrowser,
-            "avfoundation" => MultiTrackPlayback::AvFoundation,
-            "vlc" => MultiTrackPlayback::Vlc,
-            "iina" => MultiTrackPlayback::Iina,
-            "ffmpeg" => MultiTrackPlayback::Ffmpeg,
+            "container" => PlaybackTarget::Container,
+            "direct-browser" => PlaybackTarget::DirectBrowser,
+            "avfoundation" => PlaybackTarget::AvFoundation,
+            "vlc" => PlaybackTarget::Vlc,
+            "iina" => PlaybackTarget::Iina,
+            "ffmpeg" => PlaybackTarget::Ffmpeg,
             _ => return Err(error("UNSUPPORTED_OUTPUT", "UnknownPlaybackTarget")),
         })
         .with_host_waiter(true)
@@ -119,7 +119,7 @@ pub fn query(text: &str) -> String {
             query = query.with_audio(id(&a.id)?, input(a));
         }
         let d = query_capability(&query);
-        let reject = |r: &MultiTrackCapabilityRejection| json!({"inputId":r.input_id().map(|i|i.as_str()),"dimension":format!("{:?}",r.dimension())});
+        let reject = |r: &InputCapabilityRejection| json!({"inputId":r.input_id().map(|i|i.as_str()),"dimension":format!("{:?}",r.dimension())});
         Ok(
             json!({"supported":d.supported(),"containerSupported":d.container_supported(),"playbackSupported":d.playback_supported(),
           "rejections":d.rejections().iter().map(reject).collect::<Vec<_>>(),"containerRejections":d.container_rejections().iter().map(reject).collect::<Vec<_>>(),

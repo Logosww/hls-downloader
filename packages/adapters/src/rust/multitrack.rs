@@ -91,27 +91,27 @@ impl Selection {
         gaps: bool,
     ) -> std::result::Result<(), Value> {
         let playback = match self.playback_target.as_deref().unwrap_or("container") {
-            "container" => MultiTrackPlayback::Container,
-            "direct-browser" => MultiTrackPlayback::DirectBrowser,
-            "avfoundation" => MultiTrackPlayback::AvFoundation,
-            "vlc" => MultiTrackPlayback::Vlc,
-            "iina" => MultiTrackPlayback::Iina,
-            "ffmpeg" => MultiTrackPlayback::Ffmpeg,
+            "container" => PlaybackTarget::Container,
+            "direct-browser" => PlaybackTarget::DirectBrowser,
+            "avfoundation" => PlaybackTarget::AvFoundation,
+            "vlc" => PlaybackTarget::Vlc,
+            "iina" => PlaybackTarget::Iina,
+            "ffmpeg" => PlaybackTarget::Ffmpeg,
             _ => return Err(error("UNSUPPORTED_OUTPUT", "UnknownPlaybackTarget")),
         };
         let output = if format == "fmp4" {
-            KeyedOutput::FragmentedWriter
+            OutputTarget::FragmentedWriter
         } else if kind == "blob" {
-            KeyedOutput::Mp4Bytes
+            OutputTarget::Mp4Bytes
         } else {
-            KeyedOutput::NativeStreamingFile
+            OutputTarget::NativeStreamingFile
         };
-        let q = MultiTrackCapabilityQuery::new(
+        let q = CapabilityQuery::new(
             InputId::new("primary").unwrap(),
-            KeyedInputCapability::new(
-                KeyedContainer::TransportStream,
-                KeyedEncryption::Clear,
-                vec![KeyedCodec::Avc, KeyedCodec::AacLc],
+            InputCapability::new(
+                InputContainer::TransportStream,
+                InputEncryption::Clear,
+                vec![InputCodec::Avc, InputCodec::AacLc],
             ),
             output,
             EmbeddedAudio::Keep,
@@ -125,7 +125,7 @@ impl Selection {
         )
         .with_decode_gaps(gaps)
         .with_playback(playback);
-        let decision = query_multitrack_capability(&q);
+        let decision = query_capability(&q);
         if let Some(reason) = decision.playback_rejection() {
             return Err(error("UNSUPPORTED_OUTPUT", &format!("{reason:?}")));
         }

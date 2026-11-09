@@ -1,8 +1,40 @@
+/** Strict first; retry recognized TS AAC-LC overlaps once for atomic finite downloads. */
+export type HlsAacOverlapRepair =
+  | false
+  | {
+      /** Positive integer milliseconds; defaults to 50. */
+      maxShiftMs?: number;
+      /** Resource cache budget; defaults to 256 MiB. Exhaustion disables automatic retry. */
+      maxCacheBytes?: number;
+    };
+export type HlsAacRepairPosition = {
+  slot: HlsTimelineSlot;
+  original: HlsMediaTime;
+  repaired: HlsMediaTime;
+};
+export type HlsAacRepairSummary = {
+  inputId: string;
+  correctedFrames: string;
+  maxShift: HlsMediaTime;
+  first: HlsAacRepairPosition | null;
+  last: HlsAacRepairPosition | null;
+};
+export type HlsAacOverlapDiagnostic = {
+  slot: HlsTimelineSlot;
+  original: HlsMediaTime;
+  expected: HlsMediaTime;
+  overlap: HlsMediaTime;
+};
+export type HlsAacRepairDiagnostic = {
+  position: HlsAacRepairPosition;
+  maxShiftMs: number;
+};
 /** Exact signed media time. Protocol integers never pass through a JS number. */
 export type HlsMediaTime = { ticks: string; timescale: number };
 export type HlsPresentationRange = { start: HlsMediaTime; end: HlsMediaTime };
 export type HlsTimelineOptions = {
   range?: HlsPresentationRange;
+  aacOverlapRepair?: HlsAacOverlapRepair;
   gapPolicy?: 'preserve' | 'collapse';
   epochAnchors?: {
     inputId: 'primary' | 'audio';

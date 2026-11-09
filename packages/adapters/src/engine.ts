@@ -81,6 +81,7 @@ export async function finiteEngine(
         timeline: timeline && {
           range: timeline.range,
           gapPolicy: timeline.gapPolicy,
+          aacOverlapRepair: timeline.aacOverlapRepair,
           changePolicy: 'changePolicy' in timeline ? timeline.changePolicy : undefined,
           tailDuration: timeline.tailDuration,
           anchors: timeline.epochAnchors?.map((a) => ({ ...a, generation: '0' })),

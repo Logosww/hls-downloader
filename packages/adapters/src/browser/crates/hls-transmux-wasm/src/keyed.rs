@@ -31,7 +31,7 @@ impl wire::Host for Host {
         Box::pin(async move {
             match receiver.await {
                 Ok(Ok(JsValueResult::Bytes(b))) => Ok(b),
-                _ => Err(hls_engine::legacy::Error::Http("read bridge failed".into())),
+                _ => Err(hls_engine::Error::Http("read bridge failed".into())),
             }
         })
     }

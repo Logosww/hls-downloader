@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Automatically retry finite single-file/Blob VOD downloads on recognized MPEG-TS AAC-LC overlaps, reusing cached segments. Strict remains the first pass; `timeline.aacOverlapRepair` configures the repair limit (50 ms by default) or disables fallback. Expose AAC diagnostics and repair statistics.
+
 ## [4.0.1] - 2026-11-08
 
 ### Fixed

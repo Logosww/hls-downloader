@@ -1,5 +1,5 @@
 //! Versioned, sensitive-data-free keyed host contract shared by N-API and WASM.
-use hls_engine::legacy::Error;
+use hls_engine::Error;
 use hls_engine::*;
 use hls_engine::{
     crypto::{key::*, resource::*},
@@ -25,7 +25,7 @@ pub mod subtitle;
 #[path = "timeline.rs"]
 pub mod timeline;
 
-pub type ReadFuture = Pin<Box<dyn Future<Output = hls_engine::legacy::Result<Vec<u8>>> + Send>>;
+pub type ReadFuture = Pin<Box<dyn Future<Output = hls_engine::SourceResult<Vec<u8>>> + Send>>;
 pub trait Host: Send + Sync {
     fn read(&self, request: String) -> ReadFuture;
     fn resolve(&self, request: String) -> KeyFuture<Reply>;
@@ -198,14 +198,14 @@ impl Source for SourceHost {
     fn read_text<'a>(
         &'a self,
         _: &'a SourceLocation,
-    ) -> Pin<Box<dyn Future<Output = hls_engine::legacy::Result<TextResource>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = hls_engine::SourceResult<TextResource>> + Send + 'a>> {
         Box::pin(async { Err(Error::invalid("snapshot only")) })
     }
     fn read_bytes<'a>(
         &'a self,
         l: &'a SourceLocation,
         r: Option<&'a ByteRange>,
-    ) -> Pin<Box<dyn Future<Output = hls_engine::legacy::Result<Vec<u8>>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = hls_engine::SourceResult<Vec<u8>>> + Send + 'a>> {
         let id = format!("read:{}", self.next.fetch_add(1, Ordering::Relaxed));
         self.ids.lock().unwrap().push(id.clone());
         let lease = Lease {

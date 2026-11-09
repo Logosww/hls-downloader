@@ -43,6 +43,8 @@ export type HlsDownloaderErrorDetails = {
   segmentIndex?: number;
   inputRole?: 'primary' | 'audio' | 'subtitles';
   phase?: string;
+  aacOverlap?: import('./timeline').HlsAacOverlapDiagnostic;
+  aacRepair?: import('./timeline').HlsAacRepairDiagnostic;
   reason?: string;
   inputId?: string;
   originalSequence?: string;
@@ -84,6 +86,8 @@ export class HlsDownloaderError extends Error {
   readonly segmentIndex?: number;
   readonly inputRole?: 'primary' | 'audio' | 'subtitles';
   readonly phase?: string;
+  readonly aacOverlap?: import('./timeline').HlsAacOverlapDiagnostic;
+  readonly aacRepair?: import('./timeline').HlsAacRepairDiagnostic;
   readonly reason?: string;
   readonly inputId?: string;
   readonly originalSequence?: string;
@@ -116,6 +120,8 @@ export class HlsDownloaderError extends Error {
     this.inputRole = details.inputRole;
     this.phase = details.phase;
     this.reason = details.reason;
+    this.aacOverlap = details.aacOverlap ?? undefined;
+    this.aacRepair = details.aacRepair ?? undefined;
     this.inputId = details.inputId;
     this.originalSequence = details.originalSequence;
     this.epoch = details.epoch;

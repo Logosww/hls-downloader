@@ -142,7 +142,7 @@ Use `downloadToWritable()` for bounded media buffers and an asynchronous destina
 
 ## Unified Engine output
 
-All HLS download, stream, timeline and recording methods use `hls-engine 1.0.2`.
+All HLS download, stream, timeline and recording methods use `hls-engine 1.1.0`.
 Existing method names remain available. FFmpeg and WebCodecs remain the separate
 transcoding paths. Finite methods require ENDLIST on every selected input;
 `startRecording()` and `startMultiTrackRecording()` also support Live/EVENT refresh.
@@ -421,3 +421,21 @@ known range, gap and output boundaries and convert to the output clock. Use
 export reads subtitle resources, not the primary media again. Neither helper
 writes files automatically. `downloadSubtitles()` remains available and obtains
 its media clock through Engine processing.
+
+
+## AAC overlap fallback
+
+```ts
+await downloader.download({
+  url,
+  timeline: { aacOverlapRepair: { maxShiftMs: 50 } },
+});
+```
+
+Finite single-file/Blob VOD downloads (including remux before transcoding) start in Strict mode. Only an explicit `AacTimestampOverlap` diagnostic triggers one retry with `RepairOverlaps`, reusing the operation's cached segments and MAP resources. Repair preserves frames without inserting silence; each frame's shift from its original timestamp, including accumulated corrections, must fit the limit. This applies only to MPEG-TS AAC-LC, not video, fMP4 or Packed AAC timeline errors.
+
+`maxShiftMs` is a positive integer, defaulting to 50. Set `aacOverlapRepair: false` to disable fallback. `maxCacheBytes` bounds the operation-local resource cache (256 MiB by default). Exceeding this budget releases the cache and continues in Strict mode; subsequent overlaps return diagnostics without automatic retry. Completion and cancellation release the cache. Keys are not cached here; retries still use the key resolver.
+
+Streaming outputs, recording, recovery, split outputs and external subtitle sidecars remain Strict. Published output is never retried. Recovery never automatically changes policy or checkpoint format.
+
+Failures use `code: 'TIMELINE_FAILED'`. With `reason: 'AacTimestampOverlap'`, `aacOverlap` contains the segment slot, original/expected timestamps and overlap. A repair exceeding the limit returns `reason: 'AacTimestampRepairLimitExceeded'` with position and limit in `aacRepair`. Successful repair exposes per-input corrected frame counts, maximum shift and first/last positions in `report.aacRepairs`; Strict success omits that field. Finite multi-track `onEvent` callbacks can receive `aacTimestampRepaired`. Statistics include processed lookahead samples, not just committed output.

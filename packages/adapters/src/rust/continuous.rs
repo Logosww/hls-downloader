@@ -29,9 +29,35 @@ struct Anchor {
     source: MediaTime,
     presentation: MediaTime,
 }
+#[derive(Deserialize)]
+#[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
+enum AacPolicy {
+    Strict,
+    RepairOverlaps {
+        #[serde(rename = "maxShiftMs")]
+        max_shift_ms: Option<u64>,
+    },
+}
+impl AacPolicy {
+    fn engine(&self) -> std::result::Result<AacTimestampPolicy, Value> {
+        match self {
+            Self::Strict => Ok(AacTimestampPolicy::Strict),
+            Self::RepairOverlaps { max_shift_ms } => {
+                let ms = max_shift_ms.unwrap_or(50);
+                if ms == 0 || ms > u64::MAX / 1_000_000 {
+                    return Err(invalid());
+                }
+                Ok(AacTimestampPolicy::RepairOverlaps {
+                    max_shift: std::time::Duration::from_millis(ms),
+                })
+            }
+        }
+    }
+}
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Timeline {
+    aac_timestamp_policy: Option<AacPolicy>,
     range: Option<PresentationRange>,
     gap_policy: Option<String>,
     change_policy: Option<String>,
@@ -94,7 +120,9 @@ pub fn failure(e: EngineError) -> Value {
             EngineErrorKind::InputRewrite => "RESOURCE_CHANGED",
             EngineErrorKind::Media => "MEDIA_INVALID",
             EngineErrorKind::UnsupportedPlaylist => "MANIFEST_INVALID",
-            EngineErrorKind::TimelineAmbiguous
+            EngineErrorKind::AacTimestampOverlap
+            | EngineErrorKind::AacTimestampRepairLimitExceeded
+            | EngineErrorKind::TimelineAmbiguous
             | EngineErrorKind::MissingRandomAccess
             | EngineErrorKind::MissingTailDuration
             | EngineErrorKind::ConfigurationChanged
@@ -107,6 +135,7 @@ pub fn failure(e: EngineError) -> Value {
         }
     };
     json!({"error":{"code":code,"reason":format!("{:?}",e.kind()),"phase":"recording",
+        "aacOverlap":e.aac_overlap_error(),"aacRepair":e.aac_timestamp_error().map(|d|json!({"position":d.position,"maxShiftMs":d.max_shift.as_millis() as u64})),
         "resourceKind":e.resource().map(|r|format!("{:?}",r.kind()).to_lowercase()),"scheme":e.sample_error().and_then(|s|s.scheme()),"generation":e.generation().map(|n|n.to_string()),"trackId":e.source_track_id(),"sampleIndex":e.sample_index().map(|n|n.to_string()),"inputId":e.slot().map(|s|s.input_id().as_str()),"epoch":e.slot().map(|s|s.epoch().to_string()),
         "originalSequence":e.slot().map(|s|s.sequence().to_string()),"completedRecordingOutputs":e.completed_outputs()}})
 }
@@ -122,6 +151,13 @@ fn uint(s: &str) -> std::result::Result<u64, Value> {
 }
 fn event(e: EngineEvent) -> Value {
     match e {
+        EngineEvent::AacTimestampRepaired {
+            slot,
+            corrected_frames,
+            max_shift,
+        } => {
+            json!({"type":"aacTimestampRepaired","slot":slot,"correctedFrames":corrected_frames.to_string(),"maxShift":max_shift})
+        }
         EngineEvent::State(s) => {
             json!({"type":"state","state":format!("{s:?}").to_lowercase()})
         }
@@ -322,6 +358,13 @@ impl Bridge {
         let playback_capacity = o.max_bytes;
         let playback_preserves_gaps = o.timeline.gap_policy.as_deref() != Some("collapse");
         let mut options = EngineOptions::default()
+            .with_aac_timestamp_policy(
+                o.timeline
+                    .aac_timestamp_policy
+                    .as_ref()
+                    .unwrap_or(&AacPolicy::Strict)
+                    .engine()?,
+            )
             .with_mode(if o.vod {
                 EngineMode::Vod
             } else {
@@ -875,7 +918,6 @@ pub async fn command(handle: &EngineHandle, text: &str) -> Value {
                 )
                 .map_err(|_| error("MANIFEST_INVALID", "playlist"))?;
                 handle
-                    .control()
                     .accept_when_ready(&input, &snapshot)
                     .await
                     .map_err(failure)?;

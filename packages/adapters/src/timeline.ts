@@ -45,6 +45,7 @@ export function validateTimeline(
     if (ticks < -(1n << 127n) || ticks >= 1n << 127n) bad(Code.RANGE_INVALID, 'TimeOverflow');
   };
   if (!value || typeof value !== 'object') bad(Code.TIMELINE_FAILED, 'InvalidOptions');
+  validateAacOverlapRepair(value.aacOverlapRepair);
   if (value.range) {
     time(value.range.start);
     time(value.range.end);
@@ -80,4 +81,22 @@ export function validateTimeline(
   for (const n of Object.values(value.limits ?? {}))
     if (n !== undefined && (!Number.isSafeInteger(n) || n <= 0))
       bad(Code.RESOURCE_LIMIT_EXCEEDED, 'InvalidPlanningLimits');
+}
+
+export function validateAacOverlapRepair(value: HlsTimelineOptions['aacOverlapRepair']): void {
+  if (value === undefined || value === false) return;
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    (value.maxShiftMs !== undefined &&
+      (!Number.isSafeInteger(value.maxShiftMs) ||
+        value.maxShiftMs <= 0 ||
+        value.maxShiftMs > 18_446_744_073_709)) ||
+    (value.maxCacheBytes !== undefined &&
+      (!Number.isSafeInteger(value.maxCacheBytes) || value.maxCacheBytes <= 0))
+  ) {
+    throw new HlsDownloaderError(Code.TIMELINE_FAILED, 'Invalid AAC overlap repair options', {
+      reason: 'InvalidAacOverlapRepair',
+    });
+  }
 }

@@ -1,5 +1,5 @@
 use hls_engine::crypto::key::KeyFuture;
-use hls_engine::legacy::Error;
+use hls_engine::Error;
 use napi::bindgen_prelude::{Buffer, Promise};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;

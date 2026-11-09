@@ -142,7 +142,7 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 
 ## 统一 Engine 输出
 
-所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.0.2`，保留现有方法名。
+所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.1.0`，保留现有方法名。
 FFmpeg/WebCodecs 仍负责独立的转码路径。有限下载要求每个选定输入均有 ENDLIST；
 `startRecording()` 和 `startMultiTrackRecording()` 支持 Live/EVENT 清单刷新。
 
@@ -380,3 +380,21 @@ const subtitles = await downloader.downloadSubtitleOutputs({
 再转换为输出时钟。`track: { inputId, trackId }` 可显式选轨。
 字幕边车只读取字幕资源，不重新读取主媒体；两种工具都不会自动写文件。
 `downloadSubtitles()` 保留，通过 Engine 处理获取媒体时钟。
+
+
+## AAC overlap fallback
+
+```ts
+await downloader.download({
+  url,
+  timeline: { aacOverlapRepair: { maxShiftMs: 50 } },
+});
+```
+
+有限 VOD 的单文件/Blob 下载（包括转码前的 remux）默认先使用 Strict。仅在引擎返回明确的 `AacTimestampOverlap` 诊断时，才以 `RepairOverlaps` 重试一次，复用该任务已读取的分片及 MAP 缓存。不会丢帧或生成静音；每帧相对原始时间戳的位移（包含累计修正）必须在上限以内。只适用于 MPEG-TS AAC-LC，不修复视频、fMP4 或 Packed AAC 的时间线错误。
+
+`maxShiftMs` 是正整数，默认 50。设置 `aacOverlapRepair: false` 可关闭自动回退。`maxCacheBytes` 控制任务内资源缓存，默认 256 MiB；超过预算会释放缓存并继续 Strict，之后遇到重叠直接返回诊断，不再自动重试。任务结束或取消后释放缓存。缓存不保存密钥，重试仍通过密钥解析器获取密钥。
+
+流式输出、录制、断点恢复、分卷输出及带外部字幕 sidecar 的任务保持 Strict。已发布输出后不会重试。恢复任务不会自动改变策略或检查点格式。
+
+失败时 `code` 为 `TIMELINE_FAILED`：`reason: 'AacTimestampOverlap'` 的 `aacOverlap` 包含分片位置、原始/预期时间及重叠量；修复超限返回 `reason: 'AacTimestampRepairLimitExceeded'`，`aacRepair` 包含位置和上限。修复成功后 `report.aacRepairs` 提供各输入的修正帧数、最大位移及首尾位置；未触发修复时省略此字段。多轨有限下载的 `onEvent` 可接收 `aacTimestampRepaired`。统计包含已处理的预读样本，不等同于提交计数。
