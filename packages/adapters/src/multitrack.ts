@@ -94,9 +94,30 @@ const emptyReport = (): HlsMultiTrackReport => ({
   peaks: { queuedDescriptors: '0', queuedMetadataBytes: '0', samples: '0', sampleBytes: '0' },
 });
 type Snapshot = { url: string; text: string; metadata: HlsMediaPlaylist };
+type PreparedInputs = {
+  snapshots: [string, Snapshot][];
+  subtitleSnapshots: [string, Snapshot][];
+  audioSelections: { id: string; url: string; metadata: HlsTrackMetadata }[];
+  subtitleSelections: {
+    id: string;
+    url: string;
+    timelineInputId: string;
+    metadata: HlsTrackMetadata;
+  }[];
+  vod: boolean;
+  primary: Snapshot;
+};
+type PreparationCache = { bootstrap?: PreparedInputs };
 
 export async function runMultiTrack(
-  ...args: Parameters<typeof runMultiTrackOnce>
+  ...args: [
+    adapter: HlsDownloaderAdapterInternal,
+    options: HlsMultiTrackOptions & HlsDownloaderBrowserOperationOptions,
+    host: HlsMultiTrackHost,
+    factory: RecordingBridgeFactory,
+    finite: boolean,
+    automaticAudio?: boolean,
+  ]
 ): Promise<{ report: HlsMultiTrackReport }> {
   const [, options, , factory, finite] = args;
   validateAacOverlapRepair(options.timeline?.aacOverlapRepair);
@@ -109,6 +130,7 @@ export async function runMultiTrack(
     options.timeline?.changePolicy !== 'split' &&
     options.missingSegments !== 'split';
   if (!eligible || options.timeline?.aacOverlapRepair === false) return runMultiTrackOnce(...args);
+  const preparation: PreparationCache = {};
   return withAacOverlapRetry(
     factory,
     options.timeline?.aacOverlapRepair,
@@ -116,6 +138,7 @@ export async function runMultiTrack(
     async (retryFactory) => {
       const attempt = [...args] as Parameters<typeof runMultiTrackOnce>;
       attempt[3] = retryFactory;
+      attempt[6] = preparation;
       return runMultiTrackOnce(...attempt);
     },
   );
@@ -128,6 +151,7 @@ async function runMultiTrackOnce(
   factory: RecordingBridgeFactory,
   finite: boolean,
   automaticAudio = false,
+  preparation?: PreparationCache,
 ): Promise<{ report: HlsMultiTrackReport }> {
   const opts = options as HlsMultiTrackOptions & RequestOptions;
   const timelineRecorder = createTimelineRecorder(
@@ -538,7 +562,7 @@ async function runMultiTrackOnce(
       opts.resume && factory.inspectRecovery
         ? await factory.inspectRecovery(opts.resume.directory)
         : undefined;
-    const prepare = async () => {
+    const prepare = async (): Promise<PreparedInputs> => {
       let url = options.url;
       const audioSelections: { id: string; url: string; metadata: HlsTrackMetadata }[] = [];
       const subtitleSelections: {
@@ -683,8 +707,12 @@ async function runMultiTrackOnce(
         );
       return { snapshots, subtitleSnapshots, audioSelections, subtitleSelections, vod, primary };
     };
-    const bootstrap: Awaited<ReturnType<typeof prepare>> =
-      restoration?.request?.bootstrap ?? (await prepare());
+    // An AAC retry belongs to the same VOD selection. Re-fetching a master can
+    // rotate CDN session URLs even when the underlying media has not changed.
+    const bootstrap: PreparedInputs =
+      restoration?.request?.bootstrap ??
+      (preparation?.bootstrap ? structuredClone(preparation.bootstrap) : await prepare());
+    if (preparation && !preparation.bootstrap) preparation.bootstrap = structuredClone(bootstrap);
     const { snapshots, subtitleSnapshots, audioSelections, subtitleSelections, vod, primary } =
       bootstrap;
     const recoverySnapshots: object[] = [];

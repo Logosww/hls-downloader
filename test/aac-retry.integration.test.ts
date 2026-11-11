@@ -62,7 +62,18 @@ for (const [name, adapter] of [
       { name: 'stream stays strict', shift: 30, stream: true, expected: 'overlap' },
       { name: 'clean stays strict', shift: 0, expected: 'strict' },
       { name: 'default repairs and reuses segments', shift: 30, expected: 'repair' },
-      { name: 'disabled returns overlap details', shift: 30, repair: false as const, expected: 'overlap' },
+      {
+        name: 'rotating master session reuses the original selection',
+        shift: 30,
+        rotating: true,
+        expected: 'repair',
+      },
+      {
+        name: 'disabled returns overlap details',
+        shift: 30,
+        repair: false as const,
+        expected: 'overlap',
+      },
       { name: 'default limit rejects large overlap', shift: 80, expected: 'limit' },
       {
         name: 'caller can raise limit',
@@ -80,8 +91,18 @@ for (const [name, adapter] of [
     ])
       it(c.name, async () => {
         const counts = [0, 0];
+        let manifests = 0;
+        let masters = 0;
         const server = await startFixtureServer({
-          '/media.m3u8': (_, res) => sendText(res, media('media.m3u8').toString()),
+          '/master.m3u8': (_, res) =>
+            sendText(
+              res,
+              `#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000\nmedia.m3u8?session=${++masters}\n`,
+            ),
+          '/media.m3u8': (_, res) => {
+            manifests++;
+            sendText(res, media('media.m3u8').toString());
+          },
           '/segment-00.ts': (_, res) => {
             counts[0]++;
             sendBytes(res, media('segment-00.ts'));
@@ -96,7 +117,7 @@ for (const [name, adapter] of [
           const filename = resolve(`${basename(dir)}-${serial++}.mp4`);
           outputs.push(filename);
           const options = {
-            url: server.origin + '/media.m3u8',
+            url: server.origin + (c.rotating ? '/master.m3u8' : '/media.m3u8'),
             filename,
             timeline: { aacOverlapRepair: c.repair },
           };
@@ -163,6 +184,10 @@ for (const [name, adapter] of [
             if ('blobURL' in result) URL.revokeObjectURL(result.blobURL);
           }
           expect(counts).toEqual([1, 1]);
+          if (c.rotating) {
+            expect(masters).toBe(1);
+            expect(manifests).toBe(1);
+          }
         } finally {
           await server.close();
         }
