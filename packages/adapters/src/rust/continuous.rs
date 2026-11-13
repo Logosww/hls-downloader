@@ -83,6 +83,8 @@ pub struct Request {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Options {
     vod: bool,
+    download_concurrency: Option<usize>,
+    download_buffer_bytes: Option<u64>,
     output_type: String,
     format: String,
     max_bytes: Option<usize>,
@@ -358,6 +360,7 @@ impl Bridge {
         let playback_capacity = o.max_bytes;
         let playback_preserves_gaps = o.timeline.gap_policy.as_deref() != Some("collapse");
         let mut options = EngineOptions::default()
+            .with_download_concurrency(o.download_concurrency.unwrap_or(4))
             .with_aac_timestamp_policy(
                 o.timeline
                     .aac_timestamp_policy
@@ -372,6 +375,7 @@ impl Bridge {
             })
             .with_limits(
                 EngineLimits::default()
+                    .with_download_buffer_bytes(o.download_buffer_bytes.unwrap_or(64 * 1024 * 1024))
                     .with_queue(
                         b.queued_descriptors.unwrap_or(128),
                         b.queued_metadata_bytes.unwrap_or(4 * 1024 * 1024),

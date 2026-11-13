@@ -159,6 +159,8 @@ export type HlsDownloaderFetchOptions = {
 
 export type HlsDownloaderGlobalDownloadOptions = Omit<HlsDownloaderFetchOptions, 'url'> & {
   concurrency?: number;
+  /** Engine download window budget in bytes; defaults to 64 MiB. */
+  downloadBufferBytes?: number;
   maxRetry?: number;
 };
 
@@ -207,7 +209,10 @@ export type HlsDownloaderDownloadOptions = {
   operationId?: string;
   filename?: string;
   maxRetry?: number;
+  /** Engine in-flight plus ready downloads; defaults to 4. Set 1 for serial reads. */
   downloadConcurrency?: number;
+  /** Reserved bytes for in-flight plus ready media downloads; defaults to 64 MiB. */
+  downloadBufferBytes?: number;
   transcode?: HlsDownloaderTranscodeOptions;
   signal?: AbortSignal;
   /** Master playlist variant 选择偏好；缺省时取最高分辨率 → 最高带宽。 */

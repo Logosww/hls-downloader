@@ -1,6 +1,8 @@
 import { withAacOverlapRetry } from './aac-retry';
 import {
   createTimelineRecorder,
+  getAdapterGlobalOptionsFromInternal,
+  type HlsDownloaderGlobalDownloadOptions,
   HlsDownloaderError,
   HlsDownloaderErrorCode as Code,
   selectBestVariant,
@@ -204,6 +206,24 @@ async function runMultiTrackOnce(
     throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Split requires an output factory');
   if (out.type === 'blob' && (!Number.isSafeInteger(out.maxBytes) || out.maxBytes <= 0))
     throw new HlsDownloaderError(Code.RESOURCE_LIMIT_EXCEEDED, 'Blob recording requires maxBytes');
+  const globalDownload = getAdapterGlobalOptionsFromInternal<{
+    download?: HlsDownloaderGlobalDownloadOptions;
+  }>(adapter, options)?.download;
+  const downloadConcurrency = options.downloadConcurrency ?? globalDownload?.concurrency ?? 4;
+  const downloadBufferBytes =
+    options.downloadBufferBytes ?? globalDownload?.downloadBufferBytes ?? 64 * 1024 * 1024;
+  if (
+    !Number.isSafeInteger(downloadConcurrency) ||
+    downloadConcurrency <= 0 ||
+    !Number.isSafeInteger(downloadBufferBytes) ||
+    downloadBufferBytes <= 0 ||
+    (downloadConcurrency > 1 &&
+      downloadBufferBytes < (options.decryption?.limits?.resourceBytes ?? 16 * 1024 * 1024))
+  )
+    throw new HlsDownloaderError(
+      Code.RESOURCE_LIMIT_EXCEEDED,
+      'Invalid engine download concurrency or buffer budget',
+    );
   for (const [name, value] of Object.entries(options.limits ?? {}))
     if (name !== 'maxSkew' && (!Number.isSafeInteger(value) || (value as number) <= 0))
       throw new HlsDownloaderError(Code.RESOURCE_LIMIT_EXCEEDED, 'Invalid recording limits');
@@ -746,6 +766,8 @@ async function runMultiTrackOnce(
       const wire = JSON.parse(request);
       const recording = {
         vod,
+        downloadConcurrency,
+        downloadBufferBytes,
         outputType: out.type,
         format: 'format' in out ? (out.format ?? 'mp4') : 'fmp4',
         maxBytes: out.type === 'blob' ? out.maxBytes : undefined,

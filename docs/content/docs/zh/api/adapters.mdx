@@ -142,7 +142,7 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 
 ## 统一 Engine 输出
 
-所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.1.0`，保留现有方法名。
+所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.2.0`，保留现有方法名。
 FFmpeg/WebCodecs 仍负责独立的转码路径。有限下载要求每个选定输入均有 ENDLIST；
 `startRecording()` 和 `startMultiTrackRecording()` 支持 Live/EVENT 清单刷新。
 
@@ -398,3 +398,11 @@ await downloader.download({
 流式输出、录制、断点恢复、分卷输出及带外部字幕 sidecar 的任务保持 Strict。已发布输出后不会重试。恢复任务不会自动改变策略或检查点格式。
 
 失败时 `code` 为 `TIMELINE_FAILED`：`reason: 'AacTimestampOverlap'` 的 `aacOverlap` 包含分片位置、原始/预期时间及重叠量；修复超限返回 `reason: 'AacTimestampRepairLimitExceeded'`，`aacRepair` 包含位置和上限。修复成功后 `report.aacRepairs` 提供各输入的修正帧数、最大位移及首尾位置；未触发修复时省略此字段。多轨有限下载的 `onEvent` 可接收 `aacTimestampRepaired`。统计包含已处理的预读样本，不等同于提交计数。
+
+### 媒体并发下载
+
+所有 Engine 下载、流式输出、多轨及录制方法均支持 `downloadConcurrency` 和 `downloadBufferBytes`。单次调用优先于 `globalOptions.download.concurrency` 和 `globalOptions.download.downloadBufferBytes`，默认并发数为 4、缓冲预算为 64 MiB；并发数设为 1 时串行读取。
+
+字节预算用于正在下载及已完成但尚未消费的媒体下载预留，不是输出文件大小或进程总内存限制。每次读取按声明的 byte-range 长度或 `decryption.limits.resourceBytes`（默认 16 MiB）预留，预算不足时实际并发会降低。两个选项均须为正安全整数；并发大于 1 时，预算至少应容纳一个最大资源。无效配置以 `RESOURCE_LIMIT_EXCEEDED` 拒绝。
+
+下载即使乱序完成，也按时间线顺序消费。输出背压及暂停会停止补充下载窗口。恢复检查点时可以修改这两个选项。它们不配置 FFmpeg/aria2 转码或字幕 sidecar 请求。

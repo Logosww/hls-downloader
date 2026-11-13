@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+import { canonicalMp4 } from './fixtures/mp4';
 import { readFileSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join, basename } from 'node:path';
@@ -78,6 +79,74 @@ for (const [name, adapter] of [
   ['browser', BrowserAdapter],
 ] as const) {
   describe(name, () => {
+    it('bounds concurrent downloads, honors global defaults and preserves ordered output', async () => {
+      let active = 0,
+        peak = 0;
+      const count = 8;
+      const f = await startFixtureServer({
+        '/media.m3u8': (_, res) =>
+          sendText(
+            res,
+            '#EXTM3U\n#EXT-X-TARGETDURATION:2\n' +
+              Array.from({ length: count }, (_, i) => `#EXTINF:2,\nsegment.ts?i=${i}\n`).join('') +
+              '#EXT-X-ENDLIST\n',
+          ),
+        '/segment.ts': async (req, res) => {
+          active++;
+          peak = Math.max(peak, active);
+          const i = Number(req.query.get('i'));
+          await new Promise((resolve) => setTimeout(resolve, i % 2 ? 10 : 60));
+          active--;
+          sendBytes(res, shiftTsTimestamps(media('ts/segment-00.ts'), i * 2));
+        },
+      });
+      try {
+        const downloader = new HlsDownloader({
+          adapter,
+          options: { download: { concurrency: 2, downloadBufferBytes: 32 * 1024 * 1024 } },
+        });
+        let baseline: Buffer | undefined;
+        for (const [options, expected] of [
+          [{ downloadConcurrency: 1 }, 1],
+          [{}, 2],
+          [{ downloadConcurrency: 4, downloadBufferBytes: 16 * 1024 * 1024 }, 1],
+          [{ downloadConcurrency: 4 }, 2],
+          [{ downloadConcurrency: 3, downloadBufferBytes: 64 * 1024 * 1024 }, 3],
+        ] as const) {
+          peak = 0;
+          const chunks: Buffer[] = [];
+          const result = await downloader.downloadToWritable(
+            { url: f.origin + '/media.m3u8', ...options },
+            new WritableStream<Uint8Array>({
+              write(bytes) {
+                chunks.push(Buffer.from(bytes));
+              },
+            }),
+          );
+          expect(result.totalSegments).toBe(count);
+          expect(peak).toBe(expected);
+          const bytes = Buffer.from(canonicalMp4(Buffer.concat(chunks)));
+          if (baseline) expect(bytes.equals(baseline)).toBe(true);
+          else baseline = bytes;
+        }
+        for (const options of [
+          { downloadConcurrency: 0 },
+          { downloadConcurrency: 1.5 },
+          { downloadBufferBytes: 0 },
+          { downloadBufferBytes: 1024 },
+        ]) {
+          await expect(
+            downloader.downloadToWritable(
+              { url: f.origin + '/media.m3u8', ...options },
+              new WritableStream(),
+            ),
+          ).rejects.toMatchObject({ code: 'RESOURCE_LIMIT_EXCEEDED' });
+        }
+      } finally {
+        await f.close();
+      }
+    });
+
     it('downloads VOD beyond the recording queue default and honors explicit queue limits', async () => {
       const count = 130;
       const f = await startFixtureServer({

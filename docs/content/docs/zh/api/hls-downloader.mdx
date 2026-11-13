@@ -62,6 +62,7 @@ get globalOptions(): GlobalOptions<T> | null
 | ------------- | ------------------------ | ------------------------ |
 | `headers`     | `Record<string, string>` | 默认请求头               |
 | `concurrency` | `number`                 | 默认分片并发下载数       |
+| `downloadBufferBytes` | `number` | 引擎下载窗口字节预算，默认 64 MiB；单次调用覆盖全局配置。 |
 | `maxRetry`    | `number`                 | 默认每个分片最大重试次数 |
 
 单次调用 `download({ downloadConcurrency })` 会覆盖 `download.concurrency`。
@@ -124,6 +125,7 @@ async download(
 | `filename`            | `string`                        | 不含扩展名的输出文件名。扩展名由内部根据输出容器解析（默认 `mp4`，`vp9` 为 `webm`，或取 `transcode.format`） |
 | `maxRetry`            | `number`                        | 每个分片的最大重试次数                                                                                       |
 | `downloadConcurrency` | `number`                        | 分片并发下载数                                                                                               |
+| `downloadBufferBytes` | `number` | 引擎下载窗口字节预算，默认 64 MiB；单次调用覆盖全局配置。 |
 | `transcode`           | `HlsDownloaderTranscodeOptions` | BrowserAdapter 使用 WebCodecs 转码，NodeAdapter 使用 FFmpeg。省略时默认 transmux/remux                       |
 | `signal`              | `AbortSignal`                   | 协作式取消。当信号中止时，下载 Promise 会被拒绝并抛出 `AbortError`                                           |
 | _（适配器专有）_      | —                               | 见[适配器 API](/zh/api/adapters)                                                                             |
@@ -194,6 +196,7 @@ async downloadToStream(
 | `maxRetry`            | `number`                 | 包含首次请求的总尝试次数；Browser 与 Node 流式路径均生效           |
 | `operationId`         | `string`                 | 可选的事件关联 ID；省略时自动生成                                  |
 | `downloadConcurrency` | `number`                 | 分片并发下载数                                                     |
+| `downloadBufferBytes` | `number` | 引擎下载窗口字节预算，默认 64 MiB；单次调用覆盖全局配置。 |
 | `signal`              | `AbortSignal`            | 协作式取消。当信号中止时，流式 Promise 会被拒绝并抛出 `AbortError` |
 
 返回 `{ totalSegments: number, operationId: string }`。
@@ -285,7 +288,7 @@ Browser 与 Node 均支持，按需下载并通过背压输出 fMP4，保留源�
 
 库获取并管理 writer，等待每次写入，成功时关闭流；关闭完成后才发出 `READY_FOR_DOWNLOAD` 并 resolve。失败或取消会 abort writer 并释放锁。获取、写入、关闭失败使用 `OUTPUT_WRITE_FAILED`；取消使用 `ABORTED`，且 `name === 'AbortError'`。失败 operation 仅发一次 `ERROR`。自定义目标可能保留部分输出，库无法回滚任意外部写入；未结束的自定义 write 不会阻止库在取消时 reject，其后续 abort 结果会被异步处理。
 
-`downloadConcurrency` 限制总读取并发；双路每路保留当前分片和一个 lookahead，另有初始化探测、当前输出分片及桥接缓冲。媒体缓冲不随视频总长度增长；playlist 元数据仍随分片数量增长，超大单分片仍需较多内存，WASM 内存会保留分配高水位。这不是固定 RSS 上限。fMP4 输出不包含尾部 `mfra` 索引。
+`downloadConcurrency` 限制整个操作中正在下载及已完成但尚未消费的媒体下载数量（默认 4）；`downloadBufferBytes` 单独限制其预留字节（默认 64 MiB），预算可进一步降低实际并发。初始化探测、样本缓冲、当前输出分片及桥接缓冲另计。媒体缓冲不随视频总长度增长；playlist 元数据仍随分片数量增长，超大单分片仍需较多内存，WASM 内存会保留分配高水位。这不是固定 RSS 上限。fMP4 输出不包含尾部 `mfra` 索引。
 
 `download()` 返回 Browser 全量 Blob URL 或 Node 文件；两端回调式 `downloadToStream()` 均增量读取媒体，但不等待回调 Promise，异步目标请使用 writable。`persistentOutput` 描述默认 `download()` 的结果，Browser 仍为 false；`writableOutput` 单独描述写入调用方目标的能力。
 
@@ -320,7 +323,7 @@ document.querySelector('#cancel').addEventListener('click', () => controller.abo
 
 ## 统一 Engine 输出
 
-所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.0`，保留现有方法名。
+所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.2.0`，保留现有方法名。
 FFmpeg/WebCodecs 仍负责独立的转码路径。有限下载要求每个选定输入均有 ENDLIST；
 `startRecording()` 和 `startMultiTrackRecording()` 支持 Live/EVENT 清单刷新。
 

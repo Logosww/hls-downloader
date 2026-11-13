@@ -62,6 +62,7 @@ Exported from `@hls-downloader/core` as `GlobalOptions<T>`. The shape depends on
 | ------------- | ------------------------ | -------------------------------------- |
 | `headers`     | `Record<string, string>` | Default request headers                |
 | `concurrency` | `number`                 | Default concurrent segment downloads   |
+| `downloadBufferBytes` | `number` | Engine download window budget, default 64 MiB; per-call values override global settings. |
 | `maxRetry`    | `number`                 | Default max retry attempts per segment |
 
 Per-call `download({ downloadConcurrency })` overrides `download.concurrency`.
@@ -126,6 +127,7 @@ Merges per-call options with `globalOptions` (per-call wins).
 | `filename`            | `string`                        | Output filename without extension. The extension is resolved internally from the output container (`mp4` by default, `webm` for `vp9`, or `transcode.format`) |
 | `maxRetry`            | `number`                        | Max retry attempts per segment                                                                                                                                |
 | `downloadConcurrency` | `number`                        | Concurrent segment downloads                                                                                                                                  |
+| `downloadBufferBytes` | `number` | Engine download window budget, default 64 MiB; per-call values override global settings. |
 | `transcode`           | `HlsDownloaderTranscodeOptions` | Transcode with WebCodecs in BrowserAdapter or FFmpeg in NodeAdapter. Omit for default transmux/remux                                                          |
 | `signal`              | `AbortSignal`                   | Cooperative cancellation. When the signal aborts, the download promise rejects with an `AbortError`                                                           |
 | `variant`             | `VariantSelectOptions`          | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth)                                                              |
@@ -201,6 +203,7 @@ Merges per-call options with `globalOptions` (per-call wins).
 | `maxRetry`            | `number`                 | Total attempts including the first request; effective on Browser and Node streaming paths                                                                                                      |
 | `operationId`         | `string`                 | Optional caller-defined event correlation ID; generated automatically when omitted                                                                                                             |
 | `downloadConcurrency` | `number`                 | Concurrent segment downloads                                                                                                                                                                   |
+| `downloadBufferBytes` | `number` | Engine download window budget, default 64 MiB; per-call values override global settings. |
 | `signal`              | `AbortSignal`            | Cooperative cancellation. When the signal aborts, the stream rejects with an `AbortError`. On `BrowserAdapter`, abort during the prefetch phase is limited to `fetch`-level signal propagation |
 | `variant`             | `VariantSelectOptions`   | Master-playlist variant selection preferences. Omit for default (highest resolution → bandwidth)                                                                                               |
 
@@ -325,7 +328,7 @@ Browser and Node support incremental fMP4 output with backpressure. Source codec
 
 The library owns the acquired writer: it awaits each write and closes it on success. `READY_FOR_DOWNLOAD` and promise resolution occur only after close succeeds. Failure/cancellation aborts the writer and releases its lock. Writer acquisition, write and close errors use `OUTPUT_WRITE_FAILED`; cancellation uses `ABORTED` with `name === 'AbortError'`. Each failed operation emits one `ERROR`. A custom sink may retain partial output; arbitrary external writes cannot be rolled back. An uncooperative pending write does not prevent the promise returned by the library from rejecting on cancellation; its eventual abort is observed asynchronously.
 
-`downloadConcurrency` limits aggregate reads. Dual-input sessions retain the current segment and one lookahead per input, plus initialization probes, the current output fragment, and bridge buffers. Media buffers do not grow with total video length. Playlist metadata still grows with segment count, a large individual segment may require substantial memory, and WASM memory retains its allocation high-water mark. This is not a fixed RSS limit. The fMP4 output omits the trailing `mfra` index.
+`downloadConcurrency` bounds in-flight plus ready media downloads across the operation (default 4). `downloadBufferBytes` separately bounds their reserved bytes (default 64 MiB), which can reduce effective concurrency. Initialization probes, sample buffers, the current output fragment and bridge buffers are separate costs. Media buffers do not grow with total video length. Playlist metadata still grows with segment count, a large individual segment may require substantial memory, and WASM memory retains its allocation high-water mark. This is not a fixed RSS limit. The fMP4 output omits the trailing `mfra` index.
 
 `download()` produces a complete Browser Blob URL or a Node file; callback streaming is incremental but does not await callback promises. `persistentOutput` describes the default `download()` result and remains false for Browser; `writableOutput` describes this separate caller-owned destination.
 
@@ -360,7 +363,7 @@ document.querySelector('#cancel').addEventListener('click', () => controller.abo
 
 ## Unified Engine output
 
-All HLS download, stream, timeline and recording methods use `hls-engine 1.0`.
+All HLS download, stream, timeline and recording methods use `hls-engine 1.2.0`.
 Existing method names remain available. FFmpeg and WebCodecs remain the separate
 transcoding paths. Finite methods require ENDLIST on every selected input;
 `startRecording()` and `startMultiTrackRecording()` also support Live/EVENT refresh.

@@ -675,9 +675,9 @@ dependencies = [
 
 [[package]]
 name = "hls-engine"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c461a229adc86b6f9b3a837b79e52a2328df891e67b4681c57563343d5ed3dfa"
+checksum = "7e543f05a54956b317afc45db53ecae12fe697ccecf140f502ce13a9a795aba0"
 dependencies = [
  "aes",
  "aes-gcm",

@@ -97,7 +97,13 @@ export type HlsRecordingOptions<O extends HlsRecordingOutput = HlsRecordingOutpu
   HlsDownloaderFetchOptions &
     Pick<
       HlsDownloaderDownloadOptions,
-      'operationId' | 'maxRetry' | 'variant' | 'audio' | 'decryption'
+      | 'operationId'
+      | 'maxRetry'
+      | 'variant'
+      | 'audio'
+      | 'decryption'
+      | 'downloadConcurrency'
+      | 'downloadBufferBytes'
     > & {
       output: O;
       durationLimit?: HlsMediaTime;

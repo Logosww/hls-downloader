@@ -8,6 +8,12 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
+## [Unreleased]
+
+### 新增
+
+- 支持媒体有界并发预取能力，Node 与 Browser 的下载、流式输出、多轨及录制接口遵循 `downloadConcurrency` 和全局 `download.concurrency` 配置。新增 `downloadBufferBytes` 选项用于控制下载缓冲预算（默认 64 MiB）。
+
 ## [4.1.1] - 2026-11-12
 
 ### 修复

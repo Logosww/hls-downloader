@@ -6,6 +6,8 @@ const node = new HlsDownloader({ adapter: NodeAdapter });
 browser.startMultiTrackRecording({
   url: '',
   embeddedAudio: 'keep',
+  downloadConcurrency: 3,
+  downloadBufferBytes: 64 * 1024 * 1024,
   subtitleTracks: [
     {
       id: 'cc',
@@ -36,6 +38,8 @@ browser.startMultiTrackRecording({
 node.downloadMultiTrack({
   url: '',
   embeddedAudio: 'keep',
+  downloadConcurrency: 3,
+  downloadBufferBytes: 64 * 1024 * 1024,
   output: { type: 'file', path: 'video.mp4' },
   subtitleTracks: [
     {
@@ -56,6 +60,8 @@ browser.downloadSubtitles({
 const blob = browser.downloadMultiTrack({
   url: '',
   embeddedAudio: 'keep',
+  downloadConcurrency: 3,
+  downloadBufferBytes: 64 * 1024 * 1024,
   output: { type: 'blob', maxBytes: 1 },
 });
 blob.then((r) => {
@@ -74,6 +80,8 @@ file.then((r) => {
 const session = node.startMultiTrackRecording({
   url: '',
   embeddedAudio: 'keep',
+  downloadConcurrency: 3,
+  downloadBufferBytes: 64 * 1024 * 1024,
   output: { type: 'writable', writable: new WritableStream<Uint8Array>() },
 });
 session.endInput('arbitrary-media-id');
@@ -87,6 +95,8 @@ browser.downloadMultiTrack({ url: '', output: { type: 'blob', maxBytes: 1 } });
 browser.downloadMultiTrack({
   url: '',
   embeddedAudio: 'keep',
+  downloadConcurrency: 3,
+  downloadBufferBytes: 64 * 1024 * 1024,
   // @ts-expect-error No legacy replacement-audio option.
   audio: { language: 'en' },
   output: { type: 'blob', maxBytes: 1 },

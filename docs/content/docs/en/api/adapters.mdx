@@ -142,7 +142,7 @@ Use `downloadToWritable()` for bounded media buffers and an asynchronous destina
 
 ## Unified Engine output
 
-All HLS download, stream, timeline and recording methods use `hls-engine 1.1.0`.
+All HLS download, stream, timeline and recording methods use `hls-engine 1.2.0`.
 Existing method names remain available. FFmpeg and WebCodecs remain the separate
 transcoding paths. Finite methods require ENDLIST on every selected input;
 `startRecording()` and `startMultiTrackRecording()` also support Live/EVENT refresh.
@@ -439,3 +439,11 @@ Finite single-file/Blob VOD downloads (including remux before transcoding) start
 Streaming outputs, recording, recovery, split outputs and external subtitle sidecars remain Strict. Published output is never retried. Recovery never automatically changes policy or checkpoint format.
 
 Failures use `code: 'TIMELINE_FAILED'`. With `reason: 'AacTimestampOverlap'`, `aacOverlap` contains the segment slot, original/expected timestamps and overlap. A repair exceeding the limit returns `reason: 'AacTimestampRepairLimitExceeded'` with position and limit in `aacRepair`. Successful repair exposes per-input corrected frame counts, maximum shift and first/last positions in `report.aacRepairs`; Strict success omits that field. Finite multi-track `onEvent` callbacks can receive `aacTimestampRepaired`. Statistics include processed lookahead samples, not just committed output.
+
+### Concurrent media downloads
+
+All Engine download, streaming, multi-track and recording methods accept `downloadConcurrency` and `downloadBufferBytes`. Per-call values override `globalOptions.download.concurrency` and `globalOptions.download.downloadBufferBytes`. Defaults are 4 downloads and 64 MiB; set concurrency to 1 for serial reads.
+
+The byte budget covers reservations for in-flight and ready, unconsumed media downloads, not total output size or total process memory. Each read reserves its declared byte-range length or `decryption.limits.resourceBytes` (16 MiB by default). The budget can reduce effective concurrency. Both settings must be positive safe integers; with concurrency above 1, the budget must accommodate at least one maximum-size resource. Invalid settings reject with `RESOURCE_LIMIT_EXCEEDED`.
+
+Media is consumed in timeline order despite out-of-order download completion. Backpressure and pause stop replenishing the download window. These settings can change when resuming a checkpoint. They do not configure FFmpeg/aria2 transcoding or subtitle sidecar requests.
