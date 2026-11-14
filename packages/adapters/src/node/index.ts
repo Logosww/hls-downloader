@@ -1,3 +1,4 @@
+import { extractPosterFromSegmentUrl } from './poster';
 import { finiteEngine } from '../engine';
 import { transcodeFile } from './transcode';
 import { assertActive } from '../browser/request';
@@ -310,12 +311,11 @@ const getPosterUrl: HlsDownloaderNodeAdapter['getPosterUrl'] = async function (
   const index = Math.min(Math.floor(segments.length * 0.25), segments.length - 1);
   const segmentUrl = segments[index]!.uri;
 
-  // 直接使用 ffmpeg 截取海报。
-  // MediaBunny CanvasSink 需要 VideoEncoder 和 OffscreenCanvas 支持，
-  // 而 Node/Bun 服务端目前缺少这些 API，引入 @mediabunny/server polyfill 则体积过大。
-  // 等后续 Node/Bun 运行时原生完善支持后再考虑切换回 MediaBunny 方案。
-  ensureFfmpegLoaded(this, options);
-  const poster = (await extractPoster(segmentUrl, fetchOptions.headers)) ?? undefined;
+  let poster = await extractPosterFromSegmentUrl({ segmentUrl, headers: fetchOptions.headers });
+  if (!poster) {
+    ensureFfmpegLoaded(this, options);
+    poster = (await extractPoster(segmentUrl, fetchOptions.headers)) ?? undefined;
+  }
 
   posterCache[fetchOptions.url] = poster;
   return poster;
@@ -387,6 +387,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
       );
       emitAdapterEvent(this, options, HlsDownloaderEvent.STITCHING_SEGMENTS);
       const output = join(workDir, filename);
+      ensureFfmpegLoaded(this, options);
       await transcodeFile(input, output, buildFfmpegOutputArgs(transcode), signal);
       assertActive(signal);
       // Publish without replacing an existing destination. Staging is on the same filesystem.

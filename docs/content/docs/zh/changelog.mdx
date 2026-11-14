@@ -10,6 +10,11 @@ description: '本项目的所有重要变更。'
 
 ## [Unreleased]
 
+### Fixed
+
+- Node 转码（包括 aria2 下载）改用内置原生 FFmpeg，无需 PATH 中的 FFmpeg 可执行文件，继续支持现有预设。
+- Node 封面提取优先尝试可用的轻量解码，失败后回退原生 FFmpeg。
+
 ### 新增
 
 - Node 文件下载、多轨导出及录制支持可选的 `finalizationStrategy: 'in-place'` 和 `headerReserveBytes`，无需第二份完整媒体文件即可生成 fast-start MP4。默认仍使用复制策略；原地策略支持下载中断恢复，但不支持完成阶段中断后的恢复。

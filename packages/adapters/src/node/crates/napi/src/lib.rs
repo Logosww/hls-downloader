@@ -312,3 +312,29 @@ pub async fn extract_poster(
         format!("data:image/jpeg;base64,{b64}")
     }))
 }
+
+#[napi]
+pub async fn transcode_file_native(
+    input: String,
+    output: String,
+    args: Vec<String>,
+    cancel_job_id: String,
+) -> Result<()> {
+    let token = registry()
+        .get(&cancel_job_id)
+        .map(|entry| Arc::clone(&entry))
+        .ok_or_else(|| Error::from_reason("ABORTED: transcoding cancelled"))?;
+    let result = tokio::task::spawn_blocking(move || {
+        hls_core::transcode::transcode_file(
+            std::path::Path::new(&input),
+            std::path::Path::new(&output),
+            &args,
+            &token,
+        )
+    })
+    .await;
+    registry().remove(&cancel_job_id);
+    result
+        .map_err(|error| Error::from_reason(error.to_string()))?
+        .map_err(to_napi_err)
+}

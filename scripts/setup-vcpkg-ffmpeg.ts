@@ -93,7 +93,7 @@ if (!existsSync(vcpkgExe)) {
   throw new Error(`vcpkg binary missing after bootstrap: ${vcpkgExe}`);
 }
 
-execFileSync(vcpkgExe, ['install', `ffmpeg:${triplet}`, `pkgconf:${triplet}`], {
+execFileSync(vcpkgExe, ['install', `ffmpeg[x264,x265,vpx,opus]:${triplet}`, `pkgconf:${triplet}`], {
   stdio: 'inherit',
   env: { ...process.env, VCPKG_ROOT: root },
 });

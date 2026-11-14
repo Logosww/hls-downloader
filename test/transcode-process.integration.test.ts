@@ -1,40 +1,43 @@
 import { expect, it } from 'vitest';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { transcodeFile } from '../packages/adapters/src/node/transcode';
-it('cancels and reaps a non-cooperative encoder before returning', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'encoder-cancel-')),
-    previous = process.env.PATH;
-  const receipt = join(dir, 'pid');
-  let pid: number | undefined;
+import { buildFfmpegOutputArgs } from '../packages/shared/src/transcode';
+import { execFileSync } from 'node:child_process';
+
+it.each(['h264', 'hevc', 'vp9'] as const)('transcodes %s with an empty PATH', async (preset) => {
+  const dir = await mkdtemp(join(tmpdir(), 'native-transcode-'));
+  const previous = process.env.PATH;
+  const output = join(dir, preset === 'vp9' ? 'output.webm' : 'output.mp4');
   try {
-    await writeFile(
-      join(dir, 'ffmpeg'),
-      `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(receipt)},String(process.pid));process.on('SIGTERM',()=>{});setInterval(()=>{},1000);`,
-      { mode: 0o755 },
+    process.env.PATH = dir;
+    await transcodeFile(
+      resolve(import.meta.dirname, 'fixtures/media/ts/segment-00.ts'),
+      output,
+      buildFfmpegOutputArgs({ preset }),
     );
-    process.env.PATH = dir + ':' + previous;
-    const controller = new AbortController();
-    const running = transcodeFile('unused', 'unused', [], controller.signal).catch((e) => e);
-    for (let i = 0; i < 100; i++) {
-      try {
-        pid = Number(await readFile(receipt, 'utf8'));
-        break;
-      } catch {
-        await new Promise((r) => setTimeout(r, 20));
-      }
-    }
-    expect(pid).toBeGreaterThan(0);
-    controller.abort();
-    expect(await running).toMatchObject({ code: 'ABORTED' });
-    expect(() => process.kill(pid!, 0)).toThrow();
+    process.env.PATH = previous;
+    execFileSync('ffmpeg', ['-v', 'error', '-xerror', '-i', output, '-f', 'null', '-']);
   } finally {
     process.env.PATH = previous;
-    if (pid)
-      try {
-        process.kill(pid, 'SIGKILL');
-      } catch {}
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it('cancels native encoding before returning', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'native-cancel-'));
+  const controller = new AbortController();
+  try {
+    const running = transcodeFile(
+      resolve(import.meta.dirname, 'fixtures/media/ts/segment-00.ts'),
+      join(dir, 'out.mp4'),
+      buildFfmpegOutputArgs({ preset: 'hevc', speed: 'veryslow' }),
+      controller.signal,
+    );
+    setTimeout(() => controller.abort(), 1);
+    await expect(running).rejects.toMatchObject({ code: 'ABORTED' });
+  } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });

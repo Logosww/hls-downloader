@@ -2,6 +2,7 @@ pub mod cancel;
 pub mod download;
 pub mod hls;
 pub mod poster;
+pub mod transcode;
 
 pub use cancel::JobCancelToken;
 pub use download::{

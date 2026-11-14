@@ -345,42 +345,14 @@ fn transcode_segments_with_ffmpeg(
     let concat_ts = output_path.with_extension("concat.ts");
     concat_segments_to_ts(segment_paths, &concat_ts, on_progress)?;
 
-    let mut cmd = Command::new("ffmpeg");
-    cmd.arg("-hide_banner")
-        .arg("-loglevel")
-        .arg("error")
-        .arg("-y")
-        .arg("-i")
-        .arg(&concat_ts);
-    for arg in &transcode.ffmpeg_output_args {
-        cmd.arg(arg);
-    }
-    cmd.arg(output_path);
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-
-    let output = cmd.output().map_err(|e| {
-        if e.kind() == std::io::ErrorKind::NotFound {
-            HlsError::Parse(
-                "`ffmpeg` not found. Install FFmpeg and ensure it is on PATH to use transcode options."
-                    .to_string(),
-            )
-        } else {
-            HlsError::Parse(format!("Failed to spawn ffmpeg: {e}"))
-        }
-    })?;
-
+    let result = crate::transcode::transcode_file(
+        &concat_ts,
+        output_path,
+        &transcode.ffmpeg_output_args,
+        &crate::JobCancelToken::new(),
+    );
     std::fs::remove_file(&concat_ts).ok();
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let hint = stderr.trim();
-        let msg = if hint.is_empty() {
-            format!("ffmpeg exited with status {}", output.status)
-        } else {
-            format!("ffmpeg failed: {hint}")
-        };
-        return Err(HlsError::Parse(msg));
-    }
+    result?;
 
     if let Some(cb) = on_progress {
         cb(DownloadProgress::Merging {

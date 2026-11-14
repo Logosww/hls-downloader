@@ -8,7 +8,7 @@ Adapter-specific fields are passed via `HlsDownloader` constructor `options` / `
 <Callout type="info" title="Transmux first">
   Across adapters, **default downloads transmux/remux without re-encoding**. BrowserAdapter uses
   [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly for transmux and Mediabunny
-  WebCodecs for `transcode`; NodeAdapter uses the local FFmpeg executable for transcoding.
+  WebCodecs for `transcode`; NodeAdapter uses bundled native FFmpeg libraries for transcoding.
 </Callout>
 
 ## BrowserAdapter
@@ -83,6 +83,10 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 ```
 
 Ordinary downloads use a **native transmux path**. **Native FFmpeg is not initialized** unless one of the FFmpeg scenarios below applies.
+
+Node transcoding, including aria2 downloads, uses the native addon and requires no FFmpeg executable on PATH. Official builds include the encoders for the `h264`, `hevc`, and `vp9` presets. Custom codec names must be available in the linked FFmpeg build.
+
+Node poster extraction first tries Mediabunny when video decoding and Canvas APIs are available. Missing runtime support or unsuccessful extraction falls back to native FFmpeg. Standard Node/Bun runtimes without these APIs use the native fallback.
 
 ### When FFmpeg loads
 
@@ -186,8 +190,7 @@ omits `report`: an intermediate remux report would not describe encoded output.
 Browser checks all selected tracks against actual encoder/decoder availability;
 unsupported tracks fail with `UNSUPPORTED_OUTPUT` rather than silently losing
 audio. `maxBytes` (default 256 MiB) separately bounds the intermediate media and
-encoded output, not aggregate memory. Node requires the `ffmpeg` executable on
-PATH, preserves an existing destination, and removes staging after success,
+encoded output, not aggregate memory. Node uses bundled native FFmpeg libraries, preserves an existing destination, and removes staging after success,
 failure or cancellation. Completion follows encoder shutdown and publication.
 
 Multi-track container transcoding, subtitle burning, recording, recovery, split

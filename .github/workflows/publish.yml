@@ -143,9 +143,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows'
@@ -153,9 +153,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Setup vcpkg + static FFmpeg (Unix)
         if: runner.os != 'Windows'
@@ -170,14 +170,14 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config, Unix)
         if: runner.os != 'Windows'
@@ -206,6 +206,9 @@ jobs:
 
       - name: Build native module
         run: pnpm --filter "@hls-downloader/adapters" run build:native
+
+      - name: Verify native preset encoders without FFmpeg CLI
+        run: node scripts/verify-native-transcode.ts
 
       - name: Upload native binaries
         uses: actions/upload-artifact@v7
@@ -333,9 +336,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
-          key: vcpkg-ff902-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-encoders-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-ubuntu-24.04-x64-linux-
+            vcpkg-ff902-encoders-ubuntu-24.04-x64-linux-
 
       - name: Setup vcpkg + static FFmpeg (Linux x64)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
@@ -346,7 +349,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
-          key: vcpkg-ff902-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff902-encoders-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}

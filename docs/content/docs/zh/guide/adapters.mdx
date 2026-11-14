@@ -82,6 +82,12 @@ import { NodeAdapter } from '@logosw/hls-downloader/adapters/node';
 
 Rust 适配器加载通过 N-API 构建的原生 `.node` 模块。**默认下载走原生 transmux，不初始化 FFmpeg。**
 
+Node 转码（包括 aria2 下载）使用原生模块，无需 PATH 中存在 FFmpeg 可执行文件。官方构建包含 `h264`、`hevc`、`vp9` 预设所需编码器；自定义编码器名称必须在链接的 FFmpeg 构建中可用。
+
+官方原生构建为 libx264 和 libx265 编码器启用 FFmpeg GPL 特性，分发时需遵循内置编码器及其许可证的要求。[FFmpeg 许可证说明](https://ffmpeg.org/legal.html)。
+
+Node 封面提取在运行时具备视频解码和 Canvas API 时优先尝试 Mediabunny，能力缺失或提取失败时回退原生 FFmpeg。缺少这些 API 的标准 Node/Bun 环境使用原生回退。
+
 ### 何时加载 FFmpeg（NodeAdapter）
 
 | API                     | FFmpeg | 触发条件                                                                  |

@@ -9,15 +9,14 @@ export async function extractPosterFromSegmentUrl({
   segmentUrl,
   headers,
 }: ExtractPosterFromSegmentOptions): Promise<string | undefined> {
+  if (typeof VideoDecoder === 'undefined' || typeof OffscreenCanvas === 'undefined')
+    return undefined;
   const segmentBuffer = await fetchSegmentBuffer(segmentUrl, headers);
   if (!segmentBuffer) return undefined;
 
-  const input = new Input({
-    formats: ALL_FORMATS,
-    source: new BufferSource(segmentBuffer),
-  });
-
+  let input: Input | undefined;
   try {
+    input = new Input({ formats: ALL_FORMATS, source: new BufferSource(segmentBuffer) });
     const videoTrack = await input.getPrimaryVideoTrack();
     if (!videoTrack) return undefined;
 
@@ -33,7 +32,7 @@ export async function extractPosterFromSegmentUrl({
   } catch {
     return undefined;
   } finally {
-    input.dispose();
+    input?.dispose();
   }
 }
 

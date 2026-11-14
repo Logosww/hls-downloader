@@ -82,6 +82,12 @@ import { NodeAdapter } from '@logosw/hls-downloader/adapters/node';
 
 The Rust adapter loads a native `.node` addon built with N-API. **Default downloads use native transmux without initializing FFmpeg.**
 
+Node transcoding, including aria2 downloads, uses the native addon and requires no FFmpeg executable on PATH. Official builds include the encoders for the `h264`, `hevc`, and `vp9` presets. Custom codec names must be available in the linked FFmpeg build.
+
+Official native builds enable FFmpeg GPL features for the libx264 and libx265 encoders. Redistribution must account for the bundled codecs and their licenses. [FFmpeg licensing](https://ffmpeg.org/legal.html).
+
+Node poster extraction first tries Mediabunny when video decoding and Canvas APIs are available. Missing runtime support or unsuccessful extraction falls back to native FFmpeg. Standard Node/Bun runtimes without these APIs use the native fallback.
+
 ### When FFmpeg loads (NodeAdapter)
 
 | API                     | FFmpeg    | Trigger                                                                     |

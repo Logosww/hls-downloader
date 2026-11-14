@@ -392,3 +392,40 @@ describe('HLS URL 解析测试', () => {
     }
   });
 });
+
+describe('native FFmpeg without PATH', () => {
+  it.each([false, true])('all presets with aria2=%s', async (aria2) => {
+    const { NodeAdapter } = await import('../packages/adapters/src/node/index.ts');
+    const { HlsDownloader } = await import('../packages/core/src/index.ts');
+    const previous = process.env.PATH;
+    const aria2Path = aria2
+      ? execSync(process.platform === 'win32' ? 'where aria2c' : 'command -v aria2c', {
+          encoding: 'utf8',
+        })
+          .trim()
+          .split(/\r?\n/)[0]
+      : undefined;
+    const files: string[] = [];
+    try {
+      for (const preset of ['h264', 'hevc', 'vp9'] as const) {
+        process.env.PATH = '';
+        const downloader = new HlsDownloader({ adapter: NodeAdapter });
+        const result = await downloader.download({
+          url: HLS_URL,
+          filename: `native-no-path-${aria2}-${preset}`,
+          transcode: { preset },
+          aria2: aria2 ? { enabled: true, path: aria2Path } : undefined,
+        });
+        files.push(result.filePath);
+        process.env.PATH = previous;
+        expect(getVideoCodec(result.filePath)).toBe(
+          preset === 'h264' ? 'h264' : preset === 'hevc' ? 'hevc' : 'vp9',
+        );
+        expect(getAudioCodec(result.filePath)).toBe(preset === 'vp9' ? 'opus' : 'aac');
+      }
+    } finally {
+      process.env.PATH = previous;
+      for (const file of files) rmSync(file, { force: true });
+    }
+  });
+});

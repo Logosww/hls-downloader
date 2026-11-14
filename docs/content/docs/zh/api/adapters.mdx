@@ -8,7 +8,7 @@ description: 'BrowserAdapter 与 NodeAdapter 的专有选项与行为。'
 <Callout type="info" title="默认 Transmux">
   各适配器的**普通下载默认走 transmux/remux，不重编码**。BrowserAdapter 使用
   [hls-engine](https://github.com/Logosww/hls-engine) WebAssembly 做 transmux，使用 Mediabunny
-  WebCodecs 做 `transcode`；NodeAdapter 使用本机 FFmpeg 命令进行转码。
+  WebCodecs 做 `transcode`；NodeAdapter 使用内置原生 FFmpeg 库进行转码。
 </Callout>
 
 ## BrowserAdapter
@@ -83,6 +83,10 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 ```
 
 普通下载走**原生 transmux 路径**。**不会初始化原生 FFmpeg**，除非满足下方 FFmpeg 场景。
+
+Node 转码（包括 aria2 下载）使用原生模块，无需 PATH 中存在 FFmpeg 可执行文件。官方构建包含 `h264`、`hevc`、`vp9` 预设所需编码器；自定义编码器名称必须在链接的 FFmpeg 构建中可用。
+
+Node 封面提取在运行时具备视频解码和 Canvas API 时优先尝试 Mediabunny，能力缺失或提取失败时回退原生 FFmpeg。缺少这些 API 的标准 Node/Bun 环境使用原生回退。
 
 ### 何时加载 FFmpeg
 
@@ -178,7 +182,7 @@ Engine 先完成选轨、解密和可解码范围处理，生成明文 fMP4，�
 
 Browser 按实际编码器/解码器能力检查所有选定轨道；不支持时返回 `UNSUPPORTED_OUTPUT`，
 不会静默丢弃音频。`maxBytes` 默认 256 MiB，分别限制中间媒体和转码输出，非总内存限制。
-Node 需要 PATH 中的 `ffmpeg` 可执行文件，保留已存在的目标文件；成功、失败、取消均清理
+Node 使用内置原生 FFmpeg 库，保留已存在的目标文件；成功、失败、取消均清理
 临时文件，完成等待编码器退出及最终输出发布。
 
 多音轨容器转码、字幕烧录、录制、恢复、split 和流式转码仍不支持。
