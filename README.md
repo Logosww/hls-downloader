@@ -25,6 +25,17 @@
 - **浏览器**：`@hls-downloader/adapters/browser`（`hls-engine` WebAssembly + Mediabunny WebCodecs）
 - **Node.js**：`@hls-downloader/adapters/node`（Rust N-API 原生实现，性能与路径处理更适合服务端）
 
+### AI 文档 / Documentation for LLMs
+
+文档站提供随文档内容自动更新的纯文本入口，可将链接交给 AI 工具读取：
+
+| 语言 / Language | 文档索引 / Index | 完整文档 / Full documentation |
+| --- | --- | --- |
+| English | [llms.txt](https://hls-downloader.vercel.app/llms.txt) | [llms-full.txt](https://hls-downloader.vercel.app/llms-full.txt) |
+| 简体中文 | [llms.txt](https://hls-downloader.vercel.app/zh/llms.txt) | [llms-full.txt](https://hls-downloader.vercel.app/zh/llms-full.txt) |
+
+索引包含页面链接和摘要，完整文档包含该语言的全部指南、API 参考与更新日志。
+
 ### 安装
 
 **方式一：聚合包 `@logosw/hls-downloader`（推荐）** — 一次安装即可使用与 `@hls-downloader/`* 相同的 API，子路径与独立子包一一对应：

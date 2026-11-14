@@ -1,9 +1,13 @@
 import { getLLMText, source } from '@/lib/source';
+import { i18n } from '@/lib/i18n';
 
 export const revalidate = false;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
+  if (!i18n.languages.some((language) => language === lang)) {
+    return new Response('Not found', { status: 404 });
+  }
   const scanned = await Promise.all(source.getPages(lang).map(getLLMText));
 
   return new Response(scanned.join('\n\n'), {
@@ -12,5 +16,5 @@ export async function GET(_req: Request, { params }: { params: Promise<{ lang: s
 }
 
 export function generateStaticParams() {
-  return [{ lang: 'en' }, { lang: 'zh' }];
+  return i18n.languages.map((lang) => ({ lang }));
 }

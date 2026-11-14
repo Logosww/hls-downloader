@@ -1,3 +1,5 @@
 {
+  "title": "hls-downloader",
+  "description": "TypeScript library for downloading and merging HLS streams in browsers and Node.js. Install @logosw/hls-downloader and choose the adapter for your runtime.",
   "pages": ["guide", "api", "changelog"]
 }

@@ -38,7 +38,7 @@ export function getPageImageUrl(page: (typeof source)['$inferPage']) {
 export async function getLLMText(page: (typeof source)['$inferPage']) {
   const processed = await page.data.getText('processed');
 
-  return `# ${page.data.title} (${page.url})
+  return `# ${page.data.title} (${new URL(page.url, siteUrl).href})
 
 ${processed}`;
 }

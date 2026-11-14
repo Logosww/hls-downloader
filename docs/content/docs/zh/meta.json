@@ -1,3 +1,5 @@
 {
+  "title": "hls-downloader",
+  "description": "用于在浏览器和 Node.js 中下载、合并 HLS 视频流的 TypeScript 库。安装 @logosw/hls-downloader，并选择适合运行环境的适配器。",
   "pages": ["guide", "api", "changelog"]
 }
