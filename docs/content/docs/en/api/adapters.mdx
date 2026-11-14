@@ -142,7 +142,7 @@ Use `downloadToWritable()` for bounded media buffers and an asynchronous destina
 
 ## Unified Engine output
 
-All HLS download, stream, timeline and recording methods use `hls-engine 1.2.0`.
+All HLS download, stream, timeline and recording methods use `hls-engine 1.4.0`.
 Existing method names remain available. FFmpeg and WebCodecs remain the separate
 transcoding paths. Finite methods require ENDLIST on every selected input;
 `startRecording()` and `startMultiTrackRecording()` also support Live/EVENT refresh.
@@ -447,3 +447,34 @@ All Engine download, streaming, multi-track and recording methods accept `downlo
 The byte budget covers reservations for in-flight and ready, unconsumed media downloads, not total output size or total process memory. Each read reserves its declared byte-range length or `decryption.limits.resourceBytes` (16 MiB by default). The budget can reduce effective concurrency. Both settings must be positive safe integers; with concurrency above 1, the budget must accommodate at least one maximum-size resource. Invalid settings reject with `RESOURCE_LIMIT_EXCEEDED`.
 
 Media is consumed in timeline order despite out-of-order download completion. Backpressure and pause stop replenishing the download window. These settings can change when resuming a checkpoint. They do not configure FFmpeg/aria2 transcoding or subtitle sidecar requests.
+
+## Native MP4 finalization
+
+Node `download()` accepts `finalizationStrategy: 'copy' | 'in-place'` and
+`headerReserveBytes`. For `downloadMultiTrack()` and `startRecording()`, put
+these options in the `file` or `files` output:
+
+```ts
+await downloader.download({
+  url: 'https://example.com/media.m3u8',
+  filename: 'video.mp4',
+  finalizationStrategy: 'in-place',
+  headerReserveBytes: 1024 * 1024,
+});
+```
+
+The default is `copy`. `in-place` avoids a second full media file while still
+producing fast-start MP4. The header reservation defaults to 1 MiB; use zero
+or an integer from 8 to 4294967295. Insufficient reservation moves media within
+the same file; it is not an index limit or a guarantee of faster finalization.
+Split outputs finalize independently. `fmp4` ignores both options, and `copy`
+ignores the reservation. Browser, borrowed Writable outputs, transcoding and
+aria2 downloads do not support these options.
+
+With `resume`, strategy and reservation must match the saved request.
+**In-place supports recovery during downloading only.** Once the finalization marker has
+been created (even before media is modified), an incomplete checkpoint fails with
+`RESUME_CONFLICT`; restart at a new destination. Keep the
+`<output>.hls-partial.in-place` marker with its partial; do not remove it to
+force recovery. Completed checkpoints can be restored offline. The default
+copy strategy retains its existing finalization recovery guarantees.

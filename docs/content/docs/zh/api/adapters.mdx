@@ -142,7 +142,7 @@ import { NodeAdapter } from '@hls-downloader/adapters/node';
 
 ## 统一 Engine 输出
 
-所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.2.0`，保留现有方法名。
+所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.4.0`，保留现有方法名。
 FFmpeg/WebCodecs 仍负责独立的转码路径。有限下载要求每个选定输入均有 ENDLIST；
 `startRecording()` 和 `startMultiTrackRecording()` 支持 Live/EVENT 清单刷新。
 
@@ -406,3 +406,30 @@ await downloader.download({
 字节预算用于正在下载及已完成但尚未消费的媒体下载预留，不是输出文件大小或进程总内存限制。每次读取按声明的 byte-range 长度或 `decryption.limits.resourceBytes`（默认 16 MiB）预留，预算不足时实际并发会降低。两个选项均须为正安全整数；并发大于 1 时，预算至少应容纳一个最大资源。无效配置以 `RESOURCE_LIMIT_EXCEEDED` 拒绝。
 
 下载即使乱序完成，也按时间线顺序消费。输出背压及暂停会停止补充下载窗口。恢复检查点时可以修改这两个选项。它们不配置 FFmpeg/aria2 转码或字幕 sidecar 请求。
+
+## Node MP4 完成策略
+
+Node `download()` 支持 `finalizationStrategy: 'copy' | 'in-place'` 和
+`headerReserveBytes`。使用 `downloadMultiTrack()` 或 `startRecording()` 时，
+将这两个选项放在 `file` 或 `files` 输出配置中：
+
+```ts
+await downloader.download({
+  url: 'https://example.com/media.m3u8',
+  filename: 'video.mp4',
+  finalizationStrategy: 'in-place',
+  headerReserveBytes: 1024 * 1024,
+});
+```
+
+默认策略为 `copy`。`in-place` 无需第二份完整媒体文件，仍生成 fast-start MP4。
+头部预留空间默认为 1 MiB，可设为零或 8 至 4294967295 之间的整数。
+空间不足时会在同一文件内移动媒体数据；该值不是索引大小上限，也不保证完成速度更快。
+分片输出分别完成。`fmp4` 忽略这两个选项，`copy` 忽略预留空间。
+Browser、借用的 Writable 输出、转码及 aria2 下载不支持这些选项。
+
+搭配 `resume` 时，策略及预留空间必须与保存的请求一致。
+**原地策略仅支持下载阶段的恢复。** 完成阶段创建标记后（即使媒体尚未修改），未完成检查点会返回
+`RESUME_CONFLICT`，需要改用新目标重新下载。请将
+`<output>.hls-partial.in-place` 标记与临时文件保留在一起，不要删除标记来强制恢复。
+已完成检查点可以离线恢复。默认复制策略保留原有完成阶段恢复保证。

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Node file downloads, multi-track exports and recordings support optional `finalizationStrategy: 'in-place'` and `headerReserveBytes` for fast-start MP4 without a second full media file. Copy remains the default; in-place recovery supports interrupted downloads but cannot resume interrupted finalization.
+
 ## [4.2.0] - 2026-11-14
 
 ### Added

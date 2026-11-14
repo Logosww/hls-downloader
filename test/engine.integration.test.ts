@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { canonicalMp4 } from './fixtures/mp4';
+import { timelineCases, timelineRoutes } from './fixtures/timeline';
 import { readFileSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join, basename } from 'node:path';
@@ -383,4 +384,139 @@ it('schema-2 resumes a failed acquisition with replay identities intact', async 
   } finally {
     await f.close();
   }
+});
+
+describe('native in-place finalization', () => {
+  for (const headerReserveBytes of [undefined, 0, 8]) {
+    it(`produces decodable fast-start MP4 with reservation ${headerReserveBytes}`, async () => {
+      const f = await fixture();
+      try {
+        const node = new HlsDownloader({ adapter: NodeAdapter });
+        const baseline = await node.download({ url: f.url, filename: output() });
+        const result = await node.download({
+          url: f.url,
+          filename: output(),
+          finalizationStrategy: 'in-place',
+          headerReserveBytes,
+        });
+        const bytes = readFileSync(result.filePath);
+        const boxes: string[] = [];
+        for (let offset = 0; offset < bytes.length;) {
+          boxes.push(bytes.toString('ascii', offset + 4, offset + 8));
+          const size = bytes.readUInt32BE(offset);
+          const length = size === 1 ? Number(bytes.readBigUInt64BE(offset + 8)) : size;
+          expect(length).toBeGreaterThan(0);
+          offset += length;
+          expect(offset).toBeLessThanOrEqual(bytes.length);
+        }
+        expect(boxes.indexOf('moov')).toBeLessThan(boxes.indexOf('mdat'));
+        const decoded = (path: string) =>
+          execFileSync('ffmpeg', ['-v', 'error', '-i', path, '-map', '0', '-f', 'framemd5', '-'], {
+            encoding: 'utf8',
+          });
+        expect(decoded(result.filePath)).toBe(decoded(baseline.filePath));
+      } finally {
+        await f.close();
+      }
+    });
+  }
+  it('resumes downloading and restores completed in-place output offline', async () => {
+    const f = await fixture();
+    const node = new HlsDownloader({ adapter: NodeAdapter });
+    const filename = output();
+    const options = {
+      url: f.url,
+      filename,
+      maxRetry: 1,
+      downloadConcurrency: 1,
+      finalizationStrategy: 'in-place' as const,
+      headerReserveBytes: 0,
+      resume: { directory: join(dir, 'in-place-resume') },
+    };
+    try {
+      f.fail(true);
+      await expect(node.download(options)).rejects.toBeDefined();
+      await expect(node.download({ ...options, headerReserveBytes: 8 })).rejects.toMatchObject({
+        code: 'RESUME_CONFLICT',
+      });
+      f.fail(false);
+      const result = await node.download(options);
+      expect(existsSync(result.filePath + '.hls-partial.in-place')).toBe(false);
+      await f.close();
+      const restored = await node.download(options);
+      expect(restored.report?.bytesWritten).toBe(result.report?.bytesWritten);
+    } finally {
+      await f.close();
+    }
+  });
+  it('refuses an incomplete in-place checkpoint once finalization is marked', async () => {
+    const f = await fixture();
+    const node = new HlsDownloader({ adapter: NodeAdapter });
+    const filename = output();
+    const options = {
+      url: f.url,
+      filename,
+      maxRetry: 1,
+      downloadConcurrency: 1,
+      finalizationStrategy: 'in-place' as const,
+      resume: { directory: join(dir, 'in-place-marked') },
+    };
+    try {
+      f.fail(true);
+      await expect(node.download(options)).rejects.toBeDefined();
+      const partial = filename + '.hls-partial';
+      const before = readFileSync(partial);
+      writeFileSync(partial + '.in-place', '');
+      f.fail(false);
+      await expect(node.download(options)).rejects.toMatchObject({ code: 'RESUME_CONFLICT' });
+      expect(readFileSync(partial).equals(before)).toBe(true);
+      expect(existsSync(filename)).toBe(false);
+    } finally {
+      rmSync(filename + '.hls-partial.in-place', { force: true });
+      await f.close();
+    }
+  });
+  it('finalizes each multi-track split file in place', async () => {
+    const source = timelineCases.find((c) => c.name === 'config-split')!;
+    const server = await startFixtureServer(timelineRoutes(source));
+    const paths: string[] = [];
+    try {
+      await new HlsDownloader({ adapter: NodeAdapter }).downloadMultiTrack({
+        url: server.origin + '/master.m3u8',
+        embeddedAudio: 'keep',
+        timeline: { changePolicy: 'split' },
+        output: {
+          type: 'files',
+          finalizationStrategy: 'in-place',
+          headerReserveBytes: 0,
+          acquire: async () => {
+            const path = output();
+            paths.push(path);
+            return path;
+          },
+        },
+      });
+      expect(paths).toHaveLength(2);
+      for (const path of paths) {
+        const bytes = readFileSync(path);
+        expect(bytes.indexOf(Buffer.from('moov'))).toBeLessThan(bytes.indexOf(Buffer.from('mdat')));
+        execFileSync('ffmpeg', ['-v', 'error', '-xerror', '-i', path, '-f', 'null', '-']);
+      }
+    } finally {
+      await server.close();
+    }
+  });
+  it('rejects invalid reservations before downloading', async () => {
+    const node = new HlsDownloader({ adapter: NodeAdapter });
+    for (const headerReserveBytes of [-1, 1, 7, 8.5, 2 ** 32, NaN, Infinity]) {
+      await expect(
+        node.download({
+          url: 'http://invalid.test/media.m3u8',
+          filename: output(),
+          finalizationStrategy: 'in-place',
+          headerReserveBytes,
+        }),
+      ).rejects.toMatchObject({ code: 'UNSUPPORTED_OUTPUT' });
+    }
+  });
 });

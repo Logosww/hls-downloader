@@ -58,7 +58,9 @@ import { mkdir, mkdtemp, link, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 export type NodeAdapterResumeOptions = import('@hls-downloader/shared').HlsResumeOptions;
-type DownloadOnlyOptions = { resume?: NodeAdapterResumeOptions };
+type DownloadOnlyOptions = {
+  resume?: NodeAdapterResumeOptions;
+} & import('@hls-downloader/shared').HlsFileFinalizationOptions;
 
 export type NodeAdapterAria2Options = NapiAria2Config;
 type AdditionalOptions = {
@@ -327,6 +329,15 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
   const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode, signal } =
     mergeDownloadOptions(this, globalOptions, options);
 
+  if (
+    (options.finalizationStrategy !== undefined || options.headerReserveBytes !== undefined) &&
+    (needsFfmpegTranscode(transcode) || aria2?.enabled)
+  ) {
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'File finalization options require native HLS remux output',
+    );
+  }
   if (!needsFfmpegTranscode(transcode) && !aria2?.enabled) {
     const filePath = resolve(filename);
     const result = await finiteEngine(
@@ -340,7 +351,13 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
         transcode: undefined,
         __rejectAudio: transcode !== undefined,
       },
-      { type: 'file', path: filePath, format: 'mp4' },
+      {
+        type: 'file',
+        path: filePath,
+        format: 'mp4',
+        finalizationStrategy: options.finalizationStrategy,
+        headerReserveBytes: options.headerReserveBytes,
+      },
       nodeRecordingBridge,
     );
     emitAdapterEvent(this, options, HlsDownloaderEvent.READY_FOR_DOWNLOAD);

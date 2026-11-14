@@ -341,6 +341,7 @@ impl Store {
                 // Completion was atomically persisted above. Cleanup is best effort;
                 // a retained partial is harmless and never required for offline restore.
                 let _ = fs::remove_file(partial);
+                let _ = fs::remove_file(format!("{}.hls-partial.in-place", path.display()));
                 for track in state.request["multitrack"]["subtitleTracks"]
                     .as_array()
                     .into_iter()

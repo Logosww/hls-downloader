@@ -338,11 +338,21 @@ it('Browser bounded Blob classic/fMP4 and overflow', async () => {
 it('Node native classic/fMP4 publication never clobbers', async () => {
   const server = await startFixtureServer(timelineRoutes(clear));
   try {
-    for (const format of ['mp4', 'fmp4'] as const) {
-      const path = resolve(dir, 'node-' + format + '.mp4');
+    for (const [format, finalizationStrategy] of [
+      ['mp4', 'copy'],
+      ['mp4', 'in-place'],
+      ['fmp4', 'in-place'],
+    ] as const) {
+      const path = resolve(dir, 'node-' + format + '-' + finalizationStrategy + '.mp4');
       const options = {
         url: server.origin + '/master.m3u8',
-        output: { type: 'file' as const, path, format },
+        output: {
+          type: 'file' as const,
+          path,
+          format,
+          finalizationStrategy,
+          headerReserveBytes: 0,
+        },
       };
       const r = await new HlsDownloader({ adapter: NodeAdapter }).startRecording(options).result;
       expect(r.filePath).toBe(path);

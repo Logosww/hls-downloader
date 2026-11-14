@@ -1,5 +1,13 @@
 import type { HlsDownloaderFetchOptions, HlsDownloaderDownloadOptions } from './types';
 import type { HlsMediaTime, HlsPresentationRange, HlsTimelineTrack } from './timeline';
+/** Native classic MP4 output options; ignored for fragmented MP4. */
+export type HlsFileFinalizationOptions = {
+  /** Default: copy. In-place avoids a second full media file; interrupted finalization cannot resume. */
+  finalizationStrategy?: 'copy' | 'in-place';
+  /** Default: 1 MiB. Zero or an integer from 8 to 4294967295; a hint, not an index limit. */
+  headerReserveBytes?: number;
+};
+
 export type HlsResumeOptions = { directory: string; durability?: 'flush' | 'sync-all' };
 export type HlsRecordingState =
   | 'preparing'
@@ -87,12 +95,12 @@ export type HlsRecordingOutput =
       acquire: (output: HlsRecordingOutputRequest) => Promise<WritableStream<Uint8Array>>;
     }
   | { type: 'blob'; maxBytes: number; format?: 'mp4' | 'fmp4' }
-  | { type: 'file'; path: string; format?: 'mp4' | 'fmp4' }
-  | {
+  | ({ type: 'file'; path: string; format?: 'mp4' | 'fmp4' } & HlsFileFinalizationOptions)
+  | ({
       type: 'files';
       acquire: (output: HlsRecordingOutputRequest) => Promise<string>;
       format?: 'mp4' | 'fmp4';
-    };
+    } & HlsFileFinalizationOptions);
 export type HlsRecordingOptions<O extends HlsRecordingOutput = HlsRecordingOutput> =
   HlsDownloaderFetchOptions &
     Pick<

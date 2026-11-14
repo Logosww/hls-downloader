@@ -323,7 +323,7 @@ document.querySelector('#cancel').addEventListener('click', () => controller.abo
 
 ## 统一 Engine 输出
 
-所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.2.0`，保留现有方法名。
+所有 HLS 下载、流式输出、时间线及录制入口统一使用 `hls-engine 1.4.0`，保留现有方法名。
 FFmpeg/WebCodecs 仍负责独立的转码路径。有限下载要求每个选定输入均有 ENDLIST；
 `startRecording()` 和 `startMultiTrackRecording()` 支持 Live/EVENT 清单刷新。
 

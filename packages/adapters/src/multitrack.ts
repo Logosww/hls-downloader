@@ -189,6 +189,36 @@ async function runMultiTrackOnce(
     },
   };
   const out = options.output;
+  const fileOptions = out as import('@hls-downloader/shared').HlsFileFinalizationOptions;
+  if (
+    out.type !== 'file' &&
+    out.type !== 'files' &&
+    (fileOptions.finalizationStrategy !== undefined || fileOptions.headerReserveBytes !== undefined)
+  )
+    throw new HlsDownloaderError(
+      Code.UNSUPPORTED_OUTPUT,
+      'File finalization requires native file output',
+    );
+  if (out.type === 'file' || out.type === 'files') {
+    if (
+      out.finalizationStrategy !== undefined &&
+      !['copy', 'in-place'].includes(out.finalizationStrategy)
+    )
+      throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Unknown file finalization strategy');
+    if (
+      out.format !== 'fmp4' &&
+      out.finalizationStrategy === 'in-place' &&
+      out.headerReserveBytes !== undefined &&
+      (!Number.isSafeInteger(out.headerReserveBytes) ||
+        out.headerReserveBytes < 0 ||
+        out.headerReserveBytes > 0xffffffff ||
+        (out.headerReserveBytes > 0 && out.headerReserveBytes < 8))
+    )
+      throw new HlsDownloaderError(
+        Code.UNSUPPORTED_OUTPUT,
+        'headerReserveBytes must be zero or an integer from 8 to 4294967295',
+      );
+  }
   if (opts.resume && out.type !== 'file')
     throw new HlsDownloaderError(Code.UNSUPPORTED_OUTPUT, 'Recovery requires a native file path');
   validateSelection(options);
@@ -769,6 +799,16 @@ async function runMultiTrackOnce(
         downloadConcurrency,
         downloadBufferBytes,
         outputType: out.type,
+        finalizationStrategy:
+          (out.type === 'file' || out.type === 'files') && out.format !== 'fmp4'
+            ? out.finalizationStrategy
+            : undefined,
+        headerReserveBytes:
+          (out.type === 'file' || out.type === 'files') &&
+          out.format !== 'fmp4' &&
+          out.finalizationStrategy === 'in-place'
+            ? out.headerReserveBytes
+            : undefined,
         format: 'format' in out ? (out.format ?? 'mp4') : 'fmp4',
         maxBytes: out.type === 'blob' ? out.maxBytes : undefined,
         durationLimit: options.durationLimit,

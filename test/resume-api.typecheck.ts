@@ -55,3 +55,14 @@ node.queryCapability({
   experimentalGcm: true,
   resume: true,
 });
+
+node.download({ url: 'x', finalizationStrategy: 'in-place', headerReserveBytes: 0, resume });
+node.downloadMultiTrack({
+  url: 'x',
+  embeddedAudio: 'keep',
+  output: { type: 'files', acquire: async () => 'x.mp4', finalizationStrategy: 'in-place' },
+});
+// @ts-expect-error Native file finalization is unavailable for Browser downloads.
+browser.download({ url: 'x', finalizationStrategy: 'in-place' });
+// @ts-expect-error Borrowed writers do not support native file finalization.
+node.downloadToStream({ url: 'x', finalizationStrategy: 'in-place' }, () => {});

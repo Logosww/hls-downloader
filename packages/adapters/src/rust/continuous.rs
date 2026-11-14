@@ -87,6 +87,10 @@ struct Options {
     download_buffer_bytes: Option<u64>,
     output_type: String,
     format: String,
+    #[cfg(not(target_arch = "wasm32"))]
+    finalization_strategy: Option<String>,
+    #[cfg(not(target_arch = "wasm32"))]
+    header_reserve_bytes: Option<u32>,
     max_bytes: Option<usize>,
     duration_limit: Option<MediaTime>,
     missing_segments: Option<String>,
@@ -308,6 +312,10 @@ pub struct Bridge {
     output: Outputs,
     kind: String,
     format: OutputFormat,
+    #[cfg(not(target_arch = "wasm32"))]
+    finalization_strategy: FileFinalizationStrategy,
+    #[cfg(not(target_arch = "wasm32"))]
+    header_reserve_bytes: u32,
     capacity: usize,
     #[cfg(not(target_arch = "wasm32"))]
     recovery: Option<Arc<super::recovery::Store>>,
@@ -605,6 +613,14 @@ impl Bridge {
             output: outputs,
             kind: o.output_type.clone(),
             format,
+            #[cfg(not(target_arch = "wasm32"))]
+            finalization_strategy: match o.finalization_strategy.as_deref().unwrap_or("copy") {
+                "copy" => FileFinalizationStrategy::Copy,
+                "in-place" => FileFinalizationStrategy::InPlace,
+                _ => return Err(invalid()),
+            },
+            #[cfg(not(target_arch = "wasm32"))]
+            header_reserve_bytes: o.header_reserve_bytes.unwrap_or(1024 * 1024),
             capacity: o.max_bytes.unwrap_or(0),
             #[cfg(not(target_arch = "wasm32"))]
             recovery,
@@ -779,6 +795,8 @@ impl Bridge {
                     }
                     let saved = store.clone();
                     let recovery = RecoveryOptions::new(Arc::new(move |c| saved.commit(c)))
+                        .with_finalization_strategy(self.finalization_strategy)
+                        .with_header_reserve_bytes(self.header_reserve_bytes)
                         .with_durability(if store.synced {
                             CheckpointDurability::SyncAll
                         } else {
@@ -823,7 +841,10 @@ impl Bridge {
                     return session
                         .write_to_files(
                             &mut output,
-                            FileOutputOptions::default().with_format(self.format),
+                            FileOutputOptions::default()
+                                .with_format(self.format)
+                                .with_finalization_strategy(self.finalization_strategy)
+                                .with_header_reserve_bytes(self.header_reserve_bytes),
                         )
                         .await
                         .map(report)
