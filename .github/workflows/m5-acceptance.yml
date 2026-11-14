@@ -45,7 +45,7 @@ jobs:
             os: windows-11-vs2026-arm
             vcpkg_triplet: arm64-windows-static-md
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-pnpm
         with:
@@ -73,13 +73,13 @@ jobs:
 
       - name: Enable MSVC environment (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1.13.0
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
 
       - name: Install LLVM (Windows, bindgen / ffmpeg-sys)
         if: runner.os == 'Windows'
-        uses: KyleMayes/install-llvm-action@v2.0.7
+        uses: KyleMayes/install-llvm-action@v2
         with:
           version: '19.1.7'
           arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
@@ -114,7 +114,7 @@ jobs:
       - name: Restore vcpkg (Unix)
         if: runner.os != 'Windows'
         id: vcpkg_cache_unix
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -124,7 +124,7 @@ jobs:
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows'
         id: vcpkg_cache_win
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -141,14 +141,14 @@ jobs:
 
       - name: Save vcpkg (Unix)
         if: success() && runner.os != 'Windows' && steps.vcpkg_cache_unix.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -194,7 +194,7 @@ jobs:
 
       - name: Upload acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: m5-platform-${{ matrix.name }}
           path: |

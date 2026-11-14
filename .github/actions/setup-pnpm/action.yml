@@ -5,7 +5,7 @@ inputs:
   node-version:
     description: Node.js version for subsequent workflow steps
     required: false
-    default: '24'
+    default: '26'
   cache:
     description: Cache pnpm store
     required: false
@@ -18,9 +18,10 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node-version }}
+        check-latest: true
 
     # pnpm 版本由 package.json 的 packageManager 字段决定（Vercel 部署也依赖该字段）
     - uses: pnpm/action-setup@v6

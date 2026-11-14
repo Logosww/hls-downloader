@@ -66,7 +66,7 @@ jobs:
       FFMPEG_LIBAVCODEC_MAX_MAJOR: '63'
       HLS_FFMPEG_STATIC: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-pnpm
         with:
@@ -89,7 +89,7 @@ jobs:
 
       - name: Restore vcpkg (Linux)
         id: vcpkg_cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
           key: vcpkg-ff902-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
@@ -101,7 +101,7 @@ jobs:
 
       - name: Save vcpkg (Linux)
         if: success() && steps.vcpkg_cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
           key: vcpkg-ff902-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
@@ -151,7 +151,7 @@ jobs:
       - name: Browser rendition playback
         run: pnpm run test:browser:renditions
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: writable-memory
           path: test-results/writable-memory.json
@@ -162,7 +162,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.4.2'
+          bun-version: '1.4.4'
 
       - name: Bun example writable and subtitle contracts
         run: pnpm run test:app-bun
@@ -170,7 +170,7 @@ jobs:
       - name: WXT published-package extension acceptance (Chrome)
         run: HLS_EXTENSION_CHANNEL=chrome pnpm run test:browser:extension
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: extension-acceptance
           path: test-results/extension/acceptance-*.json
@@ -236,7 +236,7 @@ jobs:
             mode: build-and-load
             install_ffmpeg: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-pnpm
         with:
@@ -264,13 +264,13 @@ jobs:
 
       - name: Enable MSVC environment (Windows)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
-        uses: ilammy/msvc-dev-cmd@v1.13.0
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
 
       - name: Install LLVM (Windows, bindgen / ffmpeg-sys)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
-        uses: KyleMayes/install-llvm-action@v2.0.7
+        uses: KyleMayes/install-llvm-action@v2
         with:
           version: '19.1.7'
           arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
@@ -305,7 +305,7 @@ jobs:
       - name: Restore vcpkg (Unix)
         if: runner.os != 'Windows' && matrix.install_ffmpeg
         id: vcpkg_cache_unix
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -315,7 +315,7 @@ jobs:
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows' && matrix.install_ffmpeg
         id: vcpkg_cache_win
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -332,14 +332,14 @@ jobs:
 
       - name: Save vcpkg (Unix)
         if: success() && matrix.install_ffmpeg && runner.os != 'Windows' && steps.vcpkg_cache_unix.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && matrix.install_ffmpeg && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}

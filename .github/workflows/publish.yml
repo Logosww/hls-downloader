@@ -27,7 +27,7 @@ jobs:
   validate-release:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-pnpm
         with:
           cache: 'false'
@@ -71,7 +71,7 @@ jobs:
             os: windows-11-vs2026-arm
             vcpkg_triplet: arm64-windows-static-md
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-pnpm
         with:
@@ -99,13 +99,13 @@ jobs:
 
       - name: Enable MSVC environment (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1.13.0
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
 
       - name: Install LLVM (Windows, bindgen / ffmpeg-sys)
         if: runner.os == 'Windows'
-        uses: KyleMayes/install-llvm-action@v2.0.7
+        uses: KyleMayes/install-llvm-action@v2
         with:
           version: '19.1.7'
           arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
@@ -140,7 +140,7 @@ jobs:
       - name: Restore vcpkg (Unix)
         if: runner.os != 'Windows'
         id: vcpkg_cache_unix
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -150,7 +150,7 @@ jobs:
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows'
         id: vcpkg_cache_win
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -167,14 +167,14 @@ jobs:
 
       - name: Save vcpkg (Unix)
         if: success() && runner.os != 'Windows' && steps.vcpkg_cache_unix.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
           key: vcpkg-ff902-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
@@ -208,7 +208,7 @@ jobs:
         run: pnpm --filter "@hls-downloader/adapters" run build:native
 
       - name: Upload native binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: adapters-native-${{ matrix.name }}
           path: packages/adapters/src/node/native.*.node
@@ -222,22 +222,23 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-pnpm
         with:
           cache: 'true'
           install: 'false'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
+          check-latest: true
           registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
 
       - name: Download native binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: adapters-native-*
           merge-multiple: true
@@ -286,21 +287,22 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-pnpm
         with:
           cache: 'true'
           install: 'false'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
+          check-latest: true
           registry-url: https://registry.npmjs.org
 
       - name: Log toolchain versions (Node built-in npm)
         run: |
-          echo "Trusted Publishing needs npm >= 11.5.1; Node bundles npm 10.x — expect e.g. 10.9.4 here until upgrade step below."
+          echo "Toolchain versions after setup:"
           echo "node $(node -v)"
           echo "npm $(npm -v)"
           echo "pnpm $(pnpm -v)"
@@ -328,7 +330,7 @@ jobs:
       - name: Restore vcpkg (Linux)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all' }}
         id: vcpkg_cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
           key: vcpkg-ff902-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
@@ -341,7 +343,7 @@ jobs:
 
       - name: Save vcpkg (Linux)
         if: ${{ success() && (github.event_name != 'workflow_dispatch' || inputs.publish_scope == 'all') && steps.vcpkg_cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_root.outputs.root }}
           key: vcpkg-ff902-ubuntu-24.04-x64-linux-${{ env.VCPKG_TAG }}
@@ -395,7 +397,7 @@ jobs:
 
       - name: Log toolchain versions before publish
         run: |
-          echo "After npm install -g — this must be >= 11.5.1 for OIDC:"
+          echo "Toolchain versions before publish:"
           echo "node $(node -v)"
           echo "npm $(npm -v)"
           echo "pnpm $(pnpm -v)"
