@@ -5,16 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.3.0] - 2026-11-15
+
+### Added
+
+- Node file downloads, multi-track exports and recordings support optional `finalizationStrategy: 'in-place'` and `headerReserveBytes` for fast-start MP4 without a second full media file. Copy remains the default; in-place recovery supports interrupted downloads but cannot resume interrupted finalization.
 
 ### Fixed
 
 - Node transcoding, including aria2 downloads, uses bundled native FFmpeg and no longer requires an FFmpeg executable on PATH; existing presets remain supported.
 - Node poster extraction tries lightweight decoding when available before falling back to native FFmpeg.
-
-### Added
-
-- Node file downloads, multi-track exports and recordings support optional `finalizationStrategy: 'in-place'` and `headerReserveBytes` for fast-start MP4 without a second full media file. Copy remains the default; in-place recovery supports interrupted downloads but cannot resume interrupted finalization.
 
 ## [4.2.0] - 2026-11-14
 

@@ -8,16 +8,16 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
-## [Unreleased]
-
-### Fixed
-
-- Node 转码（包括 aria2 下载）改用内置原生 FFmpeg，无需 PATH 中的 FFmpeg 可执行文件，继续支持现有预设。
-- Node 封面提取优先尝试可用的轻量解码，失败后回退原生 FFmpeg。
+## [4.3.0] - 2026-11-15
 
 ### 新增
 
 - Node 文件下载、多轨导出及录制支持可选的 `finalizationStrategy: 'in-place'` 和 `headerReserveBytes`，无需第二份完整媒体文件即可生成 fast-start MP4。默认仍使用复制策略；原地策略支持下载中断恢复，但不支持完成阶段中断后的恢复。
+
+### 修复
+
+- Node 转码（包括 aria2 下载）改用内置原生 FFmpeg，无需 PATH 中的 FFmpeg 可执行文件，继续支持现有预设。
+- Node 封面提取优先尝试可用的轻量解码，失败后回退原生 FFmpeg。
 
 ## [4.2.0] - 2026-11-14
 

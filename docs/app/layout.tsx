@@ -1,13 +1,10 @@
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
-import { RootProvider } from 'fumadocs-ui/provider/next';
-import { i18nProvider } from 'fumadocs-ui/i18n';
-import { translations } from '@/lib/layout.shared';
-import { Analytics } from '@vercel/analytics/next';
+import { DocsDocument } from '@/components/docs-document';
 import { siteUrl } from '@/lib/shared';
 import brand from '@/lib/brand.json';
-import '../global.css';
+import './global.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -32,21 +29,6 @@ export const viewport: Viewport = {
   ],
 };
 
-export default async function RootLayout({
-  params,
-  children,
-}: {
-  params: Promise<{ lang: string }>;
-  children: ReactNode;
-}) {
-  const { lang } = await params;
-
-  return (
-    <html lang={lang} className={inter.className} suppressHydrationWarning>
-      <body className="flex min-h-screen flex-col">
-        <RootProvider i18n={i18nProvider(translations, lang)}>{children}</RootProvider>
-        <Analytics />
-      </body>
-    </html>
-  );
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return <DocsDocument className={inter.className}>{children}</DocsDocument>;
 }
