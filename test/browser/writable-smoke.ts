@@ -63,6 +63,13 @@ const measurements = [];
 try {
   for (const count of [2, 100, 1_000, 10_000]) {
     const page = await browser.newPage();
+    const cdp = await page.context().newCDPSession(page);
+    let retainedHeapPeak = 0;
+    await page.exposeFunction('measureRetainedHeap', async () => {
+      await cdp.send('HeapProfiler.collectGarbage');
+      const heap = await cdp.send('Runtime.getHeapUsage');
+      retainedHeapPeak = Math.max(retainedHeapPeak, heap.usedSize + (heap.backingStorageSize ?? 0));
+    });
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     try {
@@ -74,8 +81,8 @@ try {
       );
       assert.equal(result.segments, count);
       assert.equal(errors.length, 0, errors.join('\n'));
-      measurements.push({ count, ...result });
-      console.log(JSON.stringify({ count, ...result }));
+      measurements.push({ count, ...result, retainedHeapPeak });
+      console.log(JSON.stringify({ count, ...result, retainedHeapPeak }));
     } finally {
       await page.close();
     }
@@ -92,7 +99,10 @@ try {
     // Reserve 4 KiB per descriptor for parsed snapshots, queue copies and allocator slack.
     assert.ok(measurement.wasmPeak < measurements[1].wasmPeak * 8 + measurement.count * 4096);
   }
-  assert.ok(measurements[3].heapPeak < measurements[1].heapPeak * 8);
+  // Compare live allocations at explicit GC checkpoints. Raw heap peaks also
+  // include garbage awaiting collection, whose timing varies across Chromium runs.
+  assert.ok(measurements[1].retainedHeapPeak > 0);
+  assert.ok(measurements[3].retainedHeapPeak < measurements[1].retainedHeapPeak * 8);
   mkdirSync(resolve(root, 'test-results'), { recursive: true });
   writeFileSync(
     resolve(root, 'test-results/writable-memory.json'),
@@ -101,7 +111,7 @@ try {
         browser: browser.version(),
         measurements,
         notes:
-          'JS heap includes playlist metadata and GC slack; WASM memory is a non-shrinking high-water mark with a 4 KiB/descriptor allowance for atomic VOD snapshots. Engine sample/count peaks are checked independently of metadata. Output is discarded for memory runs; stalled-writer backpressure is checked in integration tests.',
+          'Raw JS heap includes playlist metadata and GC slack; retainedHeapPeak includes live JS and backing storage after GC at the start, every 100 writes and completion; WASM memory is a non-shrinking high-water mark with a 4 KiB/descriptor allowance for atomic VOD snapshots. Engine sample/count peaks are checked independently of metadata. Output is discarded for memory runs; stalled-writer backpressure is checked in integration tests.',
       },
       null,
       2,
