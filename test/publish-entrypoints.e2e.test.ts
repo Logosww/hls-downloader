@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { encryptedRoutes } from './fixtures/encrypted';
 import { timelineCases, timelineRoutes } from './fixtures/timeline';
 import { startFixtureServer } from './fixtures/http-server';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 
@@ -15,30 +15,33 @@ describe.runIf(process.env.HLS_DOWNLOADER_TEST_PUBLISH_ENTRYPOINTS === '1')(
       const root = resolve(import.meta.dirname, '..');
       const dir = mkdtempSync(join(tmpdir(), 'hls-tarballs-'));
       try {
+        const dependencies: Record<string, string> = {};
         for (const [source, name] of [
           ['.', '@logosw/hls-downloader'],
           ['packages/shared', '@hls-downloader/shared'],
           ['packages/core', '@hls-downloader/core'],
           ['packages/adapters', '@hls-downloader/adapters'],
         ]) {
-          const [packed] = JSON.parse(
-            execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', dir], {
-              cwd: resolve(root, source!),
-              env: { ...process.env, npm_config_cache: join(dir, 'npm-cache') },
-              encoding: 'utf8',
-            }),
-          );
-          const destination = join(dir, 'node_modules', name!);
-          mkdirSync(destination, { recursive: true });
-          execFileSync('tar', [
-            '-xzf',
-            join(dir, packed.filename),
-            '--strip-components=1',
-            '-C',
-            destination,
-          ]);
+          const tarball = join(dir, name!.replaceAll('/', '-').replace('@', '') + '.tgz');
+          // Use the publishing package manager so workspace dependencies become
+          // version ranges, then let npm install the complete consumer graph.
+          execFileSync('pnpm', ['--ignore-scripts', 'pack', '--out', tarball], {
+            cwd: resolve(root, source!),
+            encoding: 'utf8',
+          });
+          dependencies[name!] = `file:${tarball}`;
         }
-        writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'module' }));
+        writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'module', dependencies }));
+        execFileSync(
+          'npm',
+          ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false'],
+          {
+            cwd: dir,
+            env: { ...process.env, npm_config_cache: join(dir, 'npm-cache') },
+            encoding: 'utf8',
+            timeout: 60000,
+          },
+        );
         writeFileSync(
           join(dir, 'consumer.ts'),
           `

@@ -3,8 +3,18 @@ const mocks = vi.hoisted(() => ({ light: vi.fn(), native: vi.fn(), init: vi.fn()
 vi.mock('../packages/adapters/src/node/poster', () => ({
   extractPosterFromSegmentUrl: mocks.light,
 }));
-vi.mock('../packages/adapters/src/node/native.js', async (original) => ({
-  ...(await original<object>()),
+vi.mock('../packages/adapters/src/node/native.js', () => ({
+  // Fast tests run before the generated native loader exists.
+  cancelJob: vi.fn(),
+  createCancelToken: vi.fn(),
+  transcodeFileNative: vi.fn(),
+  inspectRecoveryNative: vi.fn(),
+  queryCapabilityNative: vi.fn(),
+  continuousCreate: vi.fn(),
+  continuousCommand: vi.fn(),
+  continuousRun: vi.fn(),
+  parseMediaPlaylistNative: vi.fn(),
+  downloadAndMerge: vi.fn(),
   extractPoster: mocks.native,
   initFfmpeg: mocks.init,
   parseHlsNative: vi.fn(async () => ({
