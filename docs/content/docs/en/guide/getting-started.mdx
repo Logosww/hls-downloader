@@ -22,7 +22,7 @@ pnpm add @hls-downloader/adapters
 
 The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the browser/node implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
 
-**Runtime**: Node.js **≥ 20**. The Node adapter loads a **native `.node` addon** on Node — use a build that matches your platform and Node ABI. For browser bundles, only include the **browser** subpath; do not bundle the Node native addon into frontend code.
+**Runtime**: Node.js **≥ 22.19.0**. The Node adapter loads a **native `.node` addon** on Node — use a build that matches your platform and Node ABI. For browser bundles, only include the **browser** subpath; do not bundle the Node native addon into frontend code.
 
 <Callout type="info" title="Default download path (transmux)">
   **Ordinary `download()` keeps source codecs and transmuxes to MP4.** BrowserAdapter uses

@@ -22,7 +22,7 @@ pnpm add @hls-downloader/adapters
 
 `@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时均需能解析到 `@hls-downloader/adapters` 中的 browser/node 实现。
 
-**运行环境**：Node.js **≥ 20**。Node 适配器在 Node 下会加载**原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **browser** 子路径，不要把 Node 原生模块打进前端。
+**运行环境**：Node.js **≥ 22.19.0**。Node 适配器在 Node 下会加载**原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **browser** 子路径，不要把 Node 原生模块打进前端。
 
 <Callout type="info" title="默认下载路径（Transmux）">
   **普通 `download()` 会保留源编码并 transmux 为 MP4。** BrowserAdapter 使用

@@ -13,7 +13,7 @@
 [![npm version](https://img.shields.io/npm/v/@logosw/hls-downloader?style=flat-square&logo=npm&logoColor=white&label=npm&labelColor=0B1F24&color=087F72)](https://www.npmjs.com/package/@logosw/hls-downloader)
 [![npm downloads](https://img.shields.io/npm/dm/@logosw/hls-downloader?style=flat-square&logo=npm&logoColor=white&label=downloads&labelColor=0B1F24&color=087F72)](https://www.npmjs.com/package/@logosw/hls-downloader)
 [![License: MIT](https://img.shields.io/badge/License-MIT-087F72.svg?style=flat-square&labelColor=0B1F24)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-087F72?style=flat-square&logo=node.js&logoColor=white&labelColor=0B1F24)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.19.0-087F72?style=flat-square&logo=node.js&logoColor=white&labelColor=0B1F24)](https://nodejs.org/)
 [![GitHub](https://img.shields.io/badge/GitHub-Logosww%2Fhls--downloader-087F72?style=flat-square&logo=github&logoColor=white&labelColor=0B1F24)](https://github.com/Logosww/hls-downloader)
 
 [![logosww/hls-downloader, explained in a one-minute video](https://gitdiagram.com/api/video/file?username=logosww&repo=hls-downloader&format=poster)](https://gitdiagram.com/logosww/hls-downloader/video)
@@ -54,7 +54,7 @@ pnpm add @hls-downloader/adapters   # 再通过子路径导入 browser 或 node�
 
 `@logosw/hls-downloader` 依赖 `@hls-downloader/core`、`@hls-downloader/shared`、`@hls-downloader/adapters`；`@hls-downloader/core` 已依赖 `@hls-downloader/shared`。使用适配器时（聚合包或独立安装）均需能解析到 `@hls-downloader/adapters` 中的 browser/node 实现。
 
-**运行环境**：Node.js **≥ 20**（与 `core` 及聚合包根 `engines` 一致）。Node 适配器在 Node 下会加载 **原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **browser** 子路径，不要把 Node 原生模块打进前端。
+**运行环境**：Node.js **≥ 22.19.0**（与 `core` 及聚合包根 `engines` 一致）。Node 适配器在 Node 下会加载 **原生 `.node` 模块**，需使用与你平台、Node ABI 匹配的发布产物；若在浏览器打包，请只打包 **browser** 子路径，不要把 Node 原生模块打进前端。
 
 ### 基本用法
 
@@ -250,7 +250,7 @@ pnpm add @hls-downloader/adapters
 
 The `@logosw/hls-downloader` package depends on `@hls-downloader/core`, `@hls-downloader/shared`, and `@hls-downloader/adapters`. `@hls-downloader/core` depends on `@hls-downloader/shared`. For adapters, the browser/node implementations must resolve (via the umbrella or explicit `@hls-downloader/adapters`).
 
-**Runtime**: Node.js **≥ 20** (matches `engines` on `core` and the root package). The Node adapter loads a **native `.node` addon** on Node—use a build that matches your platform and Node ABI. For browser bundles, only include the **browser** subpath; do not bundle the Node native addon into frontend code.
+**Runtime**: Node.js **≥ 22.19.0** (matches `engines` on `core` and the root package). The Node adapter loads a **native `.node` addon** on Node—use a build that matches your platform and Node ABI. For browser bundles, only include the **browser** subpath; do not bundle the Node native addon into frontend code.
 
 ### Packages and subpaths
 

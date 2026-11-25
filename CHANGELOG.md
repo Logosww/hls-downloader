@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Raise the minimum supported Node.js version to 22.19.0.
 - Upgrade the Node adapter’s bundled FFmpeg to 9.1.
 - Node playlist and poster caches are isolated by downloader instance and request context. `clearCache()` clears both for the current instance.
 - Node playlist and poster requests honor `signal` and enforce limits of 4 MiB per manifest and 16 MiB per poster segment.

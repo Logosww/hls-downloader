@@ -29,6 +29,9 @@
       "types": "./dist/node.d.mts"
     }
   },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -48,11 +51,11 @@
   "dependencies": {
     "@hls-downloader/core": "workspace:*",
     "@hls-downloader/shared": "workspace:*",
-    "mediabunny": "^1.66.0",
-    "undici": "^6.29.1"
+    "mediabunny": "^1.66.4",
+    "undici": "^8.13.1"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.10.12",
+    "@napi-rs/cli": "^3.11.1",
     "@types/m3u8-parser": "^7.2.6",
     "@types/node": "^26.6.6",
     "m3u8-parser": "^7.2.1",
