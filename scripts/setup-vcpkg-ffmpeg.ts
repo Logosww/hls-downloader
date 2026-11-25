@@ -3,7 +3,7 @@
  * 在 GitHub Actions 下写入 GITHUB_ENV：VCPKG_ROOT、PKG_CONFIG、PKG_CONFIG_PATH、PKG_CONFIG_ALL_STATIC。
  *
  * Usage: node scripts/setup-vcpkg-ffmpeg.ts <triplet>
- * Env: VCPKG_ROOT（可选，默认 os.homedir()/vcpkg）、VCPKG_TAG（可选；默认同 workflow，为含 FFmpeg 9.0.2 的 vcpkg commit SHA）
+ * Env: VCPKG_ROOT（可选，默认 os.homedir()/vcpkg）、VCPKG_TAG（可选；默认同 workflow，为含 FFmpeg 9.1 的 vcpkg commit SHA）
  *
  * GitHub Actions：缓存路径不要用 `~`，应与 Node 的 homedir 一致（Linux/macOS 用 $HOME/vcpkg，
  * Windows 用 Join-Path $env:USERPROFILE vcpkg）；workflow 里在 cache 前先解析并写入 VCPKG_ROOT。
@@ -19,8 +19,8 @@ if (!triplet) {
   process.exit(1);
 }
 
-/** 含 ports/ffmpeg 9.0.2；固定官方提交（PR #53975）。 */
-const DEFAULT_VCPKG_REF = 'dc1dbc7d46ceb78858f26d21fd22ee4d530e30ea';
+/** 含 ports/ffmpeg 9.1；固定官方提交（PR #55196）。 */
+const DEFAULT_VCPKG_REF = '277978ad2eddc3b05ecf288dcd33071968cd2f79';
 const VCPKG_REMOTE = 'https://github.com/microsoft/vcpkg.git';
 const VCPKG_TAG = process.env.VCPKG_TAG ?? DEFAULT_VCPKG_REF;
 const root = process.env.VCPKG_ROOT ?? join(homedir(), 'vcpkg');
@@ -72,8 +72,8 @@ if (isPinnedFullSha && currentRef.toLowerCase() !== VCPKG_TAG.toLowerCase()) {
 const ffmpegPort = JSON.parse(readFileSync(join(root, 'ports', 'ffmpeg', 'vcpkg.json'), 'utf8'));
 const ffmpegVersion =
   ffmpegPort.version ?? ffmpegPort['version-semver'] ?? ffmpegPort['version-string'];
-if (ffmpegVersion !== '9.0.2') {
-  throw new Error(`Expected FFmpeg 9.0.2, found ${ffmpegVersion} in vcpkg ${VCPKG_TAG}`);
+if (ffmpegVersion !== '9.1') {
+  throw new Error(`Expected FFmpeg 9.1, found ${ffmpegVersion} in vcpkg ${VCPKG_TAG}`);
 }
 
 const vcpkgExe = isWin ? join(root, 'vcpkg.exe') : join(root, 'vcpkg');
@@ -93,10 +93,15 @@ if (!existsSync(vcpkgExe)) {
   throw new Error(`vcpkg binary missing after bootstrap: ${vcpkgExe}`);
 }
 
-execFileSync(vcpkgExe, ['install', `ffmpeg[x264,x265,vpx,opus]:${triplet}`, `pkgconf:${triplet}`], {
-  stdio: 'inherit',
-  env: { ...process.env, VCPKG_ROOT: root },
-});
+// vcpkg no longer enables networking by default. Preserve the previous build's protocols.
+execFileSync(
+  vcpkgExe,
+  ['install', `ffmpeg[network,x264,x265,vpx,opus]:${triplet}`, `pkgconf:${triplet}`],
+  {
+    stdio: 'inherit',
+    env: { ...process.env, VCPKG_ROOT: root },
+  },
+);
 
 const installed = join(root, 'installed', triplet);
 const pcDir = join(installed, 'lib', 'pkgconfig');

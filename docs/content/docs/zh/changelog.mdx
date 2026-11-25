@@ -10,6 +10,7 @@ description: '本项目的所有重要变更。'
 
 ## [未发布]
 
+- Node 适配器内置的 FFmpeg 升级至 9.1。
 - Node 播放列表和封面缓存按下载器实例及请求上下文隔离。`clearCache()` 同时清除当前实例的两类缓存。
 - Node 解析和封面请求支持 `signal` 取消，每份清单上限为 4 MiB，每个封面输入分片上限为 16 MiB。
 - 两端仅向入口同源及 `trustedCredentialOrigins` 指定的来源发送显式 `Authorization` 和 `Cookie` 头。Node 可通过 `nodeRequestPolicy` 限制目标地址。带认证头或访问限制时请使用内置下载器。

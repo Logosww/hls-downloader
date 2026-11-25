@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  VCPKG_TAG: 'dc1dbc7d46ceb78858f26d21fd22ee4d530e30ea'
+  VCPKG_TAG: '277978ad2eddc3b05ecf288dcd33071968cd2f79'
   HLS_FFMPEG_STATIC: '1'
 
 jobs:
@@ -117,9 +117,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff91-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff91-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Restore vcpkg (Windows)
         if: runner.os == 'Windows'
@@ -127,9 +127,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff91-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
           restore-keys: |
-            vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
+            vcpkg-ff91-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-
 
       - name: Setup vcpkg + static FFmpeg (Unix)
         if: runner.os != 'Windows'
@@ -144,14 +144,14 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_unix_root.outputs.root }}
-          key: vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff91-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Save vcpkg (Windows)
         if: success() && runner.os == 'Windows' && steps.vcpkg_cache_win.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
           path: ${{ steps.vcpkg_win_root.outputs.root }}
-          key: vcpkg-ff902-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
+          key: vcpkg-ff91-encoders-${{ matrix.os }}-${{ matrix.vcpkg_triplet }}-${{ env.VCPKG_TAG }}
 
       - name: Log FFmpeg (pkg-config, Unix)
         if: runner.os != 'Windows'
