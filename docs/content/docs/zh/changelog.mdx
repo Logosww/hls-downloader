@@ -8,13 +8,23 @@ description: '本项目的所有重要变更。'
 格式遵循 [Keep a Changelog](https://keepachangelog.com/)，
 版本号遵循 [语义化版本](https://semver.org/)。
 
-## [未发布]
+## [4.4.0] - 2026-11-25
+
+### 新增
+
+- Node 新增 `nodeRequestPolicy`，可限制请求的目标地址。带认证头或访问限制时请使用内置下载器。
+- Node 对播放列表和封面请求设置大小上限，每份清单最多 4 MiB，每个封面输入分片最多 16 MiB。
+
+### 变更
 
 - 最低支持的 Node.js 版本提高至 22.19.0。
-- Node 适配器内置的 FFmpeg 升级至 9.1。
+- Node 适配器内置的 FFmpeg 升级至 v9.1。
+
+### 修复
+
+- Node 播放列表和封面请求现在可通过 `signal` 取消。
 - Node 播放列表和封面缓存按下载器实例及请求上下文隔离。`clearCache()` 同时清除当前实例的两类缓存。
-- Node 解析和封面请求支持 `signal` 取消，每份清单上限为 4 MiB，每个封面输入分片上限为 16 MiB。
-- 两端仅向入口同源及 `trustedCredentialOrigins` 指定的来源发送显式 `Authorization` 和 `Cookie` 头。Node 可通过 `nodeRequestPolicy` 限制目标地址。带认证头或访问限制时请使用内置下载器。
+- 两端仅向入口同源及 `trustedCredentialOrigins` 指定的来源发送显式 `Authorization` 和 `Cookie` 头。
 
 ## [4.3.0] - 2026-11-15
 
