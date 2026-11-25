@@ -104,6 +104,10 @@ async parseHls(options: HlsDownloaderFetchOptions): Promise<ParseHlsResult>
 | `url`     | `string`                 | HLS 播放列表地址 |
 | `headers` | `Record<string, string>` | 请求头           |
 
+Node 解析与封面请求均可传入 `signal`。单份清单最多 4 MiB，封面输入分片最多 16 MiB。取消或超限时，`parseHls()` 的 `result.error.code` 和 `getPosterUrl()` 抛出的错误码分别按原因取值 `ABORTED` 或 `RESOURCE_LIMIT_EXCEEDED`。
+
+Node 实例分别缓存最多 64 个成功的解析结果和 64 个封面，有效期五分钟。`clearCache()` 同时清除本实例的两类结果。
+
 ### `download()`
 
 ```ts

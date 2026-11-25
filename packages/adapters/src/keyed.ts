@@ -233,6 +233,11 @@ export async function executeKeyed(
                   ).bytes,
                 };
               } catch (error) {
+                if (
+                  error instanceof HlsDownloaderError &&
+                  error.code === Code.REQUEST_POLICY_DENIED
+                )
+                  originalError ??= error;
                 return {
                   ...empty,
                   status:

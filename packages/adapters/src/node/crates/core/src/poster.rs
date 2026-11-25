@@ -1,45 +1,25 @@
-use std::collections::HashMap;
 use std::io::Write;
 
 use crate::HlsError;
 
-pub async fn extract_poster(
-    segment_url: &str,
-    headers: Option<&HashMap<String, String>>,
-) -> Result<Option<Vec<u8>>, HlsError> {
-    let client = reqwest::Client::new();
-    let mut req = client.get(segment_url);
-    if let Some(h) = headers {
-        for (k, v) in h {
-            req = req.header(k.as_str(), v.as_str());
-        }
+pub fn extract_poster(bytes: &[u8]) -> Result<Option<Vec<u8>>, HlsError> {
+    let mut file = tempfile::Builder::new().suffix(".ts").tempfile()?;
+    file.write_all(bytes)?;
+    file.flush()?;
+    match extract_first_frame(file.path()) {
+        Ok(Some(jpeg)) if jpeg.is_empty() => Ok(None),
+        Err(HlsError::Ffmpeg(
+            ffmpeg_next::Error::InvalidData | ffmpeg_next::Error::DecoderNotFound,
+        )) => Ok(None),
+        result => result,
     }
-
-    let response = req.send().await?;
-    if !response.status().is_success() {
-        return Ok(None);
-    }
-
-    let bytes = response.bytes().await?;
-
-    let tmp_file = tempfile::Builder::new().suffix(".ts").tempfile()?;
-    {
-        let mut f = tmp_file.as_file();
-        f.write_all(&bytes)?;
-        f.flush()?;
-    }
-
-    let input_path = tmp_file.path().to_path_buf();
-
-    let result = tokio::task::spawn_blocking(move || extract_first_frame(&input_path))
-        .await
-        .map_err(|e| HlsError::Parse(format!("Join error: {e}")))?;
-
-    result
 }
 
 fn extract_first_frame(input_path: &std::path::Path) -> Result<Option<Vec<u8>>, HlsError> {
-    let mut ictx = ffmpeg_next::format::input(input_path)?;
+    let mut options = ffmpeg_next::Dictionary::new();
+    options.set("protocol_whitelist", "file");
+    options.set("format_whitelist", "mpegts,mov,aac,mp3,matroska,webm");
+    let mut ictx = ffmpeg_next::format::input_with_dictionary(input_path, options)?;
 
     let video_stream_index = ictx
         .streams()

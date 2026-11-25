@@ -101,6 +101,8 @@ export async function readBoundedResource(
       };
     } catch (error) {
       assertActive(signal);
+      if (error instanceof HlsDownloaderError && error.code === Code.REQUEST_POLICY_DENIED)
+        throw error;
       if (!retryable || attempt >= normalizeMaxAttempts(maxRetry))
         throw error instanceof HlsDownloaderError
           ? error

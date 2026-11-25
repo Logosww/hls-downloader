@@ -106,6 +106,8 @@ Returns a `ParseHlsResult`:
 | `url`     | `string`                 | HLS playlist URL |
 | `headers` | `Record<string, string>` | Request headers  |
 
+Node accepts an AbortSignal for playlist and poster requests. A manifest can contain up to 4 MiB and a poster input segment up to 16 MiB. On cancellation or overflow, inspect `result.error.code` from `parseHls()` or catch the rejection from `getPosterUrl()` for `ABORTED` or `RESOURCE_LIMIT_EXCEEDED`.
+
 ### `download()`
 
 ```ts
@@ -291,7 +293,7 @@ Attempt to extract a poster/thumbnail image URL from the stream. Merges `options
 clearCache(): void
 ```
 
-Clear adapter caches where implemented. BrowserAdapter has no cross-call playlist or poster cache, so this method is a no-op there.
+Clear both playlist and poster results for this Node downloader instance. Each cache holds up to 64 successful results for five minutes. BrowserAdapter has no cross-call playlist or poster cache, so this method is a no-op there.
 
 ## Variant selection
 

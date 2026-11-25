@@ -48,7 +48,8 @@
   "dependencies": {
     "@hls-downloader/core": "workspace:*",
     "@hls-downloader/shared": "workspace:*",
-    "mediabunny": "^1.66.0"
+    "mediabunny": "^1.66.0",
+    "undici": "^6.29.1"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.10.12",

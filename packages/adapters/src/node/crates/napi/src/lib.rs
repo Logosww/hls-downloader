@@ -141,30 +141,8 @@ pub fn init_ffmpeg() -> Result<()> {
 }
 
 #[napi]
-pub async fn parse_hls_native(
-    url: String,
-    headers: Option<HashMap<String, String>>,
-    cancel_job_id: Option<String>,
-) -> Result<NapiParseHlsResult> {
-    let token = if let Some(id) = cancel_job_id {
-        Some(
-            registry()
-                .get(&id)
-                .map(|v| Arc::clone(&v))
-                .ok_or_else(|| Error::from_reason("ABORTED: download aborted"))?,
-        )
-    } else {
-        None
-    };
-    let result = if let Some(token) = token {
-        tokio::select! {
-            result = hls_core::parse_hls(&url, headers.as_ref()) => result,
-            _ = token.wait_cancelled() => return Err(Error::from_reason("ABORTED: download aborted")),
-        }
-    } else {
-        hls_core::parse_hls(&url, headers.as_ref()).await
-    };
-
+pub async fn parse_hls_bytes(bytes: Buffer, final_url: String) -> Result<NapiParseHlsResult> {
+    let result = hls_core::parse_hls(&bytes, &final_url);
     match result {
         Ok(ParseHlsResult::Playlist(playlists)) => Ok(NapiParseHlsResult {
             result_type: "playlist".to_string(),
@@ -299,12 +277,10 @@ pub async fn download_and_merge(
 }
 
 #[napi]
-pub async fn extract_poster(
-    segment_url: String,
-    headers: Option<HashMap<String, String>>,
-) -> Result<Option<String>> {
-    let jpeg_bytes = hls_core::extract_poster(&segment_url, headers.as_ref())
+pub async fn extract_poster_bytes(bytes: Buffer) -> Result<Option<String>> {
+    let jpeg_bytes = tokio::task::spawn_blocking(move || hls_core::extract_poster(&bytes))
         .await
+        .map_err(|e| Error::from_reason(e.to_string()))?
         .map_err(to_napi_err)?;
 
     Ok(jpeg_bytes.map(|bytes| {

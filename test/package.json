@@ -6,7 +6,7 @@
   "scripts": {
     "test": "pnpm run test:unit && pnpm run test:e2e",
     "test:unit": "vitest run node-poster.unit.test.ts parse-hls.unit.test.ts retry.unit.test.ts capabilities.unit.test.ts renditions.unit.test.ts timeline-sidecars.unit.test.ts multitrack.unit.test.ts m5-realtime.unit.test.ts m5-gates.unit.test.ts",
-    "test:integration": "vitest run hls-http.integration.test.ts writable-output.integration.test.ts browser-request.integration.test.ts timeline.integration.test.ts recording.integration.test.ts multitrack.integration.test.ts m5-rolling.integration.test.ts",
+    "test:integration": "vitest run request-isolation.integration.test.ts hls-http.integration.test.ts writable-output.integration.test.ts browser-request.integration.test.ts timeline.integration.test.ts recording.integration.test.ts multitrack.integration.test.ts m5-rolling.integration.test.ts",
     "test:native:unit": "cargo test --manifest-path ../packages/adapters/src/node/crates/core/Cargo.toml --lib hls",
     "test:e2e": "vitest run library-api.e2e.test.ts",
     "test:e2e:publish": "pnpm run test:publish",

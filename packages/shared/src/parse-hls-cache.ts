@@ -3,14 +3,10 @@ import type { ParseHlsResult } from './types';
 const DEFAULT_TTL = 5 * 60 * 1000; // 5 min
 const DEFAULT_MAX_ENTRIES = 64;
 
-type Entry = { result: ParseHlsResult; expiresAt: number };
+type Entry<T> = { result: T; expiresAt: number };
 
-/**
- * `parseHls` 结果缓存：TTL + LRU 上限，且不缓存 error。
- * Browser / Node adapter 共用，避免以 URL 为唯一 key 带来的 correctness 问题。
- */
-export class ParseHlsCache {
-  private readonly store = new Map<string, Entry>();
+export class ResultCache<T> {
+  private readonly store = new Map<string, Entry<T>>();
   private readonly ttl: number;
   private readonly maxEntries: number;
 
@@ -19,7 +15,7 @@ export class ParseHlsCache {
     this.maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
   }
 
-  get(key: string): ParseHlsResult | undefined {
+  get(key: string): T | undefined {
     const entry = this.store.get(key);
     if (!entry) return undefined;
     if (Date.now() >= entry.expiresAt) {
@@ -32,9 +28,7 @@ export class ParseHlsCache {
     return entry.result;
   }
 
-  set(key: string, result: ParseHlsResult): void {
-    // error 一律不缓存，避免瞬时失败被永久固化
-    if (result.type === 'error') return;
+  set(key: string, result: T): void {
     this.store.delete(key);
     this.store.set(key, { result, expiresAt: Date.now() + this.ttl });
     this.evict();
@@ -50,6 +44,12 @@ export class ParseHlsCache {
       if (oldest === undefined) break;
       this.store.delete(oldest);
     }
+  }
+}
+
+export class ParseHlsCache extends ResultCache<ParseHlsResult> {
+  override set(key: string, result: ParseHlsResult): void {
+    if (result.type !== 'error') super.set(key, result);
   }
 }
 

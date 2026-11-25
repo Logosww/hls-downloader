@@ -1,3 +1,4 @@
+import { credentialHeaders, originSet } from '../credential-origins';
 import { finiteEngine } from '../engine';
 import { runMultiTrack, multiTrackCapabilities } from '../multitrack';
 import {
@@ -72,8 +73,32 @@ export type {
 };
 
 type BrowserGlobalOptions = {
+  trustedCredentialOrigins?: readonly string[];
   download?: HlsDownloaderGlobalDownloadOptions;
 } & BrowserAdditionalOptions;
+
+function scopedTransport(
+  entry: string,
+  request?: HlsDownloaderBrowserRequestOptions,
+  origins?: readonly string[],
+): HlsDownloaderBrowserRequestOptions {
+  const transport = request?.fetch ?? globalThis.fetch;
+  const trusted = originSet(origins ?? []);
+  return {
+    ...request,
+    fetch(url, init) {
+      return transport(url, {
+        ...init,
+        headers: credentialHeaders(
+          init.headers,
+          new URL(url).origin,
+          new URL(entry).origin,
+          trusted,
+        ),
+      });
+    },
+  };
+}
 
 function mergeFetchOptions(
   globalOptions: BrowserGlobalOptions | null,
@@ -86,7 +111,11 @@ function mergeFetchOptions(
     headers: globalOptions?.download?.headers,
     ...callOptions,
     signal: callOptions.signal,
-    browserRequest: { ...(callOptions.browserRequest ?? globalOptions?.browserRequest) },
+    browserRequest: scopedTransport(
+      callOptions.url,
+      callOptions.browserRequest ?? globalOptions?.browserRequest,
+      globalOptions?.trustedCredentialOrigins,
+    ),
   };
 }
 
@@ -114,7 +143,11 @@ function mergeDownloadOptions(
       adapter.chunkDownloadConcurrency,
     transcode: mergedTranscode,
     signal: callOptions.signal,
-    browserRequest: { ...(callOptions.browserRequest ?? globalOptions?.browserRequest) },
+    browserRequest: scopedTransport(
+      callOptions.url,
+      callOptions.browserRequest ?? globalOptions?.browserRequest,
+      globalOptions?.trustedCredentialOrigins,
+    ),
   };
 }
 
@@ -127,12 +160,6 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   options,
 ) {
   const globalOptions = getAdapterGlobalOptionsFromInternal<BrowserGlobalOptions>(this, options);
-  const {
-    url: hlsUrl,
-    headers,
-    signal,
-    browserRequest,
-  } = mergeFetchOptions(globalOptions, options);
   const maxRetry =
     (stripContext(options) as HlsDownloaderDownloadOptions).maxRetry ??
     globalOptions?.download?.maxRetry ??
@@ -141,6 +168,12 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   let fallbackCode: (typeof HlsDownloaderErrorCode)[keyof typeof HlsDownloaderErrorCode] =
     HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED;
   try {
+    const {
+      url: hlsUrl,
+      headers,
+      signal,
+      browserRequest,
+    } = mergeFetchOptions(globalOptions, options);
     let url = new URL(hlsUrl);
 
     const response = await readResource(
@@ -171,7 +204,7 @@ const parseHls: HlsDownloaderBrowserAdapter['parseHls'] = async function (
   } catch (cause: unknown) {
     // error 不缓存，下次调用重新走网络
     const error = normalizeHlsError(cause, fallbackCode, {
-      url: hlsUrl,
+      url: options.url,
       adapter: this.name,
     });
     const result: ParseHlsResult = {
@@ -416,7 +449,10 @@ const downloadOutputs: NonNullable<HlsDownloaderBrowserAdapter['downloadOutputs'
     const outputs: any[] = [];
     const result = await finiteEngine(
       this,
-      options,
+      {
+        ...options,
+        ...mergeFetchOptions(getAdapterGlobalOptionsFromInternal(this, options), options),
+      },
       {
         type: 'writables',
         acquire: async () => {

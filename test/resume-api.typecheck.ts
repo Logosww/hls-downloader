@@ -66,3 +66,13 @@ node.downloadMultiTrack({
 browser.download({ url: 'x', finalizationStrategy: 'in-place' });
 // @ts-expect-error Borrowed writers do not support native file finalization.
 node.downloadToStream({ url: 'x', finalizationStrategy: 'in-place' }, () => {});
+
+node.setOptions({
+  trustedCredentialOrigins: ['https://cdn.test'],
+  nodeRequestPolicy: { publicOnly: true, allowedOrigins: [] },
+});
+browser.setOptions({ trustedCredentialOrigins: [] });
+// @ts-expect-error Address restrictions apply only to Node transports.
+browser.setOptions({ nodeRequestPolicy: { publicOnly: true } });
+// @ts-expect-error An operation cannot override the instance network policy.
+node.download({ url: 'https://example.test', nodeRequestPolicy: {} });

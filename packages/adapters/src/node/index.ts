@@ -1,7 +1,9 @@
-import { extractPosterFromSegmentUrl } from './poster';
+import { nodeTransport } from './request';
+import { readBoundedResource } from '../bounded';
+import { extractPosterFromBytes } from './poster';
 import { finiteEngine } from '../engine';
 import { transcodeFile } from './transcode';
-import { assertActive } from '../browser/request';
+import { assertActive, cancellable } from '../browser/request';
 import { runMultiTrack, multiTrackCapabilities } from '../multitrack';
 import {
   runRecording,
@@ -22,7 +24,10 @@ import {
   selectBestVariant,
   stripContext,
   ParseHlsCache,
-  buildParseHlsCacheKey,
+  ResultCache,
+  getCacheOwner,
+  normalizeHlsError,
+  type NodeRequestPolicy,
   type HlsDownloaderAdapterInternal,
   type HlsDownloaderDownloadOptions,
   type HlsDownloaderFetchOptions,
@@ -48,13 +53,13 @@ import {
   continuousCommand,
   continuousRun,
   parseMediaPlaylistNative,
-  parseHlsNative,
+  parseHlsBytes,
   downloadAndMerge,
-  extractPoster,
+  extractPosterBytes,
   type NapiParseHlsResult,
   type NapiAria2Config,
 } from './native.js';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, mkdtemp, link, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
@@ -81,6 +86,8 @@ export type HlsDownloaderNodeAdapter = HlsDownloaderAdapterInternal<
 >;
 
 type NodeGlobalOptions = {
+  trustedCredentialOrigins?: readonly string[];
+  nodeRequestPolicy?: NodeRequestPolicy;
   download?: HlsDownloaderGlobalDownloadOptions;
   transcode?: HlsDownloaderTranscodeOptions;
 } & AdditionalOptions;
@@ -88,12 +95,17 @@ type NodeGlobalOptions = {
 function mergeFetchOptions(
   globalOptions: NodeGlobalOptions | null,
   options: Record<string, unknown>,
-): HlsDownloaderFetchOptions {
+) {
   const callOptions = stripContext(options) as HlsDownloaderFetchOptions;
 
   return {
     headers: globalOptions?.download?.headers,
     ...callOptions,
+    browserRequest: nodeTransport(
+      callOptions.url,
+      globalOptions?.trustedCredentialOrigins,
+      globalOptions?.nodeRequestPolicy,
+    ),
   };
 }
 
@@ -108,7 +120,7 @@ function mergeDownloadOptions(
   const transcode = callOptions.transcode ?? globalOptions?.transcode;
 
   return {
-    url: callOptions.url,
+    ...mergeFetchOptions(globalOptions, options),
     headers: callOptions.headers ?? globalOptions?.download?.headers,
     filename: getDownloadOutputFilename(callOptions.filename, transcode),
     maxRetry:
@@ -124,8 +136,38 @@ function mergeDownloadOptions(
 }
 
 let ffmpegInitialized = false;
-const parseResultCache = new ParseHlsCache();
-const posterCache: Record<string, string | undefined> = Object.create(null);
+type InstanceCache = { manifests: ParseHlsCache; posters: ResultCache<string> };
+const caches = new WeakMap<object, InstanceCache>();
+
+function manifestRequest(adapter: HlsDownloaderNodeAdapter, options: Record<string, unknown>) {
+  const globals = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(adapter, options);
+  const request = mergeFetchOptions(globals, options);
+  const owner = getCacheOwner(options);
+  let cache = owner && caches.get(owner);
+  if (!cache) {
+    cache = { manifests: new ParseHlsCache(), posters: new ResultCache<string>() };
+    if (owner) caches.set(owner, cache);
+  }
+  const policy = globals?.nodeRequestPolicy;
+  const context = createHash('sha256')
+    .update(
+      JSON.stringify([
+        [...new Headers(request.headers)],
+        new URL(request.url).origin,
+        globals?.trustedCredentialOrigins?.slice().sort() ?? [],
+        policy?.publicOnly ?? false,
+        policy?.allowedOrigins?.slice().sort() ?? null,
+      ]),
+    )
+    .digest('hex');
+  return {
+    ...request,
+    cache,
+    context,
+    signal: request.signal ?? new AbortController().signal,
+    resume: Boolean(options.resume),
+  };
+}
 
 function toParseHlsResult(napi: NapiParseHlsResult): ParseHlsResult {
   switch (napi.resultType) {
@@ -206,33 +248,55 @@ const parseHls: HlsDownloaderNodeAdapter['parseHls'] = async function (
   this: HlsDownloaderNodeAdapter,
   options,
 ) {
-  const { url, headers } = mergeFetchOptions(
-    getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options),
-    options,
-  );
-
-  const cacheKey = buildParseHlsCacheKey(url, headers);
-  const cached = (options as Record<string, unknown>).resume
-    ? undefined
-    : parseResultCache.get(cacheKey);
-  if (cached) return cached;
-
-  const napiResult = await parseHlsNative(url, headers);
-  const result = toParseHlsResult(napiResult);
-  // set 内部会跳过 error，不再缓存失败结果
-  if (!(options as Record<string, unknown>).resume) parseResultCache.set(cacheKey, result);
-  return result;
+  try {
+    return await withOperation(
+      options,
+      (active) => parseManifest(manifestRequest(this, active), active.url),
+      this.name,
+    );
+  } catch (cause) {
+    const error = normalizeHlsError(cause, HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED, {
+      adapter: this.name,
+    });
+    return { type: 'error', message: error.message, error };
+  }
 };
+
+async function parseManifest(request: ReturnType<typeof manifestRequest>, url: string) {
+  assertActive(request.signal);
+  const key = JSON.stringify([request.context, url]);
+  const hit = !request.resume && request.cache.manifests.get(key);
+  if (hit) return hit;
+  const body = await readBoundedResource(
+    { url },
+    4 * 1024 * 1024,
+    request.headers,
+    1,
+    request.signal,
+    HlsDownloaderErrorCode.MANIFEST_FETCH_FAILED,
+    request.browserRequest,
+  );
+  assertActive(request.signal);
+  const parsed = await cancellable(
+    parseHlsBytes(
+      Buffer.from(body.bytes.buffer, body.bytes.byteOffset, body.bytes.byteLength),
+      body.url,
+    ),
+    request.signal,
+  );
+  assertActive(request.signal);
+  const result = toParseHlsResult(parsed);
+  if (!request.resume) request.cache.manifests.set(key, result);
+  return result;
+}
 
 async function resolveToSegments(
   adapter: HlsDownloaderNodeAdapter,
   options: Record<string, unknown>,
+  request = manifestRequest(adapter, options),
+  url = request.url,
   state: { visited: Set<string>; depth: number } = { visited: new Set(), depth: 0 },
 ): Promise<{ segments: Segment[]; resolvedUrl: string }> {
-  const { url } = mergeFetchOptions(
-    getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(adapter, options),
-    options,
-  );
   if (state.depth > 8 || state.visited.has(url)) {
     throw new HlsDownloaderError(
       HlsDownloaderErrorCode.MANIFEST_INVALID,
@@ -243,16 +307,12 @@ async function resolveToSegments(
     );
   }
   const visited = new Set(state.visited).add(url);
-  const result = await parseHls.call(adapter, options as HlsDownloaderFetchOptions);
+  const result = await parseManifest(request, url);
 
   if (result.type === 'segment') {
-    const fetchOptions = mergeFetchOptions(
-      getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(adapter, options),
-      options,
-    );
     const segments = result.data as Segment[];
     assertSupportedSegments(segments, adapter.name);
-    return { segments, resolvedUrl: fetchOptions.url };
+    return { segments, resolvedUrl: url };
   }
 
   if (result.type === 'playlist') {
@@ -277,14 +337,10 @@ async function resolveToSegments(
         { adapter: adapter.name, url },
       );
     }
-    return resolveToSegments(
-      adapter,
-      { ...options, url: best.uri },
-      {
-        visited,
-        depth: state.depth + 1,
-      },
-    );
+    return resolveToSegments(adapter, options, request, best.uri, {
+      visited,
+      depth: state.depth + 1,
+    });
   }
 
   throw (
@@ -301,33 +357,72 @@ const getPosterUrl: HlsDownloaderNodeAdapter['getPosterUrl'] = async function (
   this: HlsDownloaderNodeAdapter,
   options,
 ) {
-  const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
-  const fetchOptions = mergeFetchOptions(globalOptions, options);
+  return withOperation(
+    options,
+    async (active) => {
+      const request = manifestRequest(this, active);
+      assertActive(request.signal);
+      const key = JSON.stringify([request.context, request.url]);
+      const cached = request.cache.posters.get(key);
+      if (cached) return cached;
 
-  if (posterCache[fetchOptions.url]) {
-    return posterCache[fetchOptions.url];
-  }
-  const { segments } = await resolveToSegments(this, { ...options, ...fetchOptions });
-  const index = Math.min(Math.floor(segments.length * 0.25), segments.length - 1);
-  const segmentUrl = segments[index]!.uri;
-
-  let poster = await extractPosterFromSegmentUrl({ segmentUrl, headers: fetchOptions.headers });
-  if (!poster) {
-    ensureFfmpegLoaded(this, options);
-    poster = (await extractPoster(segmentUrl, fetchOptions.headers)) ?? undefined;
-  }
-
-  posterCache[fetchOptions.url] = poster;
-  return poster;
+      const { segments } = await resolveToSegments(this, active, request);
+      const segment = segments[Math.floor(segments.length * 0.25)];
+      if (!segment) return undefined;
+      const { bytes } = await readBoundedResource(
+        { url: segment.uri },
+        16 * 1024 * 1024,
+        request.headers,
+        1,
+        request.signal,
+        HlsDownloaderErrorCode.SEGMENT_FETCH_FAILED,
+        request.browserRequest,
+      );
+      assertActive(request.signal);
+      let poster = await cancellable(extractPosterFromBytes(bytes), request.signal);
+      assertActive(request.signal);
+      if (!poster) {
+        ensureFfmpegLoaded(this, options);
+        assertActive(request.signal);
+        poster =
+          (await cancellable(
+            extractPosterBytes(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)),
+            request.signal,
+          )) ?? undefined;
+      }
+      assertActive(request.signal);
+      if (poster) request.cache.posters.set(key, poster);
+      return poster;
+    },
+    this.name,
+  );
 };
+
+function aria2UsesCredentials(args: readonly string[] = []): boolean {
+  return args.some((argument, index) => {
+    if (/^--(?:load-cookies|http-user|http-passwd)(?:=|$)/.test(argument)) return true;
+    const header =
+      argument === '--header' ? args[index + 1] : argument.match(/^--header=(.*)$/)?.[1];
+    return header !== undefined && /^\s*(?:authorization|cookie)\s*:/i.test(header);
+  });
+}
 
 const download: HlsDownloaderNodeAdapter['download'] = async function (
   this: HlsDownloaderNodeAdapter,
   options,
 ): Promise<DownloadResult> {
   const globalOptions = getAdapterGlobalOptionsFromInternal<NodeGlobalOptions>(this, options);
-  const { url, headers, filename, maxRetry, downloadConcurrency, aria2, transcode, signal } =
-    mergeDownloadOptions(this, globalOptions, options);
+  const {
+    url,
+    headers,
+    filename,
+    maxRetry,
+    downloadConcurrency,
+    aria2,
+    transcode,
+    signal,
+    browserRequest,
+  } = mergeDownloadOptions(this, globalOptions, options);
 
   if (
     (options.finalizationStrategy !== undefined || options.headerReserveBytes !== undefined) &&
@@ -347,6 +442,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
         url,
         headers,
         maxRetry,
+        browserRequest,
         signal,
         transcode: undefined,
         __rejectAudio: transcode !== undefined,
@@ -381,7 +477,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
       const { aria2: _aria2, ...engineOptions } = options;
       const result = await finiteEngine(
         this,
-        { ...engineOptions, url, headers, maxRetry, signal, transcode: undefined },
+        { ...engineOptions, url, headers, maxRetry, signal, browserRequest, transcode: undefined },
         { type: 'file', path: input, format: 'fmp4' },
         nodeRecordingBridge,
       );
@@ -406,6 +502,18 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
       await rm(workDir, { recursive: true, force: true });
     }
   }
+  const headerNames = new Headers(headers);
+  if (
+    globalOptions?.nodeRequestPolicy?.publicOnly ||
+    globalOptions?.nodeRequestPolicy?.allowedOrigins ||
+    headerNames.has('authorization') ||
+    headerNames.has('cookie') ||
+    aria2UsesCredentials(aria2?.extraArgs)
+  )
+    throw new HlsDownloaderError(
+      HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
+      'Use the built-in downloader for request policies or credentials',
+    );
   if (options.resume || options.decryption || options.audio || options.timeline)
     throw new HlsDownloaderError(
       HlsDownloaderErrorCode.UNSUPPORTED_OUTPUT,
@@ -433,7 +541,7 @@ const download: HlsDownloaderNodeAdapter['download'] = async function (
       napiSegments,
       workDir,
       filename,
-      headers,
+      Object.fromEntries(headerNames),
       downloadConcurrency,
       maxRetry,
       aria2 ?? null,
@@ -565,7 +673,10 @@ const downloadOutputs: NonNullable<HlsDownloaderNodeAdapter['downloadOutputs']> 
   };
   const result = await finiteEngine(
     this,
-    options,
+    {
+      ...options,
+      ...mergeFetchOptions(getAdapterGlobalOptionsFromInternal(this, options), options),
+    },
     out as import('@hls-downloader/shared').HlsRecordingOutput,
     nodeRecordingBridge,
     undefined,
@@ -662,7 +773,9 @@ const nodeAdapter: HlsDownloaderNodeAdapter = createAdapter({
   downloadSubtitleOutputs,
   downloadOutputs,
   downloadToWritables,
-  clearCache: () => parseResultCache.clear(),
+  clearCache: (owner) => {
+    if (owner) caches.delete(owner);
+  },
 }) as HlsDownloaderNodeAdapter;
 
 export const NodeAdapter: HlsDownloaderNodeAdapter = nodeAdapter;

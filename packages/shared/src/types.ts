@@ -139,6 +139,11 @@ export type AdapterCapabilities = Readonly<{
   resumableDownload?: boolean;
 }>;
 
+export type NodeRequestPolicy = {
+  publicOnly?: boolean;
+  allowedOrigins?: readonly string[];
+};
+
 /** Browser media transport only; WASM loading is independent. */
 export type HlsDownloaderBrowserRequestOptions = {
   /** One attempt. Preserve Response semantics and honor init.signal, including body reads. */
@@ -325,5 +330,5 @@ export interface HlsDownloaderAdapterInternal<
     options: HlsDownloaderSubtitleOutputsOptions & RequestOptions,
   ): Promise<{ outputs: HlsSidecar[]; totalSegments: number }>;
   /** 清空 adapter 内部的 parseHls / poster 缓存。可选实现。 */
-  clearCache?(): void;
+  clearCache?(cacheOwner?: object): void;
 }

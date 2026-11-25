@@ -62,6 +62,10 @@ type HlsDownloaderConfigFactory<T> =
     : never;
 
 export type GlobalOptions<T extends HlsDownloaderAdapter> = {
+  trustedCredentialOrigins?: readonly string[];
+  nodeRequestPolicy?: 'aria2' extends keyof HlsDownloaderConfigFactory<T>['additionalOptions']
+    ? import('@hls-downloader/shared').NodeRequestPolicy
+    : never;
   download?: HlsDownloaderGlobalDownloadOptions;
   transcode?: HlsDownloaderTranscodeOptions;
 } & HlsDownloaderConfigFactory<T>['additionalOptions'];
@@ -117,6 +121,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     this.#onEvent = onEvent;
     this.#context = {
       internal: this.#adapter,
+      cacheOwner: {},
       getGlobalOptions: () => this.globalOptions,
     };
   }
@@ -125,6 +130,11 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     const snapshot = globalOptions
       ? {
           ...globalOptions,
+          trustedCredentialOrigins: globalOptions.trustedCredentialOrigins?.slice(),
+          nodeRequestPolicy: globalOptions.nodeRequestPolicy && {
+            ...globalOptions.nodeRequestPolicy,
+            allowedOrigins: globalOptions.nodeRequestPolicy.allowedOrigins?.slice(),
+          },
           download: globalOptions.download
             ? {
                 ...globalOptions.download,
@@ -143,9 +153,12 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       getGlobalOptions: () => snapshot,
     };
   }
-  #createOperationContext(operationId: string): DownloaderContext {
+  #createOperationContext(
+    operationId: string,
+    snapshot = this.#snapshotContext(),
+  ): DownloaderContext {
     return {
-      ...this.#snapshotContext(),
+      ...snapshot,
       operationId,
       emit: <E extends import('@hls-downloader/shared').HlsDownloaderEvent>(
         event: E,
@@ -472,6 +485,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
     });
     // The lifecycle owns only output/state fields. The driver owns the distinct
     // multi-track options, report and arbitrary input IDs; no legacy engine runs.
+    const context = this.#snapshotContext();
     const session = createRecording(
       snapshot as unknown as HlsRecordingOptions<O>,
       async (request, host) => {
@@ -487,7 +501,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
         return this.#adapter.runMultiTrack(
           injectContext(
             request as unknown as HlsMultiTrackOptions,
-            this.#createOperationContext(request.operationId!),
+            this.#createOperationContext(request.operationId!, context),
           ),
           host as HlsMultiTrackHost,
           finite,
@@ -529,6 +543,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
       limits: options.limits && structuredClone(options.limits),
       durationLimit: options.durationLimit && { ...options.durationLimit },
     });
+    const context = this.#snapshotContext();
     return createRecording(
       snapshot,
       async (request, host) => {
@@ -542,7 +557,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
           );
         await awaitRecordingInit(this.init(), request.signal!);
         return this.#adapter.runRecording(
-          injectContext(request, this.#createOperationContext(request.operationId!)),
+          injectContext(request, this.#createOperationContext(request.operationId!, context)),
           host,
         );
       },
@@ -650,7 +665,7 @@ export class HlsDownloader<T extends HlsDownloaderAdapter> {
   }
   /** 清空 adapter 内部的 parseHls / poster 缓存。adapter 未实现时为 no-op。 */
   clearCache(): void {
-    this.#adapter.clearCache?.();
+    this.#adapter.clearCache?.(this.#context.cacheOwner!);
   }
 }
 

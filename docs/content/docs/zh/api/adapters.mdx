@@ -11,6 +11,12 @@ description: 'BrowserAdapter 与 NodeAdapter 的专有选项与行为。'
   WebCodecs 做 `transcode`；NodeAdapter 使用内置原生 FFmpeg 库进行转码。
 </Callout>
 
+## 请求来源
+
+当独立 CDN 需要入口 URL 使用的显式 `Authorization` 或 `Cookie` 头时，在下载器实例的 `trustedCredentialOrigins` 中列出完整 HTTP(S) 来源，包含非默认端口。默认只向入口同源发送这两种头。规则覆盖嵌套清单、密钥、初始化段、字幕、媒体和直播刷新。浏览器自身的 Cookie 仍遵循 `browserRequest.credentials`。自定义 fetch 或密钥解析器自行负责其添加的凭据和请求。
+
+Node 默认支持局域网源。为公网 HTTP(S) 源设置 `nodeRequestPolicy: { publicOnly: true }` 可排除特殊用途地址，并在连接时核验 DNS 解析结果。通过 `allowedOrigins` 可进一步限定目标来源，空数组拒绝所有目标。两项限制对每一跳重定向生效，拒绝时返回 `REQUEST_POLICY_DENIED`。启用任一限制或传入显式认证头时，省略 `aria2` 即使用内置下载器；选择 aria2 会返回 `UNSUPPORTED_OUTPUT`。
+
 ## BrowserAdapter
 
 ```ts

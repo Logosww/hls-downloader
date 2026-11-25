@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use url::Url;
 
 use crate::HlsError;
@@ -35,21 +33,6 @@ pub enum ParseHlsResult {
     Segments(Vec<Segment>),
 }
 
-fn resolve_uri(uri: &str, base: &str) -> String {
-    if uri.starts_with("http://") || uri.starts_with("https://") {
-        return uri.to_string();
-    }
-    base.replace("{{URL}}", uri)
-}
-
-fn build_base_url(url: &Url) -> String {
-    let mut path_segments: Vec<&str> = url.path().split('/').collect();
-    path_segments.pop();
-    path_segments.push("{{URL}}");
-    let path = path_segments.join("/");
-    format!("{}{}", url.origin().ascii_serialization(), path)
-}
-
 /// 判断 codecs 列表是否仅含音频（无视频 codec）。无 codecs 信息时返回 false。
 fn is_audio_only_codecs(codecs: &Option<String>) -> bool {
     match codecs {
@@ -83,15 +66,15 @@ fn is_audio_only_codecs(codecs: &Option<String>) -> bool {
 /// - 空 variants / 空 segments 返回 `HlsError::Parse`。
 ///
 /// 从 `parse_hls` 中抽出，使其可被 `#[cfg(test)]` 用 fixture 文本直接驱动。
-fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHlsResult, HlsError> {
+fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &Url) -> Result<ParseHlsResult, HlsError> {
     match parsed {
         m3u8_rs::Playlist::MasterPlaylist(master) => {
             let has_alternate_renditions = !master.alternatives.is_empty();
-            let renditions_json = serde_json::to_string(&master.alternatives.iter().map(|r| serde_json::json!({
+            let renditions_json = serde_json::to_string(&master.alternatives.iter().map(|r| Ok(serde_json::json!({
                 "type": r.media_type.to_string().to_lowercase(), "groupId": r.group_id,
-                "name": r.name, "uri": r.uri.as_ref().map(|u| resolve_uri(u, base)), "language": r.language,
+                "name": r.name, "uri": r.uri.as_ref().map(|u| base.join(u).map(String::from)).transpose()?, "language": r.language,
                 "default": r.default, "autoselect": r.autoselect, "forced": r.forced
-            })).collect::<Vec<_>>()).unwrap();
+            }))).collect::<Result<Vec<_>, url::ParseError>>()?).unwrap();
             let playlists: Vec<Playlist> = master
                 .variants
                 .iter()
@@ -107,10 +90,10 @@ fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHls
                         .map(|r| (r.width as u32, r.height as u32));
                     let frame_rate = v.frame_rate;
                     let is_audio_only = v.resolution.is_none() && is_audio_only_codecs(&v.codecs);
-                    Playlist {
+                    Ok(Playlist {
                         name,
                         bandwidth: v.bandwidth,
-                        uri: resolve_uri(&v.uri, base),
+                        uri: base.join(&v.uri)?.into(),
                         resolution,
                         codecs: v.codecs.clone(),
                         frame_rate,
@@ -120,9 +103,9 @@ fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHls
                         subtitles_group: v.subtitles.clone(),
                         video_group: v.video.clone(),
                         renditions_json: renditions_json.clone(),
-                    }
+                    })
                 })
-                .collect();
+                .collect::<Result<_, url::ParseError>>()?;
 
             Ok(ParseHlsResult::Playlist(playlists))
         }
@@ -136,58 +119,39 @@ fn map_parsed_playlist(parsed: m3u8_rs::Playlist, base: &str) -> Result<ParseHls
             let segments: Vec<Segment> = media
                 .segments
                 .iter()
-                .map(|s| Segment {
-                    uri: resolve_uri(&s.uri, base),
-                    duration: s.duration as f64,
-                    encryption_method: s.key.as_ref().map(|key| key.method.to_string()),
-                    discontinuity: s.discontinuity,
-                    is_live: !media.end_list
-                        || matches!(
-                            media.playlist_type.as_ref(),
-                            Some(m3u8_rs::MediaPlaylistType::Event)
-                        ),
+                .map(|s| {
+                    Ok(Segment {
+                        uri: base.join(&s.uri)?.into(),
+                        duration: s.duration as f64,
+                        encryption_method: s.key.as_ref().map(|key| key.method.to_string()),
+                        discontinuity: s.discontinuity,
+                        is_live: !media.end_list
+                            || matches!(
+                                media.playlist_type.as_ref(),
+                                Some(m3u8_rs::MediaPlaylistType::Event)
+                            ),
+                    })
                 })
-                .collect();
+                .collect::<Result<_, url::ParseError>>()?;
 
             Ok(ParseHlsResult::Segments(segments))
         }
     }
 }
 
-pub async fn parse_hls(
-    hls_url: &str,
-    headers: Option<&HashMap<String, String>>,
-) -> Result<ParseHlsResult, HlsError> {
-    let url = Url::parse(hls_url)?;
+pub fn parse_hls(manifest: &[u8], final_url: &str) -> Result<ParseHlsResult, HlsError> {
+    let url = Url::parse(final_url)?;
+    let parsed =
+        m3u8_rs::parse_playlist_res(manifest).map_err(|e| HlsError::Parse(format!("{e:?}")))?;
 
-    let client = reqwest::Client::new();
-    let mut req = client.get(url.as_str());
-    if let Some(h) = headers {
-        for (k, v) in h {
-            req = req.header(k.as_str(), v.as_str());
-        }
-    }
-    let response = req.send().await?;
-    if !response.status().is_success() {
-        let text = response.text().await.unwrap_or_default();
-        return Err(HlsError::Parse(text));
-    }
-    let url = response.url().clone();
-    let manifest_text = response.text().await?;
-
-    let parsed = m3u8_rs::parse_playlist_res(manifest_text.as_bytes())
-        .map_err(|e| HlsError::Parse(format!("{e:?}")))?;
-
-    let base = build_base_url(&url);
-
-    map_parsed_playlist(parsed, &base)
+    map_parsed_playlist(parsed, &url)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const BASE: &str = "https://example.com/path/{{URL}}";
+    const BASE: &str = "https://example.com/path/list.m3u8";
 
     /// 从仓库根目录的 test/fixtures/m3u8/ 加载 fixture 文本（编译期嵌入）。
     macro_rules! fixture {
@@ -201,34 +165,23 @@ mod tests {
     }
 
     fn parse_and_map(content: &str, base: &str) -> Result<ParseHlsResult, HlsError> {
-        let parsed = m3u8_rs::parse_playlist_res(content.as_bytes())
-            .map_err(|e| HlsError::Parse(format!("{e:?}")))?;
-        map_parsed_playlist(parsed, base)
-    }
-
-    // ── 单元工具函数 ──
-
-    #[test]
-    fn test_resolve_uri_absolute() {
-        let uri = "https://cdn.example.com/seg0.ts";
-        assert_eq!(resolve_uri(uri, BASE), uri);
+        parse_hls(content.as_bytes(), base)
     }
 
     #[test]
-    fn test_resolve_uri_relative() {
-        assert_eq!(
-            resolve_uri("seg0.ts", BASE),
-            "https://example.com/path/seg0.ts"
-        );
-    }
-
-    #[test]
-    fn test_build_base_url() {
-        let url = Url::parse("https://example.com/live/stream/manifest.m3u8").unwrap();
-        assert_eq!(
-            build_base_url(&url),
-            "https://example.com/live/stream/{{URL}}"
-        );
+    fn resolves_media_references_against_the_final_manifest_url() {
+        for (reference, expected) in [
+            ("clip.ts", "https://example.com/path/clip.ts"),
+            ("/clip.ts", "https://example.com/clip.ts"),
+            ("//cdn.example/clip.ts", "https://cdn.example/clip.ts"),
+            ("?part=2", "https://example.com/path/list.m3u8?part=2"),
+        ] {
+            let manifest = format!("#EXTM3U\n#EXTINF:1,\n{reference}\n#EXT-X-ENDLIST\n");
+            let ParseHlsResult::Segments(segments) = parse_and_map(&manifest, BASE).unwrap() else {
+                panic!("expected media playlist");
+            };
+            assert_eq!(segments[0].uri, expected);
+        }
     }
 
     // ── master playlist fixture 数据驱动 ──

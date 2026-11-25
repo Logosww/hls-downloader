@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+- Node playlist and poster caches are isolated by downloader instance and request context. `clearCache()` clears both for the current instance.
+- Node playlist and poster requests honor `signal` and enforce limits of 4 MiB per manifest and 16 MiB per poster segment.
+- Both adapters send explicit `Authorization` and `Cookie` headers to the entry origin and to origins in `trustedCredentialOrigins`. Node adds `nodeRequestPolicy` to restrict destinations. Use the built-in downloader for restricted or credentialed requests.
+
 ## [4.3.0] - 2026-11-15
 
 ### Added

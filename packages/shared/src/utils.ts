@@ -25,6 +25,7 @@ type BrandedInternal = HlsDownloaderAdapterInternal & {
 };
 
 export type DownloaderContext = {
+  readonly cacheOwner?: object;
   readonly internal: HlsDownloaderAdapterInternal;
   getGlobalOptions(): unknown | null;
   readonly operationId?: string;
@@ -38,6 +39,10 @@ function readContext(options?: Record<string, unknown>): DownloaderContext | und
   return (options as { [DOWNLOADER_CONTEXT]?: DownloaderContext } | undefined)?.[
     DOWNLOADER_CONTEXT
   ];
+}
+
+export function getCacheOwner(options: Record<string, unknown>): object | undefined {
+  return readContext(options)?.cacheOwner;
 }
 
 export function createAdapter(adapter: HlsDownloaderAdapterInternal) {

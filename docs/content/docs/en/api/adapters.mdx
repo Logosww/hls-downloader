@@ -11,6 +11,12 @@ Adapter-specific fields are passed via `HlsDownloader` constructor `options` / `
   WebCodecs for `transcode`; NodeAdapter uses bundled native FFmpeg libraries for transcoding.
 </Callout>
 
+## Request origins
+
+Set `trustedCredentialOrigins` on the downloader instance when a separate CDN needs the explicit `Authorization` or `Cookie` headers supplied for the entry URL. List full HTTP(S) origins including any non-default port. By default, only the entry origin receives these headers. This applies to nested playlists, keys, maps, subtitles and media, including live refreshes. Browser cookie handling still follows `browserRequest.credentials`. A custom fetch or key resolver controls any credentials and requests it adds itself.
+
+On Node, set `nodeRequestPolicy: { publicOnly: true }` for public HTTP(S) sources. This conservatively rejects special-purpose addresses and checks DNS results when connecting. Local sources work by default. To limit destinations further, set `allowedOrigins` to an array of origins. An empty array denies all destinations. Both checks apply to each redirect. A rejected destination reports `REQUEST_POLICY_DENIED`. With either restriction or explicit authentication headers, omit `aria2` to use the built-in downloader. Selecting aria2 in these cases reports `UNSUPPORTED_OUTPUT`.
+
 ## BrowserAdapter
 
 ```ts
